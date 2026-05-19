@@ -121,6 +121,7 @@ All optional — sensible defaults mean a clean install needs none.
 |---|---|---|
 | `SUPERBRAIN_VAULT` | `~/.superbrain/vault` | Where notes are written |
 | `CLAUDE_PLUGIN_DATA` | `~/.superbrain` | Runtime state (cursors, queue, rollup state) |
+| `SUPERBRAIN_MODEL` | `claude-sonnet-4-6` | Model used by the detached `claude -p` distill/rollup spawns. Pinned by default so the distiller never inherits your session's Opus and burns the daily quota; override to `claude-haiku-4-5-20251001` for cheaper-but-lower-quality, or `claude-opus-4-7` (best with `ANTHROPIC_API_KEY`) for higher quality. |
 | `ANTHROPIC_API_KEY` | *(unset)* | Optional escape hatch — distillation uses the API path instead of your subscription |
 
 > **Heads-up (2026-06-15):** background `claude -p` / Agent-SDK usage on subscription plans draws from a separate capped monthly credit after this date. If captures stop, SuperBrain surfaces a one-time notice on session start — set `ANTHROPIC_API_KEY` to switch to the API path.

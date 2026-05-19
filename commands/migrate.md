@@ -124,3 +124,12 @@ When done, print:
 
 Be concise. Don't dump full note contents to the user. Ask questions only when the locate step
 genuinely requires user input. Default to action once the plan is confirmed.
+
+# Tip: model for large vaults
+
+This slash command runs **in your active session**, at whatever Claude model you've selected —
+not on a pinned model. For a vault with hundreds of notes, categorization quality matters but
+Opus is expensive. Before invoking on a big vault, consider switching your session to Sonnet
+(`/model claude-sonnet-4-6`) — similar judgment quality at ~1/5 the cost. Switch back after.
+(The plugin's own detached distill/rollup spawns are already pinned to Sonnet by default; see
+`SUPERBRAIN_MODEL` in the README.)

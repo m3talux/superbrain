@@ -1,6 +1,23 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+
+// Pin the model on every detached `claude -p` distill/rollup spawn so it never
+// inherits the user's session model (which is often Opus, and burns daily
+// quota in hours — exactly the legacy-scribe bug we replaced). Default Sonnet
+// 4.6 balances quality (the distiller IS the product — the vault is only as
+// good as the routed notes it writes) against cost (~1/5 of Opus). Override
+// via SUPERBRAIN_MODEL for power users (e.g. claude-haiku-4-5-20251001 for
+// cheaper-but-lower-quality, or claude-opus-4-7 with ANTHROPIC_API_KEY set to
+// bypass subscription limits).
+export function distillModel(): string {
+  const v = process.env.SUPERBRAIN_MODEL;
+  return (v && v.trim()) ? v.trim() : "claude-sonnet-4-6";
+}
+function callClaude(prompt: string): string {
+  return execFileSync("claude", ["--model", distillModel(), "-p", prompt], { encoding: "utf8" });
+}
+
 import { readDelta } from "./ndjson.js";
 import { readCursor, writeCursor } from "./cursor.js";
 import { route, type DistilledItem } from "./router.js";
@@ -52,7 +69,7 @@ function getEnvelope(deltaJson: string): DistilledEnvelope {
   let curPrefs = "";
   try { curPrefs = fs.readFileSync(preferencesPath(), "utf8"); } catch { /* none yet */ }
   const fullPrompt = prompt + "\n\nCurrent preferences (reconcile, do not lose existing rules):\n" + (curPrefs || "(none)");
-  const out = execFileSync("claude", ["-p", fullPrompt], { encoding: "utf8" });
+  const out = callClaude(fullPrompt);
   return parseEnvelope(out);
 }
 
@@ -70,7 +87,7 @@ function getRollupItems(logContent: string, key: string): DistilledItem[] {
     `You are SuperBrain's daily rollup synthesizer. Given this activity log for ${key}, ` +
     'output ONLY a JSON object {"items":[{"kind":"capture","title":"Daily ' + key + '",' +
     `"body":"<synthesis>","date":"${key}","links":[]}]}. Activity log:\n` + logContent;
-  const out = execFileSync("claude", ["-p", prompt], { encoding: "utf8" });
+  const out = callClaude(prompt);
   return parseEnvelope(out).items;
 }
 

@@ -10,6 +10,13 @@ behavior may change without notice.
 
 ### Changed
 
+- The detached `claude -p` distill and rollup spawns now **pin the model**
+  (default `claude-sonnet-4-6`) instead of inheriting the user's session
+  model. Prevents the legacy-scribe failure mode where a user on Opus burned
+  the daily quota in hours. Override via the new `SUPERBRAIN_MODEL`
+  environment variable (e.g. `claude-haiku-4-5-20251001` for cheaper, or
+  `claude-opus-4-7` with `ANTHROPIC_API_KEY` for higher quality on the API
+  path).
 - `/superbrain:migrate` redesigned. The previous implementation archived a
   maintainer-specific legacy "scribe" setup — that was wrong for a public plugin
   (it only made sense on one machine). The new command is a **non-destructive
