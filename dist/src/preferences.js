@@ -5,9 +5,6 @@ import { parseNote } from "./frontmatter.js";
 export function preferencesPath() {
     return path.join(vaultPath(), "meta", "preferences.md");
 }
-export function normalizeBody(s) {
-    return s.replace(/\s+/g, " ").trim();
-}
 export function compileInjectionBlock() {
     let raw;
     try {
