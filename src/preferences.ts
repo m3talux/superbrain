@@ -7,10 +7,6 @@ export function preferencesPath(): string {
   return path.join(vaultPath(), "meta", "preferences.md");
 }
 
-export function normalizeBody(s: string): string {
-  return s.replace(/\s+/g, " ").trim();
-}
-
 export function compileInjectionBlock(): string {
   let raw: string;
   try { raw = fs.readFileSync(preferencesPath(), "utf8"); } catch { return ""; }
