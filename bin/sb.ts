@@ -1,38 +1,15 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import { dataDir, pluginRoot } from "../src/paths.js";
 import { markOwned, setRecordedVaultPath, MARKER } from "../src/vaultMarker.js";
 import { depsPresent, bootstrapDone } from "../src/bootstrap.js";
 
-function archiveCopyThenUnlink(src: string, destDir: string): void {
-  fs.mkdirSync(destDir, { recursive: true });
-  const dest = path.join(destDir, path.basename(src));
-  const stat = fs.statSync(src);
-  if (stat.isDirectory()) {
-    fs.cpSync(src, dest, { recursive: true });
-  } else {
-    fs.copyFileSync(src, dest);
-    const fd = fs.openSync(dest, "r"); try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
-  }
-  fs.rmSync(src, { recursive: true, force: true });
-}
-
-export function migrateLegacy(home = os.homedir(), dryRun = false): { archived: string[]; dryRun: boolean } {
-  const targets = [
-    path.join(home, ".claude", "hooks", "stop-scribe.sh"),
-    path.join(home, ".claude", "skills", "scribe"),
-  ].filter((t) => fs.existsSync(t));
-  if (dryRun) return { archived: targets.map((t) => path.basename(t)), dryRun: true };
-  const archived: string[] = [];
-  if (targets.length) {
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const destDir = path.join(dataDir(), "archived-legacy", stamp);
-    for (const t of targets) { archiveCopyThenUnlink(t, destDir); archived.push(path.basename(t)); }
-  }
-  return { archived, dryRun: false };
-}
+// The `migrate` flow is intentionally NOT a subcommand here: the new
+// /superbrain:migrate is a fully LLM-driven, non-destructive Obsidian-vault
+// import that lives entirely in commands/migrate.md (Claude reads the source
+// vault, categorizes notes, and copies them into the SuperBrain vault using
+// its own Read/Write tools at runtime). No CLI handler is needed.
 
 function doAdopt(target: string): void {
   const abs = path.resolve(target);
@@ -62,18 +39,11 @@ function main() {
     if (!args[0]) { console.log("usage: superbrain adopt <path>"); process.exit(2); }
     doAdopt(args[0]); return;
   }
-  if (cmd === "migrate") {
-    const r = migrateLegacy(os.homedir(), args.includes("--dry-run"));
-    if (r.dryRun) console.log(r.archived.length ? `[dry-run] would archive: ${r.archived.join(", ")}` : "[dry-run] nothing to migrate");
-    else console.log(r.archived.length ? `Archived: ${r.archived.join(", ")} -> ${path.join(dataDir(), "archived-legacy")}` : "Nothing to migrate (no legacy scribe found).");
-    console.log("Note: legacy MCP layers (mcpvault / claude-mem / obra knowledge-graph) are configured in your Claude settings, not files. Disable them there manually if desired.");
-    return;
-  }
   if (cmd === "install") {
     fs.mkdirSync(dataDir(), { recursive: true });
     console.log(bootstrapDone() ? "SuperBrain ready." : "SuperBrain installed; first-time dependency setup runs automatically on next Claude Code session.");
     return;
   }
-  console.log("usage: superbrain <adopt <path>|migrate [--dry-run]|install>");
+  console.log("usage: superbrain <adopt <path>|install>");
 }
 if ((process.argv[1] && process.argv[1].endsWith("sb.ts")) || process.argv[1]?.endsWith("sb.js")) main();
