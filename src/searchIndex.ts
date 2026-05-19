@@ -77,9 +77,11 @@ export function openIndex(): Index {
     upsertNote: (rp, mt, h, c, e) => upsert(rp, mt, h, c, e),
     deleteNote: (rp) => delByPath(rp),
     bm25: (q, k) => {
+      const terms = q.replace(/[^\w\s]/g, " ").trim().split(/\s+/).filter(Boolean);
+      const ftsQuery = terms.length ? terms.join(" OR ") : '""';
       const rows = db.prepare(
         "SELECT rowid FROM chunks_fts WHERE chunks_fts MATCH ? ORDER BY bm25(chunks_fts) LIMIT ?"
-      ).all(q.replace(/[^\w\s]/g, " ").trim() || '""', k) as { rowid: number }[];
+      ).all(ftsQuery, k) as { rowid: number }[];
       return hydrate(rows.map((r) => r.rowid));
     },
     vectorKNN: (v, k) => {
