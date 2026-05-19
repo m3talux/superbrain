@@ -1,6 +1,6 @@
 import matter from "gray-matter";
 
-const VALID_TYPES = ["project", "person", "decision", "capture", "daily", "map", "summary"];
+const VALID_TYPES = ["project", "person", "decision", "capture", "daily", "map", "summary", "lesson", "preference"];
 const VALID_STATUS = ["active", "paused", "done", "archived"];
 
 export function parseNote(raw: string): { data: Record<string, any>; content: string } {
@@ -13,7 +13,7 @@ export function serializeNote(data: Record<string, any>, content: string): strin
 export function validateFrontmatter(data: Record<string, any>): string[] {
   const errs: string[] = [];
   if (!data.type || !VALID_TYPES.includes(data.type)) errs.push(`type must be one of ${VALID_TYPES.join("|")}`);
-  if (data.type && !["daily", "map", "summary"].includes(data.type)) {
+  if (data.type && !["daily", "map", "summary", "preference"].includes(data.type)) {
     if (!data.status || !VALID_STATUS.includes(data.status)) errs.push(`status must be one of ${VALID_STATUS.join("|")}`);
   }
   for (const [k, v] of Object.entries(data)) {
