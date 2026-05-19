@@ -34,15 +34,15 @@ function main() {
     if (!acquireLock("distill")) process.exit(0); // another distill in flight; cursor covers us next time
 
     try {
-      const promptFile = path.join(dataDir(), "transcripts", `${sid}.prompt.json`);
-      fs.mkdirSync(path.dirname(promptFile), { recursive: true });
-      fs.writeFileSync(promptFile, JSON.stringify({ session_id: sid, event, transcript_copy: copy, cwd: h.cwd }));
-
       if (process.env.SUPERBRAIN_FAKE_DISTILLER === "1") {
         fs.writeFileSync(path.join(dataDir(), "distill-invoked"), String(event));
         releaseLock("distill");
       } else {
-        const spec = buildDistillCommand({ promptFile, cwd: h.cwd || process.cwd() });
+        // Spawn the real writer: node dist/bin/sb-distill.js
+        // It runs claude -p itself (getItems), routes/writes/logs/advances cursor/releases lock.
+        const rawCwd = h.cwd || process.cwd();
+        const safeCwd = (rawCwd && fs.existsSync(rawCwd)) ? rawCwd : process.cwd();
+        const spec = buildDistillCommand({ sessionId: sid, cwd: safeCwd });
         const child = spawn(spec.cmd, spec.args, spec.options);
         child.on("error", (e) => { writeFailure(`distiller spawn failed: ${e.message}`); releaseLock("distill"); });
         child.unref(); // detached; sb-distill releases the lock when done

@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import { readAndClearFailure } from "../src/sentinel.js";
 import { needsRollup, markRollup } from "../src/rollupState.js";
 import { dataDir, vaultPath } from "../src/paths.js";
-import { isChild } from "../src/distillerEngine.js";
+import { isChild, buildDistillCommand } from "../src/distillerEngine.js";
 
 function yesterday(): string {
   const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10);
@@ -16,7 +17,7 @@ function sourceHash(): string {
   } catch { return "0"; }
 }
 
-async function main() {
+function main() {
   if (isChild()) process.exit(0);
   try {
     const fail = readAndClearFailure();
@@ -30,15 +31,17 @@ async function main() {
       if (process.env.SUPERBRAIN_FAKE_DISTILLER === "1") {
         fs.mkdirSync(dataDir(), { recursive: true });
         fs.writeFileSync(path.join(dataDir(), "rollup-invoked"), key);
+        markRollup("daily", key, h);
       } else {
         try {
-          const { spawn } = await import("node:child_process");
-          const c = spawn("claude", ["-p", `Run superbrain-distill in rollup mode for daily ${key}.`],
-            { detached: true, stdio: "ignore", env: { ...process.env, SUPERBRAIN_CHILD: "1" }, cwd: vaultPath() });
+          // Spawn the real writer detached; it calls markRollup on success (conditional).
+          const spec = buildDistillCommand({ sessionId: `rollup-${key}`, cwd: vaultPath(), rollup: `daily:${key}:${h}` });
+          const c = spawn(spec.cmd, spec.args, spec.options);
           c.unref();
         } catch { /* non-fatal */ }
+        // Do NOT call markRollup here — the spawned child marks it on success.
+        // This preserves self-heal: if the child fails, needsRollup will be true next time.
       }
-      markRollup("daily", key, h);
       parts.push(`SuperBrain: generating daily rollup for ${key}.`);
     }
 
