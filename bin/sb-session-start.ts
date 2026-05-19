@@ -7,14 +7,12 @@ import { needsRollup, markRollup } from "../src/rollupState.js";
 import { dataDir, vaultPath } from "../src/paths.js";
 import { isChild, buildDistillCommand } from "../src/distillerEngine.js";
 
+// Stable per-day gate value. The rollup's own writes cannot change this string,
+// so needsRollup returns false for an already-processed key → converges.
+const ROLLUP_HASH = "v1";
+
 function yesterday(): string {
   const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10);
-}
-function sourceHash(): string {
-  try {
-    const p = path.join(vaultPath(), "log.md");
-    return String(fs.statSync(p).size);
-  } catch { return "0"; }
 }
 
 function main() {
@@ -26,16 +24,17 @@ function main() {
 
     // Idempotent daily catch-up (capped to yesterday only for Phase 1).
     const key = yesterday();
-    const h = sourceHash();
-    if (needsRollup("daily", key, h)) {
+    if (needsRollup("daily", key, ROLLUP_HASH)) {
       if (process.env.SUPERBRAIN_FAKE_DISTILLER === "1") {
         fs.mkdirSync(dataDir(), { recursive: true });
         fs.writeFileSync(path.join(dataDir(), "rollup-invoked"), key);
-        markRollup("daily", key, h);
+        markRollup("daily", key, ROLLUP_HASH);
       } else {
         try {
+          // Ensure the vault directory exists so spawn's cwd is valid.
+          fs.mkdirSync(vaultPath(), { recursive: true });
           // Spawn the real writer detached; it calls markRollup on success (conditional).
-          const spec = buildDistillCommand({ sessionId: `rollup-${key}`, cwd: vaultPath(), rollup: `daily:${key}:${h}` });
+          const spec = buildDistillCommand({ sessionId: `rollup-${key}`, cwd: vaultPath(), rollup: `daily:${key}:${ROLLUP_HASH}` });
           const c = spawn(spec.cmd, spec.args, spec.options);
           c.unref();
         } catch { /* non-fatal */ }
