@@ -12,18 +12,43 @@ import { vaultPath } from "../src/paths.js";
 import { markRollup } from "../src/rollupState.js";
 import { indexNote } from "../src/indexer.js";
 
-function getItems(deltaJson: string): DistilledItem[] {
+export interface DistilledEnvelope {
+  items: DistilledItem[];
+  digest?: string;
+  openThreads: string[];
+  alsoDid: string[];
+}
+
+export function parseEnvelope(raw: string): DistilledEnvelope {
+  let v: any;
+  try {
+    const m = raw.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+    v = JSON.parse(m ? m[0] : raw);
+  } catch { return { items: [], openThreads: [], alsoDid: [] }; }
+  if (Array.isArray(v)) return { items: v as DistilledItem[], openThreads: [], alsoDid: [] };
+  return {
+    items: Array.isArray(v.items) ? v.items as DistilledItem[] : [],
+    digest: typeof v.digest === "string" ? v.digest : undefined,
+    openThreads: Array.isArray(v.openThreads) ? v.openThreads : [],
+    alsoDid: Array.isArray(v.alsoDid) ? v.alsoDid : [],
+  };
+}
+
+function getEnvelope(deltaJson: string): DistilledEnvelope {
   const stub = process.env.SUPERBRAIN_DISTILL_STUB;
-  if (stub) return JSON.parse(fs.readFileSync(stub, "utf8"));
+  if (stub) return parseEnvelope(fs.readFileSync(stub, "utf8"));
   const prompt =
     "You are SuperBrain's distiller. Given this JSON array of session events and " +
-    "salient markers, output ONLY a JSON array of items: " +
-    '{kind:"decision|project_fact|person|gotcha|capture",title,body,date(YYYY-MM-DD),' +
-    "links:[],project?,person?}. Capture decisions, project facts, gotchas, people. " +
-    "Skip ephemeral noise. Events:\n" + deltaJson;
+    "salient markers (including 'pushback' markers), output ONLY a JSON object: " +
+    '{"items":[{kind:"decision|project_fact|person|gotcha|capture|lesson|preference",' +
+    "title,body,date(YYYY-MM-DD),links:[],project?,person?,rule?}]," +
+    '"digest"?:string,"openThreads"?:[string],"alsoDid"?:[string]}. ' +
+    "Emit a lesson ONLY if the pushback implies a generalizable rule (skip one-off " +
+    "fixes); a generalizable lesson sets rule and ALSO emits exactly one preference " +
+    "item whose body is the FULL reconciled preferences doc (you are given the current " +
+    "one below). Skip ephemeral noise. Events:\n" + deltaJson;
   const out = execFileSync("claude", ["-p", prompt], { encoding: "utf8" });
-  const m = out.match(/\[[\s\S]*\]/);
-  return m ? JSON.parse(m[0]) : [];
+  return parseEnvelope(out);
 }
 
 function appendLog(title: string, rel: string) {
@@ -35,16 +60,13 @@ function appendLog(title: string, rel: string) {
 
 function getRollupItems(logContent: string, key: string): DistilledItem[] {
   const stub = process.env.SUPERBRAIN_DISTILL_STUB;
-  if (stub) return JSON.parse(fs.readFileSync(stub, "utf8"));
+  if (stub) return parseEnvelope(fs.readFileSync(stub, "utf8")).items;
   const prompt =
     `You are SuperBrain's daily rollup synthesizer. Given this activity log for ${key}, ` +
-    "output ONLY a JSON array containing exactly ONE item: " +
-    `{"kind":"capture","title":"Daily ${key}","body":"<synthesis of the day's activity>",` +
-    `"date":"${key}","links":[]}. Synthesize the key activities, decisions, and facts from this day. ` +
-    "Activity log:\n" + logContent;
+    'output ONLY a JSON object {"items":[{"kind":"capture","title":"Daily ' + key + '",' +
+    `"body":"<synthesis>","date":"${key}","links":[]}]}. Activity log:\n` + logContent;
   const out = execFileSync("claude", ["-p", prompt], { encoding: "utf8" });
-  const m = out.match(/\[[\s\S]*\]/);
-  return m ? JSON.parse(m[0]) : [];
+  return parseEnvelope(out).items;
 }
 
 async function mainRollup(rollupEnv: string) {
@@ -92,7 +114,8 @@ async function main() {
     const from = readCursor(sid);
     const { events, newOffset } = readDelta(sid, from);
     if (events.length === 0) { releaseLock("distill"); process.exit(0); }
-    const items = getItems(JSON.stringify(events));
+    const env = getEnvelope(JSON.stringify(events));
+    const items = env.items;
     for (const it of items) {
       const r = route(it);
       const res = writeNote(r.relPath, { frontmatter: r.frontmatter, body: r.body, mode: r.mode });
@@ -109,4 +132,5 @@ async function main() {
   }
   process.exit(0);
 }
-main();
+// Run main() only when executed as a script (not imported by tests)
+if (process.argv[1] && (process.argv[1].endsWith("sb-distill.ts") || process.argv[1].endsWith("sb-distill.js"))) main();
