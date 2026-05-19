@@ -13,6 +13,7 @@ import { markRollup } from "../src/rollupState.js";
 import { indexNote } from "../src/indexer.js";
 import { upsertDay } from "../src/dailyState.js";
 import { buildDailyNote } from "../src/dailyNote.js";
+import { preferencesPath } from "../src/preferences.js";
 
 export interface DistilledEnvelope {
   items: DistilledItem[];
@@ -49,7 +50,10 @@ function getEnvelope(deltaJson: string): DistilledEnvelope {
     "fixes); a generalizable lesson sets rule and ALSO emits exactly one preference " +
     "item whose body is the FULL reconciled preferences doc (you are given the current " +
     "one below). Skip ephemeral noise. Events:\n" + deltaJson;
-  const out = execFileSync("claude", ["-p", prompt], { encoding: "utf8" });
+  let curPrefs = "";
+  try { curPrefs = fs.readFileSync(preferencesPath(), "utf8"); } catch { /* none yet */ }
+  const fullPrompt = prompt + "\n\nCurrent preferences (reconcile, do not lose existing rules):\n" + (curPrefs || "(none)");
+  const out = execFileSync("claude", ["-p", fullPrompt], { encoding: "utf8" });
   return parseEnvelope(out);
 }
 
