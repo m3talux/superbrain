@@ -11,6 +11,8 @@ import { writeFailure } from "../src/sentinel.js";
 import { vaultPath } from "../src/paths.js";
 import { markRollup } from "../src/rollupState.js";
 import { indexNote } from "../src/indexer.js";
+import { upsertDay } from "../src/dailyState.js";
+import { buildDailyNote } from "../src/dailyNote.js";
 
 export interface DistilledEnvelope {
   items: DistilledItem[];
@@ -116,14 +118,32 @@ async function main() {
     if (events.length === 0) { releaseLock("distill"); process.exit(0); }
     const env = getEnvelope(JSON.stringify(events));
     const items = env.items;
+    const routedByDate: Record<string, string[]> = {};
     for (const it of items) {
       const r = route(it);
       const res = writeNote(r.relPath, { frontmatter: r.frontmatter, body: r.body, mode: r.mode });
       if (res.ok) {
         appendLog(it.title || it.kind, r.relPath);
         try { await indexNote(r.relPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
+        (routedByDate[it.date] ||= []).push(r.relPath);
       }
     }
+    // Daily journal: record this session's contribution + regenerate the note(s).
+    try {
+      const dates = Object.keys(routedByDate);
+      const today = new Date().toISOString().slice(0, 10);
+      for (const d of dates.length ? dates : [today]) {
+        upsertDay(d, sid, {
+          digestLine: env.digest || "",
+          routedRelPaths: routedByDate[d] || [],
+          alsoDid: env.alsoDid,
+          openThreads: env.openThreads,
+        });
+        const dn = buildDailyNote(d);
+        writeNote(dn.relPath, { frontmatter: dn.frontmatter, body: dn.body, mode: dn.mode });
+        try { await indexNote(dn.relPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
+      }
+    } catch (e: any) { writeFailure(`daily note failed: ${e?.message || e}`); }
     writeCursor(sid, newOffset);
   } catch (e: any) {
     writeFailure(`distill failed: ${e?.message || e}`);
