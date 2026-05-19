@@ -29,17 +29,20 @@ The design — and the research and adversarial red-team behind every decision �
 
 ## Quick start
 
-```bash
+```text
 # In Claude Code:
 /plugin marketplace add m3talux/superbrain
 /plugin install superbrain
-
-# Then once, in a terminal:
-superbrain install                 # creates the data dir
-superbrain migrate                 # optional: archives a legacy custom scribe (never deletes)
 ```
 
-Installed at **user scope**, the plugin's hooks register for *every* project automatically. Point Obsidian at the vault (default `~/vault`, override with `SUPERBRAIN_VAULT`) and you're done. There is nothing else to do — ever.
+That's it. On the **first session** the plugin runs a one-time setup (installs its
+search dependencies in the background) and tells you it's doing so; capture is fully
+active from the next session. By default SuperBrain writes to its own vault at
+`~/.superbrain/vault`. To use an existing Obsidian vault instead, run
+`/superbrain:adopt /path/to/your/vault` (or set `SUPERBRAIN_VAULT`). Optional:
+`/superbrain:migrate` archives a legacy custom scribe (never deletes; `--dry-run` to preview).
+
+Installed at **user scope**, the plugin's hooks register for *every* project automatically — there is nothing else to do, ever.
 
 ## How it works
 
@@ -143,7 +146,7 @@ Phase 2 gets its own spec → plan → review cycle, same as Phase 1.
 npm install
 npm run typecheck     # tsc --noEmit, zero errors
 npm run build         # → dist/
-npm test              # 52 tests across 21 files
+npm test              # full suite (unit + integration + fresh-clone E2E)
 ```
 
 Built test-first, task-by-task, with a two-stage (spec + code-quality) review on every unit and an independent end-to-end holistic review gate. The full implementation plan is in [`docs/superpowers/plans/`](docs/superpowers/plans/).
