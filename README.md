@@ -8,13 +8,14 @@ Every Claude Code session — across every project, on every machine — is capt
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-black.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-black.svg)](package.json)
-[![Status](https://img.shields.io/badge/phase%203-personalization-success.svg)](#roadmap)
-[![Tests](https://img.shields.io/badge/tests-111%20passing-success.svg)](#development)
+[![CI](https://github.com/m3talux/superbrain/actions/workflows/ci.yml/badge.svg)](https://github.com/m3talux/superbrain/actions/workflows/ci.yml)
 [![Storage](https://img.shields.io/badge/storage-plain%20Obsidian%20markdown-blueviolet.svg)](#vault-structure)
 
 </div>
 
 ---
+
+> **Status:** in active development. Interfaces and behavior may change before a tagged release.
 
 ## Why
 
@@ -25,7 +26,7 @@ The Claude Code memory ecosystem has split in two, and neither half is what you 
 
 **No mature tool does all of:** globally installed → automatic capture → into a plain Obsidian vault → with time-based rollups → that you fully own and can `git`-sync. SuperBrain is that missing bridge.
 
-The design — and the research and adversarial red-team behind every decision — lives in [`docs/superpowers/specs/`](docs/superpowers/specs/) and [`docs/superpowers/plans/`](docs/superpowers/plans/). This isn't vibes: ~23 prior-art projects and the current Claude Code platform were surveyed, and every architectural call was challenged before a line was written.
+This isn't vibes: ~23 prior-art projects and the current Claude Code platform were surveyed, and every architectural decision was challenged before a line was written.
 
 ## Quick start
 
@@ -65,7 +66,7 @@ flowchart LR
 
 ## Features
 
-**Phase 1 — capture spine (shipped, v0.1.0):**
+**Capture**
 
 - ✅ Globally installed, zero per-project setup, **no API key** (reuses your Claude Code auth)
 - ✅ Automatic capture that does **not** degrade on multi-day sessions
@@ -76,7 +77,7 @@ flowchart LR
 - ✅ Idempotent & resumable (byte cursor + `log.md`); silent failures surface once on next session
 - ✅ One-command migration off a legacy custom scribe (archives, never deletes)
 
-**Phase 2 — search & recall (shipped, v0.2.0):**
+**Search & recall**
 
 - ✅ Local hybrid search — FTS5 (BM25) + sqlite-vec, fused with Reciprocal Rank Fusion
 - ✅ Tiered autonomous recall: BM25 pointers injected on **every prompt** (no model load, no daemon); full hybrid digest on session start
@@ -84,24 +85,28 @@ flowchart LR
 - ✅ Incremental index on write + self-healing reconcile on session start (Obsidian-edit / git-pull drift)
 - ✅ All-local embeddings (MiniLM, fetched once & cached); automatic BM25 fallback — search is never hard-down
 
-**Phase 3 — personalization & journaling (shipped, v0.3.0):**
+**Personalization & journaling**
 
 - ✅ Daily notes — hybrid digest + linked index, idempotently regenerated per day
 - ✅ Lessons — durable, generalizable rules learned from your pushback
 - ✅ Preferences — a deduplicated profile auto-injected at SessionStart (never edits your `CLAUDE.md`)
 
-**Phase 2.1 — planned:** auto-generated Maps-of-Content (`maps/`) + Karpathy lint pass.
+**Planned**
+
+- Auto-generated Maps-of-Content (`maps/`) + a lint pass.
 
 ## Vault structure
 
 ```
-~/vault/
+~/.superbrain/vault/
 ├── projects/      one note per project — status, decisions, current focus
 ├── people/        one note per person — role, context, threads
 ├── decisions/     atomic, date-prefixed ADR-style notes
 ├── daily/         auto-written daily activity
+├── lessons/       durable, generalizable rules learned from your pushback
 ├── capture/       raw inbound, triaged by rollups
-├── maps/          auto-generated Maps-of-Content   (Phase 2.1)
+├── meta/          preferences.md — deduplicated profile auto-injected at SessionStart
+├── maps/          auto-generated Maps-of-Content   (planned)
 ├── index.md       catalog — the primary navigation surface
 └── log.md         append-only, grep-parseable timeline
 ```
@@ -114,7 +119,7 @@ All optional — sensible defaults mean a clean install needs none.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `SUPERBRAIN_VAULT` | `~/vault`, else `~/Documents/SuperBrain` | Where notes are written |
+| `SUPERBRAIN_VAULT` | `~/.superbrain/vault` | Where notes are written |
 | `CLAUDE_PLUGIN_DATA` | `~/.superbrain` | Runtime state (cursors, queue, rollup state) |
 | `ANTHROPIC_API_KEY` | *(unset)* | Optional escape hatch — distillation uses the API path instead of your subscription |
 
@@ -130,26 +135,17 @@ Enforced, tested invariants — not aspirations:
 - **Idempotent & self-healing.** Byte cursor + grep-parseable log + hash-gated rollups; a missed or killed run is recovered next session.
 - **No daemon, no scheduler, no API key.** One detached process per checkpoint — nothing to supervise, nothing to leak.
 
-## Roadmap
-
-| Phase | Scope | Status |
-|---|---|---|
-| **1 — Capture spine** | Observer, salience, checkpoint distiller, router, vault writer, rollup catch-up, migration | ✅ Shipped |
-| **2 — Search & recall** | sqlite-vec + FTS5 hybrid search, autonomous `SessionStart`/`UserPromptSubmit` recall injection, `superbrain-recall` skill, MOC generation | ✅ Shipped (v0.2.0) |
-| **3 — Personalization & journaling** | Daily notes, lessons from pushback, deduplicated preference profile auto-injected at SessionStart | ✅ Shipped (v0.3.0) |
-
-Phase 2 gets its own spec → plan → review cycle, same as Phase 1.
-
 ## Development
 
 ```bash
-npm install
+npm ci
 npm run typecheck     # tsc --noEmit, zero errors
 npm run build         # → dist/
 npm test              # full suite (unit + integration + fresh-clone E2E)
+npm run release:check # build is reproducible: committed dist/ matches source
 ```
 
-Built test-first, task-by-task, with a two-stage (spec + code-quality) review on every unit and an independent end-to-end holistic review gate. The full implementation plan is in [`docs/superpowers/plans/`](docs/superpowers/plans/).
+Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Acknowledgements
 
