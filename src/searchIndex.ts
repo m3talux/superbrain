@@ -43,9 +43,9 @@ export function openIndex(): Index {
   `);
 
   const delByPath = db.transaction((relPath: string) => {
-    const rows = db.prepare("SELECT id, text FROM chunks WHERE rel_path=?").all(relPath) as { id: number; text: string }[];
+    const rows = db.prepare("SELECT id, heading_path, text FROM chunks WHERE rel_path=?").all(relPath) as { id: number; heading_path: string; text: string }[];
     for (const r of rows) {
-      db.prepare("INSERT INTO chunks_fts(chunks_fts, rowid, text) VALUES ('delete', ?, ?)").run(r.id, r.text);
+      db.prepare("INSERT INTO chunks_fts(chunks_fts, rowid, text) VALUES ('delete', ?, ?)").run(r.id, (r.heading_path ? r.heading_path + " " : "") + r.text);
       db.prepare("DELETE FROM vec_chunks WHERE chunk_id=?").run(BigInt(r.id));
     }
     db.prepare("DELETE FROM chunks WHERE rel_path=?").run(relPath);
@@ -62,7 +62,7 @@ export function openIndex(): Index {
     delByPath(relPath);
     chunks.forEach((c, i) => {
       const id = Number(insChunk.run(relPath, c.headingPath, c.anchor, c.text).lastInsertRowid);
-      insFts.run(id, c.text);
+      insFts.run(id, (c.headingPath ? c.headingPath + " " : "") + c.text);
       insVec.run(BigInt(id), JSON.stringify(Array.from(embs[i])));
     });
     insNote.run(relPath, mtime, hash);

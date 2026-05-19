@@ -10,6 +10,7 @@ import { releaseLock } from "../src/lockfile.js";
 import { writeFailure } from "../src/sentinel.js";
 import { vaultPath } from "../src/paths.js";
 import { markRollup } from "../src/rollupState.js";
+import { indexNote } from "../src/indexer.js";
 
 function getItems(deltaJson: string): DistilledItem[] {
   const stub = process.env.SUPERBRAIN_DISTILL_STUB;
@@ -46,7 +47,7 @@ function getRollupItems(logContent: string, key: string): DistilledItem[] {
   return m ? JSON.parse(m[0]) : [];
 }
 
-function mainRollup(rollupEnv: string) {
+async function mainRollup(rollupEnv: string) {
   // Format: daily:<key>:<hash>
   const parts = rollupEnv.split(":");
   // parts[0] = "daily", parts[1] = key (YYYY-MM-DD), parts[2] = hash
@@ -63,7 +64,10 @@ function mainRollup(rollupEnv: string) {
     for (const it of items) {
       const r = route(it);
       const res = writeNote(r.relPath, { frontmatter: r.frontmatter, body: r.body, mode: r.mode });
-      if (res.ok) appendLog(it.title || it.kind, r.relPath);
+      if (res.ok) {
+        appendLog(it.title || it.kind, r.relPath);
+        try { await indexNote(r.relPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
+      }
     }
     // Mark rollup complete only on success
     markRollup(kind, key, hash);
@@ -75,10 +79,10 @@ function mainRollup(rollupEnv: string) {
   process.exit(0);
 }
 
-function main() {
+async function main() {
   const rollupEnv = process.env.SUPERBRAIN_ROLLUP;
   if (rollupEnv) {
-    mainRollup(rollupEnv);
+    await mainRollup(rollupEnv);
     return;
   }
 
@@ -92,7 +96,10 @@ function main() {
     for (const it of items) {
       const r = route(it);
       const res = writeNote(r.relPath, { frontmatter: r.frontmatter, body: r.body, mode: r.mode });
-      if (res.ok) appendLog(it.title || it.kind, r.relPath);
+      if (res.ok) {
+        appendLog(it.title || it.kind, r.relPath);
+        try { await indexNote(r.relPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
+      }
     }
     writeCursor(sid, newOffset);
   } catch (e: any) {

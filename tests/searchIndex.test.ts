@@ -52,4 +52,24 @@ describe("searchIndex", () => {
     expect(r[0].text).toBe("alpha");
     ix.close();
   });
+  it("re-upsert/delete purges FTS heading terms (no stale contentless rows)", () => {
+    const ix = openIndex();
+    ix.upsertNote("p/h.md", 1, "h1",
+      [{ headingPath: "Decisions", anchor: "decisions", text: "chose approach alpha" }],
+      [vec(0.1)]);
+    expect(ix.bm25("Decisions", 5).length).toBe(1);   // heading term searchable
+    expect(ix.bm25("alpha", 5).length).toBe(1);
+    // re-upsert same note with different heading+body
+    ix.upsertNote("p/h.md", 2, "h2",
+      [{ headingPath: "Gotchas", anchor: "gotchas", text: "bug beta" }],
+      [vec(0.2)]);
+    expect(ix.bm25("Decisions", 5).length).toBe(0);   // OLD heading term gone (no stale FTS row)
+    expect(ix.bm25("alpha", 5).length).toBe(0);
+    expect(ix.bm25("Gotchas", 5).length).toBe(1);     // new heading searchable
+    // delete entirely
+    ix.deleteNote("p/h.md");
+    expect(ix.bm25("Gotchas", 5).length).toBe(0);     // heading term purged on delete too
+    expect(ix.bm25("beta", 5).length).toBe(0);
+    ix.close();
+  });
 });

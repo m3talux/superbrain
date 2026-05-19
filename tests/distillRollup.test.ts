@@ -16,7 +16,8 @@ it("rollup mode writes a daily note and marks rollup state", () => {
   fs.mkdirSync("/tmp/sb-dr/locks/distill.lock", { recursive: true });
   execFileSync("npx", ["tsx", "bin/sb-distill.ts"], {
     env: { ...process.env, CLAUDE_PLUGIN_DATA: "/tmp/sb-dr", SUPERBRAIN_VAULT: "/tmp/sb-dr-vault",
-      SUPERBRAIN_DISTILL_STUB: stub, SUPERBRAIN_ROLLUP: "daily:2026-05-18:42" },
+      SUPERBRAIN_DISTILL_STUB: stub, SUPERBRAIN_ROLLUP: "daily:2026-05-18:42",
+      SUPERBRAIN_EMBED_STUB: "1" },
     encoding: "utf8",
   });
   expect(fs.existsSync("/tmp/sb-dr-vault/capture/2026-05-18-daily-2026-05-18.md")).toBe(true);

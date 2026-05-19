@@ -21,7 +21,7 @@ it("distills delta into routed notes, log.md, advances cursor, releases lock", (
   execFileSync("npx", ["tsx", "bin/sb-distill.ts"], {
     env: { ...process.env, CLAUDE_PLUGIN_DATA: "/tmp/sb-dist",
       SUPERBRAIN_VAULT: "/tmp/sb-dist-vault", SUPERBRAIN_DISTILL_STUB: stub,
-      SUPERBRAIN_SESSION_ID: "S" },
+      SUPERBRAIN_SESSION_ID: "S", SUPERBRAIN_EMBED_STUB: "1" },
     encoding: "utf8",
   });
 
