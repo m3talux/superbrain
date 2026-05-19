@@ -2,7 +2,9 @@
   "name": "superbrain",
   "version": "0.1.0",
   "description": "Automatic Claude Code -> Obsidian second brain: zero-config session capture, hybrid search, autonomous recall, daily/lessons/preferences.",
-  "author": "Alex",
+  "author": {
+    "name": "m3talux"
+  },
   "license": "MIT",
   "hooks": "./hooks/hooks.json",
   "skills": ["./skills/superbrain-distill", "./skills/superbrain-recall"],
