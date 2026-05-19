@@ -8,8 +8,8 @@ Every Claude Code session — across every project, on every machine — is capt
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-black.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-black.svg)](package.json)
-[![Status](https://img.shields.io/badge/phase%202-search%20%26%20recall-success.svg)](#roadmap)
-[![Tests](https://img.shields.io/badge/tests-79%20passing-success.svg)](#development)
+[![Status](https://img.shields.io/badge/phase%203-personalization-success.svg)](#roadmap)
+[![Tests](https://img.shields.io/badge/tests-111%20passing-success.svg)](#development)
 [![Storage](https://img.shields.io/badge/storage-plain%20Obsidian%20markdown-blueviolet.svg)](#vault-structure)
 
 </div>
@@ -81,6 +81,12 @@ flowchart LR
 - ✅ Incremental index on write + self-healing reconcile on session start (Obsidian-edit / git-pull drift)
 - ✅ All-local embeddings (MiniLM, fetched once & cached); automatic BM25 fallback — search is never hard-down
 
+**Phase 3 — personalization & journaling (shipped, v0.3.0):**
+
+- ✅ Daily notes — hybrid digest + linked index, idempotently regenerated per day
+- ✅ Lessons — durable, generalizable rules learned from your pushback
+- ✅ Preferences — a deduplicated profile auto-injected at SessionStart (never edits your `CLAUDE.md`)
+
 **Phase 2.1 — planned:** auto-generated Maps-of-Content (`maps/`) + Karpathy lint pass.
 
 ## Vault structure
@@ -127,6 +133,7 @@ Enforced, tested invariants — not aspirations:
 |---|---|---|
 | **1 — Capture spine** | Observer, salience, checkpoint distiller, router, vault writer, rollup catch-up, migration | ✅ Shipped |
 | **2 — Search & recall** | sqlite-vec + FTS5 hybrid search, autonomous `SessionStart`/`UserPromptSubmit` recall injection, `superbrain-recall` skill, MOC generation | ✅ Shipped (v0.2.0) |
+| **3 — Personalization & journaling** | Daily notes, lessons from pushback, deduplicated preference profile auto-injected at SessionStart | ✅ Shipped (v0.3.0) |
 
 Phase 2 gets its own spec → plan → review cycle, same as Phase 1.
 
