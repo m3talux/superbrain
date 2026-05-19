@@ -23,16 +23,8 @@ it("adopt marks + records a writable dir, refuses a file", () => {
   expect(() => run(["adopt", "/tmp/sb-am-file"])).toThrow();
 });
 
-it("migrate copies-then-unlinks legacy scribe, idempotent, dry-run is inert", () => {
-  const hooks = "/tmp/sb-am-home/.claude/hooks";
-  fs.mkdirSync(hooks, { recursive: true });
-  fs.writeFileSync(`${hooks}/stop-scribe.sh`, "#legacy\n");
-  run(["migrate", "--dry-run"], { HOME: "/tmp/sb-am-home" });
-  expect(fs.existsSync(`${hooks}/stop-scribe.sh`)).toBe(true); // dry-run: untouched
-  run(["migrate"], { HOME: "/tmp/sb-am-home" });
-  expect(fs.existsSync(`${hooks}/stop-scribe.sh`)).toBe(false); // moved
-  const archived = fs.readdirSync("/tmp/sb-am/archived-legacy");
-  expect(archived.length).toBe(1);
-  const r2 = run(["migrate"], { HOME: "/tmp/sb-am-home" }); // idempotent
-  expect(r2).toMatch(/nothing to migrate|no legacy/i);
-});
+// The `migrate` subcommand was removed. /superbrain:migrate is now a fully
+// LLM-driven non-destructive Obsidian-vault import (commands/migrate.md), with
+// no CLI handler to unit-test. Its hard invariants (source read-only, never
+// overwrite, idempotent on re-run) are encoded in the slash-command's
+// instructions and lint-checked by tests/migrateCommand.test.ts.

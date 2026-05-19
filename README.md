@@ -41,7 +41,7 @@ search dependencies in the background) and tells you it's doing so; capture is f
 active from the next session. By default SuperBrain writes to its own vault at
 `~/.superbrain/vault`. To use an existing Obsidian vault instead, run
 `/superbrain:adopt /path/to/your/vault` (or set `SUPERBRAIN_VAULT`). Optional:
-`/superbrain:migrate` archives a legacy custom scribe (never deletes; `--dry-run` to preview).
+`/superbrain:migrate` folds an existing Obsidian vault into SuperBrain's structure — **non-destructive** (only reads the source, copies into the SuperBrain vault); pass a path or let Claude auto-detect it; `--dry-run` to preview.
 
 Installed at **user scope**, the plugin's hooks register for *every* project automatically — there is nothing else to do, ever.
 

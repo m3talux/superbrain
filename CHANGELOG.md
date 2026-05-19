@@ -8,7 +8,24 @@ behavior may change without notice.
 
 ## [Unreleased]
 
-_Work in progress._
+### Changed
+
+- `/superbrain:migrate` redesigned. The previous implementation archived a
+  maintainer-specific legacy "scribe" setup — that was wrong for a public plugin
+  (it only made sense on one machine). The new command is a **non-destructive
+  import** of an existing Obsidian vault into SuperBrain's category structure:
+  auto-locates the source via Obsidian's own vault registry (with interactive
+  fallback), classifies each note, and **copies** into SuperBrain's vault with
+  `migrated_from`/`migrated_at` frontmatter; idempotent on re-run; collision
+  rename (never overwrite); `--dry-run` previews the plan. The source vault is
+  never modified.
+
+### Removed
+
+- `migrateLegacy()` / `archiveCopyThenUnlink()` and the `sb migrate` CLI
+  subcommand in `bin/sb.ts` (and their tests in `tests/install.test.ts` +
+  `tests/sbAdoptMigrate.test.ts`). The migrate flow is now LLM-driven entirely
+  from `commands/migrate.md`.
 
 ## [0.1.0]
 

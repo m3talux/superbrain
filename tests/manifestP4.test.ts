@@ -22,9 +22,17 @@ it("plugin.json author is an object with a name (Claude Code schema requires obj
   expect(plg.author.name.length).toBeGreaterThan(0);
 });
 
-it("slash-command files invoke the sb.js CLI", () => {
+it("adopt slash-command invokes the sb.js CLI", () => {
+  // adopt is a thin shell-out (validate path + mark + record + reconcile).
   const adopt = fs.readFileSync("commands/adopt.md", "utf8");
-  const migrate = fs.readFileSync("commands/migrate.md", "utf8");
   expect(adopt).toMatch(/sb\.js" adopt/);
-  expect(migrate).toMatch(/sb\.js" migrate/);
+});
+
+it("migrate slash-command exists with a description and the right purpose", () => {
+  // migrate is fully LLM-driven (no CLI handler) — assert the file is present
+  // and signals its purpose. Behavioral invariants are covered by
+  // tests/migrateCommand.test.ts.
+  const migrate = fs.readFileSync("commands/migrate.md", "utf8");
+  expect(migrate).toMatch(/^---[\s\S]*\bdescription\s*:[\s\S]*?---/);
+  expect(migrate.toLowerCase()).toMatch(/obsidian vault/);
 });
