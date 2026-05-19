@@ -8,8 +8,8 @@ Every Claude Code session — across every project, on every machine — is capt
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-black.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-black.svg)](package.json)
-[![Status](https://img.shields.io/badge/phase%201-capture%20spine-success.svg)](#roadmap)
-[![Tests](https://img.shields.io/badge/tests-52%20passing-success.svg)](#development)
+[![Status](https://img.shields.io/badge/phase%202-search%20%26%20recall-success.svg)](#roadmap)
+[![Tests](https://img.shields.io/badge/tests-79%20passing-success.svg)](#development)
 [![Storage](https://img.shields.io/badge/storage-plain%20Obsidian%20markdown-blueviolet.svg)](#vault-structure)
 
 </div>
@@ -73,11 +73,15 @@ flowchart LR
 - ✅ Idempotent & resumable (byte cursor + `log.md`); silent failures surface once on next session
 - ✅ One-command migration off a legacy custom scribe (archives, never deletes)
 
-**Phase 2 — search & recall (planned, [see roadmap](#roadmap)):**
+**Phase 2 — search & recall (shipped, v0.2.0):**
 
-- ⏳ Local hybrid semantic search (sqlite-vec + FTS5, RRF) — zero cloud
-- ⏳ Autonomous recall: `SessionStart` + `UserPromptSubmit` context injection
-- ⏳ `superbrain-recall` skill + auto-generated Maps-of-Content
+- ✅ Local hybrid search — FTS5 (BM25) + sqlite-vec, fused with Reciprocal Rank Fusion
+- ✅ Tiered autonomous recall: BM25 pointers injected on **every prompt** (no model load, no daemon); full hybrid digest on session start
+- ✅ `superbrain-recall` skill + stdio MCP server (`superbrain_search`) for model-invoked deep search
+- ✅ Incremental index on write + self-healing reconcile on session start (Obsidian-edit / git-pull drift)
+- ✅ All-local embeddings (MiniLM, fetched once & cached); automatic BM25 fallback — search is never hard-down
+
+**Phase 2.1 — planned:** auto-generated Maps-of-Content (`maps/`) + Karpathy lint pass.
 
 ## Vault structure
 
@@ -88,7 +92,7 @@ flowchart LR
 ├── decisions/     atomic, date-prefixed ADR-style notes
 ├── daily/         auto-written daily activity
 ├── capture/       raw inbound, triaged by rollups
-├── maps/          auto-generated Maps-of-Content   (Phase 2)
+├── maps/          auto-generated Maps-of-Content   (Phase 2.1)
 ├── index.md       catalog — the primary navigation surface
 └── log.md         append-only, grep-parseable timeline
 ```
@@ -122,7 +126,7 @@ Enforced, tested invariants — not aspirations:
 | Phase | Scope | Status |
 |---|---|---|
 | **1 — Capture spine** | Observer, salience, checkpoint distiller, router, vault writer, rollup catch-up, migration | ✅ Shipped |
-| **2 — Search & recall** | sqlite-vec + FTS5 hybrid search, autonomous `SessionStart`/`UserPromptSubmit` recall injection, `superbrain-recall` skill, MOC generation | 🔭 Designed, next |
+| **2 — Search & recall** | sqlite-vec + FTS5 hybrid search, autonomous `SessionStart`/`UserPromptSubmit` recall injection, `superbrain-recall` skill, MOC generation | ✅ Shipped (v0.2.0) |
 
 Phase 2 gets its own spec → plan → review cycle, same as Phase 1.
 
