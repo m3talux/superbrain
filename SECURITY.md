@@ -10,7 +10,7 @@ SuperBrain is in active development. Security fixes are applied to the latest
 **Please do not open a public issue for security vulnerabilities.**
 
 Report privately via GitHub's [security advisories][advisories] ("Report a
-vulnerability") or by email to **alex@weaviate.io**. Include:
+vulnerability") or by email to **alex.khoury.perso@gmail.com**. Include:
 
 - a description of the issue and its impact,
 - steps to reproduce (or a proof of concept),
