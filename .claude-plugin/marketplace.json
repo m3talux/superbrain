@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "m3talux",
+  "description": "SuperBrain — automatic Claude Code to Obsidian second brain.",
+  "owner": {
+    "name": "m3talux"
+  },
+  "plugins": [
+    {
+      "name": "superbrain",
+      "version": "0.1.0",
+      "source": "./",
+      "description": "Automatic Claude Code -> Obsidian second brain: zero-config session capture, hybrid search, autonomous recall, daily/lessons/preferences.",
+      "homepage": "https://github.com/m3talux/superbrain"
+    }
+  ]
+}
