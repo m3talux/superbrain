@@ -3,9 +3,41 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dataDir } from "./paths.js";
+// Bounded search for a compiled native addon (*.node) within a directory.
+function hasDotNode(dir) {
+    let entries;
+    try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+    }
+    catch {
+        return false;
+    }
+    for (const e of entries) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) {
+            if (hasDotNode(p))
+                return true;
+        }
+        else if (e.name.endsWith(".node"))
+            return true;
+    }
+    return false;
+}
+// Deps are "present" only when better-sqlite3's NATIVE BINDING actually exists
+// — not merely when the package directory does. A source-only install (no
+// build/Release/*.node, no prebuilds/) means the addon was never compiled
+// (e.g. a Node ABI with no published prebuild + a bootstrap that didn't
+// rebuild). Treating that as ready causes silent require() crashes downstream
+// and never surfaces to the sentinel. Stays builtin-only (no require of the
+// native module) so import-safe entrypoints can call it cheaply.
 export function depsPresent(pluginRoot) {
     try {
-        return fs.existsSync(path.join(pluginRoot, "node_modules", "better-sqlite3"));
+        const bs = path.join(pluginRoot, "node_modules", "better-sqlite3");
+        if (!fs.existsSync(bs))
+            return false;
+        return hasDotNode(path.join(bs, "build")) ||
+            hasDotNode(path.join(bs, "prebuilds")) ||
+            hasDotNode(path.join(bs, "lib", "binding"));
     }
     catch {
         return false;
