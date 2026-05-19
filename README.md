@@ -125,6 +125,45 @@ All optional — sensible defaults mean a clean install needs none.
 
 > **Heads-up (2026-06-15):** background `claude -p` / Agent-SDK usage on subscription plans draws from a separate capped monthly credit after this date. If captures stop, SuperBrain surfaces a one-time notice on session start — set `ANTHROPIC_API_KEY` to switch to the API path.
 
+## Syncing your vault
+
+SuperBrain **deliberately does not push your vault anywhere.** It writes plain
+markdown into a local folder and nothing leaves the machine. This is a design
+choice, not a missing feature: a network operation in the capture path could
+hang, stall on an auth prompt, or fail — exactly the failure mode the
+"never disrupt the session" guarantee exists to prevent. Backup and
+multi-machine sync are a solved problem, and dedicated tools do it better and
+safer than a hook can.
+
+What SuperBrain *does* guarantee is that it composes cleanly with whatever sync
+you choose: writes are append-or-create and idempotent, and the search index
+**self-heals on session start** after the vault changes underneath it (an
+external `git pull`, an Obsidian edit, a Syncthing update). So you can layer any
+of the following on top with no special configuration:
+
+- **Adopted an existing Obsidian vault?** If it's already backed by the
+  [Obsidian Git](https://github.com/Vinzent03/obsidian-git) community plugin (or
+  Obsidian Sync), you already have sync — SuperBrain just writes into it and
+  your existing setup ships the changes. Nothing to do.
+- **Using the owned default (`~/.superbrain/vault`)?** Pick one:
+  - Make it a git repo and use **Obsidian Git** for scheduled commit/push.
+  - Point **Syncthing** or a file-sync tool at the folder.
+  - Or a DIY scheduled job — e.g. a `cron` / `launchd` entry running, say every
+    15 minutes:
+
+    ```bash
+    cd ~/.superbrain/vault && git add -A \
+      && git commit -q -m "vault sync $(date -u +%FT%TZ)" \
+      && git pull --rebase --autostash && git push
+    ```
+
+Whichever you choose, treat it as **backup / sync owned by you**, not by the
+plugin. Running the same vault from two machines concurrently can still produce
+git conflicts in regenerated files (`index.md`, `log.md`, rollups) — Obsidian
+Git's conflict UX or a single-writer-at-a-time habit avoids that. SuperBrain's
+job is to stay idempotent and drift-tolerant so any of these Just Work; it is
+not to own your remote.
+
 ## Design principles
 
 Enforced, tested invariants — not aspirations:
