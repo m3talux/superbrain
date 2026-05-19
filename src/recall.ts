@@ -1,4 +1,4 @@
-import { openIndex, rrf, type Hit } from "./searchIndex.js";
+import { openIndex, rrf, type Hit, type Index } from "./searchIndex.js";
 import { embed } from "./embed.js";
 
 export interface Pointer { relPath: string; headingPath: string; anchor: string; excerpt: string; }
@@ -12,15 +12,16 @@ function toPointers(hits: Hit[]): Pointer[] {
 const keyOf = (h: Hit) => `${h.relPath}#${h.anchor}`;
 
 export async function bm25Recall(query: string, k: number): Promise<Pointer[]> {
-  const ix = openIndex();
-  try { return toPointers(ix.bm25(query, k)); }
+  let ix: Index | undefined;
+  try { ix = openIndex(); return toPointers(ix.bm25(query, k)); }
   catch { return []; }
-  finally { ix.close(); }
+  finally { ix?.close(); }
 }
 
 export async function hybridRecall(query: string, k: number): Promise<Pointer[]> {
-  const ix = openIndex();
+  let ix: Index | undefined;
   try {
+    ix = openIndex();
     const bm = ix.bm25(query, k * 2);
     let vec: Hit[] = [];
     try {
@@ -40,5 +41,5 @@ export async function hybridRecall(query: string, k: number): Promise<Pointer[]>
     const fused = rrf([bm.map(keyOf), vec.map(keyOf)], k);
     return toPointers(fused.map((kk) => byKey.get(kk)!).filter(Boolean));
   } catch { return []; }
-  finally { ix.close(); }
+  finally { ix?.close(); }
 }
