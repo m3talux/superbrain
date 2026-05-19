@@ -1,4 +1,4 @@
-export type Kind = "decision" | "project_fact" | "person" | "gotcha" | "capture";
+export type Kind = "decision" | "project_fact" | "person" | "gotcha" | "capture" | "lesson" | "preference";
 export interface DistilledItem {
   kind: Kind;
   title: string;
@@ -7,12 +7,13 @@ export interface DistilledItem {
   links: string[];
   project?: string;
   person?: string;
+  rule?: string;           // crisp durable rule for a generalizable lesson
 }
 export interface RouteResult {
   relPath: string;
   frontmatter: Record<string, any>;
   body: string;
-  mode: "create" | "append";
+  mode: "create" | "append" | "replace";
 }
 
 export function slug(s: string): string {
@@ -42,6 +43,17 @@ export function route(item: DistilledItem): RouteResult {
       return { relPath: `projects/${slug(item.project || "unknown")}.md`,
         frontmatter: { type: "project", status: "active", project: slug(item.project || "unknown"), ...base },
         body: withLinks(`## Gotchas\n\n- ${item.title}: ${item.body}`, item.links), mode: "append" };
+    case "lesson": {
+      const why = `**Why:** ${item.body}`;
+      const ruleLine = item.rule ? `\n\n**Rule:** ${item.rule}` : "";
+      return { relPath: `lessons/${item.date}-${slug(item.title)}.md`,
+        frontmatter: { type: "lesson", status: "active", ...base },
+        body: withLinks(`# ${item.title}\n\n${why}${ruleLine}`, item.links), mode: "create" };
+    }
+    case "preference":
+      return { relPath: `meta/preferences.md`,
+        frontmatter: { type: "preference", ...base },
+        body: item.body, mode: "replace" };
     default:
       return { relPath: `capture/${item.date}-${slug(item.title)}.md`,
         frontmatter: { type: "capture", status: "active", tags: ["triage"], ...base },
