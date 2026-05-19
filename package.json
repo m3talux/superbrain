@@ -14,7 +14,7 @@
     "release:check": "npm run build && git diff --exit-code dist"
   },
   "dependencies": {
-    "@huggingface/transformers": "^3.8.1",
+    "@huggingface/transformers": "^4.2.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "better-sqlite3": "^11.10.0",
     "gray-matter": "^4.0.3",
