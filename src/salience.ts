@@ -4,7 +4,7 @@ export interface SalienceState {
 }
 export interface SalientMarker {
   type: "salient";
-  reason: "write_threshold" | "git_commit" | "cwd_switch" | "file_churn";
+  reason: "write_threshold" | "git_commit" | "cwd_switch" | "file_churn" | "pushback";
   cwd: string;
   files: string[];
   prompt_excerpt: string;
@@ -21,6 +21,7 @@ export interface ObsEvent {
 
 const WRITE_THRESHOLD = 5;
 const WRITE_TOOLS = new Set(["Write", "Edit", "NotebookEdit", "ctx_edit"]);
+const PUSHBACK_RE = /\b(no,|don'?t|do not|stop|revert|undo|that'?s wrong|not what i|use .* instead|actually,|why did you)\b|(^|\s)lesson:/i;
 
 export function initState(): SalienceState {
   return { writesSinceNote: 0, lastCwd: null };
@@ -36,6 +37,11 @@ export function scoreEvent(
     type: "salient", reason, cwd: e.cwd, files: e.file ? [e.file] : [],
     prompt_excerpt: (e.prompt || "").slice(0, 200), ts: now,
   });
+
+  if (e.type === "prompt" && PUSHBACK_RE.test(e.prompt || "")) {
+    next.lastCwd = e.cwd || state.lastCwd;
+    return { pending: true, marker: mk("pushback"), state: next };
+  }
 
   if (state.lastCwd && e.cwd && e.cwd !== state.lastCwd) {
     next.lastCwd = e.cwd; next.writesSinceNote = 0;
