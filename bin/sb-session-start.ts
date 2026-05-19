@@ -2,10 +2,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { readAndClearFailure } from "../src/sentinel.js";
 import { needsRollup, markRollup } from "../src/rollupState.js";
 import { dataDir, vaultPath } from "../src/paths.js";
 import { isChild, buildDistillCommand } from "../src/distillerEngine.js";
+import { hybridRecall } from "../src/recall.js";
 
 // Stable per-day gate value. The rollup's own writes cannot change this string,
 // so needsRollup returns false for an already-processed key → converges.
@@ -15,9 +17,12 @@ function yesterday(): string {
   const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10);
 }
 
-function main() {
+function readStdin(): string { try { return fs.readFileSync(0, "utf8"); } catch { return ""; } }
+
+async function main() {
   if (isChild()) process.exit(0);
   try {
+    let h: any = {}; try { h = JSON.parse(readStdin()) || {}; } catch { h = {}; }
     const fail = readAndClearFailure();
     const parts: string[] = [];
     if (fail) parts.push(`⚠️ SuperBrain: last capture failed — ${fail.trim()} (fixed automatically next checkpoint; set ANTHROPIC_API_KEY if it persists).`);
@@ -42,6 +47,28 @@ function main() {
         // This preserves self-heal: if the child fails, needsRollup will be true next time.
       }
       parts.push(`SuperBrain: generating daily rollup for ${key}.`);
+    }
+
+    // Hybrid recall digest (cwd/recent-topic seeded). Tiered: pointers, not bodies.
+    try {
+      const seed = `${path.basename(h.cwd || "")} recent work decisions gotchas`.trim();
+      const hits = await hybridRecall(seed, 5);
+      if (hits.length) {
+        parts.push("SuperBrain memory — relevant past notes:\n" +
+          hits.map((p) => `- [[${p.relPath.replace(/\.md$/, "")}]] — ${p.excerpt}`).join("\n"));
+      }
+    } catch { /* recall is best-effort */ }
+
+    // Detached, recursion-guarded index reconcile so Obsidian/git drift self-heals
+    // without blocking startup. Uses the same node-spawn pattern as the distiller.
+    if (process.env.SUPERBRAIN_FAKE_DISTILLER !== "1") {
+      try {
+        const reconciler = fileURLToPath(new URL("./sb-reconcile.js", import.meta.url));
+        spawn(process.execPath, [reconciler], {
+          detached: true, stdio: "ignore",
+          env: { ...process.env, SUPERBRAIN_CHILD: "1" }, cwd: vaultPath(),
+        }).unref();
+      } catch { /* non-fatal */ }
     }
 
     if (parts.length) {

@@ -8,7 +8,7 @@ function run() {
   return execFileSync("npx", ["tsx", "bin/sb-session-start.ts"], {
     input: JSON.stringify({ session_id: "S", hook_event_name: "SessionStart", source: "startup", cwd: "/p" }),
     env: { ...process.env, CLAUDE_PLUGIN_DATA: "/tmp/sb-ss", SUPERBRAIN_VAULT: "/tmp/sb-ss-vault",
-           SUPERBRAIN_FAKE_DISTILLER: "1" },
+           SUPERBRAIN_FAKE_DISTILLER: "1", SUPERBRAIN_EMBED_STUB: "1" },
     encoding: "utf8",
   });
 }
