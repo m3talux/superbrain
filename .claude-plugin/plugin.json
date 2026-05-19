@@ -1,9 +1,10 @@
 {
   "name": "superbrain",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Automatic Claude Code -> Obsidian second brain: zero-config session capture into a smart markdown vault.",
   "author": "Alex",
   "license": "MIT",
   "hooks": "./hooks/hooks.json",
-  "skills": ["./skills/superbrain-distill"]
+  "skills": ["./skills/superbrain-distill", "./skills/superbrain-recall"],
+  "mcpServers": "./.mcp.json"
 }
