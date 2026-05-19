@@ -10,7 +10,7 @@ const EXCLUDED = ["/.obsidian/", "/.git/", "/node_modules/", "/.trash/"];
 export interface WriteArgs {
   frontmatter: Record<string, any>;
   body: string;
-  mode: "create" | "append";
+  mode: "create" | "append" | "replace";
 }
 export interface WriteResult { ok: boolean; reason?: string; path?: string }
 
@@ -23,11 +23,27 @@ function resolveSafe(rel: string): string | null {
   return abs;
 }
 
+const normBody = (s: string): string => s.replace(/\s+/g, " ").trim();
+
 export function writeNote(rel: string, args: WriteArgs): WriteResult {
   const abs = resolveSafe(rel);
   if (!abs) return { ok: false, reason: "path or extension not allowed" };
   const errs = validateFrontmatter(args.frontmatter);
   if (errs.length) return { ok: false, reason: errs.join("; ") };
+
+  if (args.mode === "replace") {
+    const cur = readWithChecksum(abs);
+    if (cur) {
+      const prev = parseNote(cur.content);
+      if (normBody(prev.content) === normBody(args.body)) return { ok: true, path: abs };
+      const created = prev.data.created ?? args.frontmatter.created;
+      const fm = created === undefined ? { ...args.frontmatter } : { ...args.frontmatter, created };
+      atomicWrite(abs, serializeNote(fm, args.body));
+      return { ok: true, path: abs };
+    }
+    atomicWrite(abs, serializeNote(args.frontmatter, args.body));
+    return { ok: true, path: abs };
+  }
 
   const existing = readWithChecksum(abs);
   if (!existing) {
