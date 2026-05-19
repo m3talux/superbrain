@@ -2,7 +2,7 @@ import { it, expect } from "vitest";
 import fs from "node:fs";
 
 it("the distiller prompt construction includes current preferences when present", () => {
-  const src = fs.readFileSync("bin/sb-distill.ts", "utf8");
+  const src = fs.readFileSync("src/distillRun.ts", "utf8");
   expect(src).toMatch(/preferencesPath|meta\/preferences\.md/);
   expect(src).toMatch(/Current preferences/);
 });

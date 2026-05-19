@@ -1,5 +1,5 @@
 import { it, expect } from "vitest";
-import { parseEnvelope } from "../bin/sb-distill";
+import { parseEnvelope } from "../src/distillRun";
 
 it("treats a bare array as { items }", () => {
   const e = parseEnvelope(JSON.stringify([{ kind: "decision", title: "x", body: "y", date: "2026-05-19", links: [] }]));
