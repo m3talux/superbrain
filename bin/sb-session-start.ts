@@ -5,9 +5,10 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { readAndClearFailure } from "../src/sentinel.js";
 import { needsRollup, markRollup } from "../src/rollupState.js";
-import { dataDir, vaultPath } from "../src/paths.js";
+import { dataDir, vaultPath, pluginRoot } from "../src/paths.js";
 import { isChild, buildDistillCommand } from "../src/distillerEngine.js";
-import { appendDigest } from "../src/sessionDigest.js";
+import { depsPresent, runBootstrap } from "../src/bootstrap.js";
+import { recordedVaultPath } from "../src/vaultMarker.js";
 
 // Stable per-day gate value. The rollup's own writes cannot change this string,
 // so needsRollup returns false for an already-processed key → converges.
@@ -49,11 +50,28 @@ async function main() {
       parts.push(`SuperBrain: generating daily rollup for ${key}.`);
     }
 
-    await appendDigest(parts, h);
+    const root = pluginRoot();
+    if (!depsPresent(root)) {
+      runBootstrap(root);
+      parts.push("SuperBrain is finishing first-time setup (installing search dependencies). Capture resumes automatically next session.");
+    } else {
+      const { appendDigest } = await import("../src/sessionDigest.js"); // deferred heavy import
+      await appendDigest(parts, h);
+    }
+    // One-time courtesy notice when using the owned default vault (no explicit/adopted vault).
+    try {
+      if (!process.env.SUPERBRAIN_VAULT && !recordedVaultPath()) {
+        const flag = path.join(dataDir(), "owned-vault-notice");
+        if (!fs.existsSync(flag)) {
+          parts.push("SuperBrain is capturing into its own vault. To use an existing Obsidian vault instead, run `/superbrain:adopt <path>` or set SUPERBRAIN_VAULT.");
+          fs.mkdirSync(path.dirname(flag), { recursive: true }); fs.writeFileSync(flag, "1");
+        }
+      }
+    } catch { /* courtesy notice is best-effort */ }
 
     // Detached, recursion-guarded index reconcile so Obsidian/git drift self-heals
     // without blocking startup. Uses the same node-spawn pattern as the distiller.
-    if (process.env.SUPERBRAIN_FAKE_DISTILLER !== "1") {
+    if (process.env.SUPERBRAIN_FAKE_DISTILLER !== "1" && depsPresent(root)) {
       try {
         const reconciler = fileURLToPath(new URL("./sb-reconcile.js", import.meta.url));
         spawn(process.execPath, [reconciler], {
