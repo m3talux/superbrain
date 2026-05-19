@@ -85,14 +85,27 @@ async function mainRollup(rollupEnv: string) {
     try { logContent = fs.readFileSync(logFile, "utf8"); } catch { /* absent is fine */ }
 
     const items = getRollupItems(logContent, key);
+    const env = parseEnvelope(process.env.SUPERBRAIN_DISTILL_STUB
+      ? fs.readFileSync(process.env.SUPERBRAIN_DISTILL_STUB, "utf8") : "{}");
+    const routed: string[] = [];
     for (const it of items) {
       const r = route(it);
       const res = writeNote(r.relPath, { frontmatter: r.frontmatter, body: r.body, mode: r.mode });
       if (res.ok) {
         appendLog(it.title || it.kind, r.relPath);
         try { await indexNote(r.relPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
+        routed.push(r.relPath);
       }
     }
+    try {
+      upsertDay(key, `rollup-${key}`, {
+        digestLine: env.digest || "", routedRelPaths: routed,
+        alsoDid: env.alsoDid || [], openThreads: env.openThreads || [],
+      });
+      const dn = buildDailyNote(key);
+      writeNote(dn.relPath, { frontmatter: dn.frontmatter, body: dn.body, mode: dn.mode });
+      try { await indexNote(dn.relPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
+    } catch (e: any) { writeFailure(`daily note failed: ${e?.message || e}`); }
     // Mark rollup complete only on success
     markRollup(kind, key, hash);
   } catch (e: any) {
