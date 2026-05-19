@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import fs from "node:fs";
+import path from "node:path";
 import { migrateLegacy } from "../bin/sb";
 
 beforeEach(() => {
@@ -13,7 +14,11 @@ beforeEach(() => {
 it("archives legacy scribe idempotently and never deletes", () => {
   const r1 = migrateLegacy("/tmp/sb-fake-home");
   expect(r1.archived).toContain("stop-scribe.sh");
-  expect(fs.existsSync("/tmp/sb-mig-data/archived-legacy/stop-scribe.sh")).toBe(true);
+  // new impl uses timestamped subdirs under archived-legacy/
+  const archivedEntries = fs.readdirSync("/tmp/sb-mig-data/archived-legacy");
+  expect(archivedEntries.length).toBeGreaterThan(0);
+  const stampDir = path.join("/tmp/sb-mig-data/archived-legacy", archivedEntries[0]);
+  expect(fs.existsSync(path.join(stampDir, "stop-scribe.sh"))).toBe(true);
   expect(fs.existsSync("/tmp/sb-fake-home/.claude/hooks/stop-scribe.sh")).toBe(false);
   const r2 = migrateLegacy("/tmp/sb-fake-home"); // idempotent: nothing left to do
   expect(r2.archived).toEqual([]);
