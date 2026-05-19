@@ -7,9 +7,7 @@ import { readAndClearFailure } from "../src/sentinel.js";
 import { needsRollup, markRollup } from "../src/rollupState.js";
 import { dataDir, vaultPath } from "../src/paths.js";
 import { isChild, buildDistillCommand } from "../src/distillerEngine.js";
-import { hybridRecall } from "../src/recall.js";
-import { compileInjectionBlock } from "../src/preferences.js";
-import { readDay } from "../src/dailyState.js";
+import { appendDigest } from "../src/sessionDigest.js";
 
 // Stable per-day gate value. The rollup's own writes cannot change this string,
 // so needsRollup returns false for an already-processed key → converges.
@@ -51,28 +49,7 @@ async function main() {
       parts.push(`SuperBrain: generating daily rollup for ${key}.`);
     }
 
-    // Hybrid recall digest (cwd/recent-topic seeded). Tiered: pointers, not bodies.
-    try {
-      const seed = `${path.basename(h.cwd || "")} recent work decisions gotchas`.trim();
-      const hits = await hybridRecall(seed, 5);
-      if (hits.length) {
-        parts.push("SuperBrain memory — relevant past notes:\n" +
-          hits.map((p) => `- [[${p.relPath.replace(/\.md$/, "")}]] — ${p.excerpt}`).join("\n"));
-      }
-    } catch { /* recall is best-effort */ }
-
-    // Preferences + today's open threads (best-effort, never blocks startup).
-    try {
-      const pref = compileInjectionBlock();
-      if (pref) parts.push(pref);
-      const today = new Date().toISOString().slice(0, 10);
-      const day = readDay(today);
-      const threads: string[] = [];
-      for (const s of Object.keys(day))
-        for (const t of day[s].openThreads) if (t && !threads.includes(t)) threads.push(t);
-      if (threads.length)
-        parts.push("SuperBrain — open threads today:\n" + threads.map((t) => `- ${t}`).join("\n"));
-    } catch { /* personalization is best-effort */ }
+    await appendDigest(parts, h);
 
     // Detached, recursion-guarded index reconcile so Obsidian/git drift self-heals
     // without blocking startup. Uses the same node-spawn pattern as the distiller.
