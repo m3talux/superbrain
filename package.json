@@ -1,0 +1,20 @@
+{
+  "name": "superbrain",
+  "version": "0.1.0",
+  "description": "Automatic Claude Code -> Obsidian second brain (capture spine)",
+  "type": "module",
+  "license": "MIT",
+  "bin": { "superbrain": "dist/bin/sb.js" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": { "gray-matter": "^4.0.3" },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "engines": { "node": ">=20" }
+}
