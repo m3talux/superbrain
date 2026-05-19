@@ -13,10 +13,21 @@ function main() {
       markBootstrapDone();
     } else {
       execFileSync("npm", ["ci", "--omit=dev"], { cwd: root, stdio: "ignore" });
+      // `npm ci` does NOT guarantee better-sqlite3's native addon: on a Node
+      // ABI with no published prebuild it leaves the package source-only.
+      // Force a source rebuild, then verify the binding actually loads under
+      // this Node runtime. Only mark done if it genuinely works — otherwise
+      // the sentinel fires and SessionStart retries next session.
+      execFileSync("npm", ["rebuild", "better-sqlite3"], { cwd: root, stdio: "ignore" });
+      execFileSync(
+        process.execPath,
+        ["-e", "require(require('node:path').join(process.cwd(),'node_modules','better-sqlite3'))"],
+        { cwd: root, stdio: "ignore" },
+      );
       markBootstrapDone();
     }
   } catch (e: any) {
-    writeFailure(`bootstrap (npm ci) failed: ${e?.message || e}`);
+    writeFailure(`bootstrap failed (npm ci / better-sqlite3 native build): ${e?.message || e}`);
   } finally {
     releaseLock("bootstrap");
   }

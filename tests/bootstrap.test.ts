@@ -9,10 +9,16 @@ beforeEach(() => {
   process.env.CLAUDE_PLUGIN_DATA = "/tmp/sb-bs-data";
 });
 
-it("depsPresent is false without node_modules/better-sqlite3, true with it", () => {
+it("depsPresent is false without the better-sqlite3 native binding, true with it", () => {
   fs.mkdirSync("/tmp/sb-bs", { recursive: true });
   expect(depsPresent("/tmp/sb-bs")).toBe(false);
+  // package directory alone is NOT enough — a source-only install (no compiled
+  // .node) must read as not-ready, or entrypoints crash silently on require().
   fs.mkdirSync("/tmp/sb-bs/node_modules/better-sqlite3", { recursive: true });
+  expect(depsPresent("/tmp/sb-bs")).toBe(false);
+  // with the compiled native binding present → ready
+  fs.mkdirSync("/tmp/sb-bs/node_modules/better-sqlite3/build/Release", { recursive: true });
+  fs.writeFileSync("/tmp/sb-bs/node_modules/better-sqlite3/build/Release/better_sqlite3.node", "");
   expect(depsPresent("/tmp/sb-bs")).toBe(true);
 });
 
