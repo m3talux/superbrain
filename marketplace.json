@@ -1,0 +1,7 @@
+{
+  "name": "superbrain",
+  "owner": "alex",
+  "plugins": [
+    { "name": "superbrain", "source": "./", "description": "Automatic Claude Code -> Obsidian second brain (capture spine)." }
+  ]
+}

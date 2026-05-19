@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm ci)",
+      "Bash(npm run build)",
+      "Bash(npm run typecheck)",
+      "Bash(npm test)",
+      "Bash(npm run release:check)",
+      "Bash(npx vitest run:*)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(git diff:*)",
+      "Bash(git status:*)"
+    ]
+  }
+}

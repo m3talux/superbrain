@@ -1,0 +1,9 @@
+node_modules/
+*.log
+.DS_Store
+
+# Local Claude Code settings (per-user, never shared)
+.claude/settings.local.json
+
+# Internal planning/design process artifacts — not part of the public project
+docs/superpowers/

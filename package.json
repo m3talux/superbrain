@@ -1,0 +1,33 @@
+{
+  "name": "superbrain",
+  "version": "0.1.0",
+  "description": "Automatic Claude Code -> Obsidian second brain: zero-config session capture, hybrid search, autonomous recall, daily/lessons/preferences.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "superbrain": "dist/bin/sb.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "release:check": "npm run build && git diff --exit-code dist"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "better-sqlite3": "^12.10.0",
+    "gray-matter": "^4.0.3",
+    "sqlite-vec": "^0.1.9"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.22.2",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
