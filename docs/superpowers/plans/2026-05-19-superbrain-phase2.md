@@ -1468,6 +1468,8 @@ git commit -m "docs: README + version 0.2.0 for Phase 2 (search + autonomous rec
 
 No gap. MOC/`maps/` intentionally absent (P2.1, per spec §10).
 
+> **Known P2.0 limitation (review-approved):** `hybridRecall` BM25-gates out pure-semantic-only matches; calibrated vector-distance threshold deferred to P2.1. See spec §"Known limitation (P2.0)".
+
 **2. Placeholder scan:** No TBD/TODO. The two prose "If … differs, adapt" notes (Task 9
 SDK signature, Task 1 BLOCKED fallback) are explicit contingency instructions with a
 defined contract + escalation path, not deferred work.

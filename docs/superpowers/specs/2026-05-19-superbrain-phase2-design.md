@@ -128,7 +128,20 @@ deep     : superbrain-recall skill → MCP superbrain_search → hybridRecall
 
 - **P2.0 (this spec):** modules §3, entrypoints §4, skill/manifests §5, tests §8.
   Independently shippable; delivers autonomous recall + searchable memory.
-- **P2.1 (next cycle):** auto-MOC / `maps/` generation + Karpathy lint pass.
+- **P2.1 (next cycle):** auto-MOC / `maps/` generation + Karpathy lint pass; calibrated vector-distance threshold in vectorKNN/hybridRecall (relax/remove the BM25 precision-gate so semantic-only recall returns while garbage still yields []).
+
+### Known limitation (P2.0) — semantic-only recall deferred
+
+`hybridRecall` hard-gates on BM25 having ≥1 lexical hit (`src/recall.ts`). Rationale:
+`searchIndex.vectorKNN` has no distance/similarity threshold (always returns k nearest),
+so an ungated hybrid path would inject k irrelevant pointers into every auto-injected
+per-turn prompt — constant, actively harmful noise where the false-positive cost is paid
+every turn. The gate makes irrelevant queries correctly return nothing. **Tradeoff:**
+pure-semantic-only matches (zero lexical overlap + high embedding similarity — D8's
+headline value) are structurally disabled in P2.0. A correctly *calibrated* vector
+threshold must be tuned against the real `all-MiniLM-L6-v2` model (not the test stub),
+so it is deferred to P2.1 rather than shipped untuned (an untuned cutoff is a worse,
+silent regression than a transparent precision gate).
 
 ## 11. Decisions & grounding
 
