@@ -5,7 +5,9 @@
         { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/bin/sb-observe.js\"", "async": true, "timeout": 10 } ] } ],
     "UserPromptSubmit": [
       { "hooks": [
-        { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/bin/sb-observe.js\"", "async": true, "timeout": 10 } ] } ],
+        { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/bin/sb-observe.js\"", "async": true, "timeout": 10 } ] },
+      { "hooks": [
+        { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/bin/sb-recall.js\"", "timeout": 12 } ] } ],
     "Stop": [
       { "hooks": [
         { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/bin/sb-checkpoint.js\"", "async": true, "timeout": 15 } ] } ],
@@ -17,6 +19,6 @@
         { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/bin/sb-checkpoint.js\"", "timeout": 20 } ] } ],
     "SessionStart": [
       { "matcher": "*", "hooks": [
-        { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/bin/sb-session-start.js\"", "async": true, "timeout": 15 } ] } ]
+        { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/bin/sb-session-start.js\"", "timeout": 20 } ] } ]
   }
 }
