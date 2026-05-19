@@ -25,6 +25,7 @@ async function getExtractor(): Promise<any> {
 }
 
 export async function embed(texts: string[]): Promise<Float32Array[]> {
+  if (process.env.SUPERBRAIN_EMBED_FORCE_FAIL === "1") throw new Error("embed forced failure (test)");
   if (process.env.SUPERBRAIN_EMBED_STUB === "1") return texts.map(stubVector);
   const extractor = await getExtractor();
   const out = await extractor(texts, { pooling: "mean", normalize: true });
