@@ -22,19 +22,34 @@ Step 1 — determine the target project directory:
 - If an argument was passed to the slash command, treat it as an absolute path (or relative to the current working directory). Verify it exists and is a directory.
 - Otherwise, default to `$CLAUDE_PROJECT_DIR` (the project the current session opened in).
 
-Step 2 — invoke the discoverer binary directly. This must use the plugin's own dist so the prompt and model are consistent with auto-discovery:
+Step 2 — invoke the discoverer binary. The plugin classifies the target through the four-stage detection cascade (blocklist → strong-signal → workspace declaration → implicit umbrella) and handles single-project vs umbrella fan-out internally.
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/dist/bin/sb-discover.js" --force "<project_dir>"
 ```
 
-The process is detached internally and finishes in ~10-30 seconds depending on project size. The resulting note will appear at `~/.superbrain/vault/projects/<slug>.md` where `<slug>` is the lowercased, hyphenated basename of the project directory.
+If the user explicitly asked to refresh every sub-project under an umbrella (not just the missing ones), pass `--all` too:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/dist/bin/sb-discover.js" --force --all "<project_dir>"
+```
+
+What the binary actually does given `<project_dir>`:
+
+- **Blocked path** (HOME, Documents, Library, /tmp, etc.) → silent skip, no note. Tell the user the path is on the blocklist and discovery cannot run there.
+- **No strong project signal** (just a README or LICENSE, no real manifest) → silent skip. Tell the user the directory doesn't look like a code project.
+- **Single project** → one note at `~/.superbrain/vault/projects/<slug>.md`. If the note already exists, a fresh `## SuperBrain discovery (date)` section is appended.
+- **Umbrella / monorepo** (workspace declaration or ≥2 sibling sub-projects detected) → one note per detected child (capped at 8), each named `<umbrella-slug>-<child-slug>.md` with `umbrella: <umbrella-slug>` frontmatter. Without `--all`, only children whose note doesn't exist yet are written; with `--all`, every child's note gets a fresh appended section.
+- **Sub-project of an umbrella, opened directly** → discovery treats it as a single project but with umbrella context, so the slug is correctly prefixed.
+
+Discovery decisions and skip reasons are written to `~/.superbrain/discovery.log` for traceability.
 
 Step 3 — when the call returns, tell the user:
 
-- The path of the project note that was written/updated.
-- Whether discovery created a new note or appended a `## SuperBrain discovery` section to an existing one (check the note's contents to confirm).
-- If the file was not produced (rare — usually means `claude -p` itself failed), check `~/.superbrain/last-failure.txt` and surface the message.
+- For single-project discovery: the path of the project note that was written or updated.
+- For umbrella fan-out: the umbrella name, how many children were detected, and the paths of the notes that were written (or skipped because they already exist and `--all` was not passed). If any children were dropped because they exceeded the cap (>8), surface that and suggest running `/superbrain:discover <child>` on each.
+- If discovery was a no-op (blocked or no-signal), explain the gate that fired by reading the last line(s) of `~/.superbrain/discovery.log`.
+- If `claude -p` itself failed (rare), check `~/.superbrain/last-failure.txt` and surface the message.
 
 ## What this is NOT
 

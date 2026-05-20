@@ -14,6 +14,9 @@ beforeEach(() => {
   fs.mkdirSync(TMP, { recursive: true });
   process.env.SUPERBRAIN_DATA_DIR = path.join(TMP, "data");
   process.env.SUPERBRAIN_VAULT_DIR = path.join(TMP, "vault");
+  // Tests below use /tmp paths as fake projects; bypass the blocklist gate so
+  // classifyPath doesn't reject them just for living under /tmp.
+  process.env.SUPERBRAIN_TEST_BYPASS_BLOCKLIST = "1";
 });
 
 describe("discoverer — gates", () => {
@@ -144,6 +147,77 @@ describe("discoverer — runDiscover (stubbed)", () => {
       expect(fs.existsSync(projectNotePath(proj))).toBe(false);
     } finally {
       delete process.env.SUPERBRAIN_DISCOVER_STUB;
+    }
+  });
+});
+
+describe("discoverer — umbrella fan-out", () => {
+  it("fans out into one note per sub-project, prefixing each slug with the umbrella name, NO umbrella note", async () => {
+    const root = path.join(TMP, "the-we-project");
+    fs.mkdirSync(root, { recursive: true });
+    fs.writeFileSync(path.join(root, "CLAUDE.md"), "umbrella\n");
+    for (const name of ["backend", "app", "frontend"]) {
+      const sub = path.join(root, name);
+      fs.mkdirSync(sub, { recursive: true });
+      fs.writeFileSync(path.join(sub, "go.mod"), `module ${name}\n`);
+    }
+    const stubPath = path.join(TMP, "discover-umbrella-stub.md");
+    fs.writeFileSync(stubPath, "# child\n\n> a sub-project\n\n## Stack\n- Go\n");
+    process.env.SUPERBRAIN_DISCOVER_STUB = stubPath;
+    try {
+      await runDiscover(root);
+      const vault = process.env.SUPERBRAIN_VAULT_DIR!;
+      // Three child notes — prefixed by umbrella basename slug.
+      for (const child of ["backend", "app", "frontend"]) {
+        const note = path.join(vault, "projects", `the-we-project-${child}.md`);
+        expect(fs.existsSync(note)).toBe(true);
+        const content = fs.readFileSync(note, "utf8");
+        expect(content).toContain("umbrella: the-we-project");
+      }
+      // NO umbrella note for the root itself.
+      expect(fs.existsSync(path.join(vault, "projects", "the-we-project.md"))).toBe(false);
+    } finally {
+      delete process.env.SUPERBRAIN_DISCOVER_STUB;
+    }
+  });
+
+  it("when opened directly inside a sub-project, prefixes the slug with the umbrella's name", async () => {
+    const root = path.join(TMP, "umbrella2");
+    fs.mkdirSync(root, { recursive: true });
+    fs.writeFileSync(path.join(root, "CLAUDE.md"), "u\n");
+    for (const name of ["a", "b", "c"]) {
+      fs.mkdirSync(path.join(root, name), { recursive: true });
+      fs.writeFileSync(path.join(root, name, "package.json"), `{"name":"${name}"}`);
+    }
+    const stubPath = path.join(TMP, "discover-direct-stub.md");
+    fs.writeFileSync(stubPath, "# a\n");
+    process.env.SUPERBRAIN_DISCOVER_STUB = stubPath;
+    try {
+      // User opens Claude inside the sub-project a/ directly.
+      await runDiscover(path.join(root, "a"));
+      const vault = process.env.SUPERBRAIN_VAULT_DIR!;
+      expect(fs.existsSync(path.join(vault, "projects", "umbrella2-a.md"))).toBe(true);
+      // No bare "a.md" — the umbrella prefix prevents the slug collision.
+      expect(fs.existsSync(path.join(vault, "projects", "a.md"))).toBe(false);
+    } finally {
+      delete process.env.SUPERBRAIN_DISCOVER_STUB;
+    }
+  });
+
+  it("hard-passes (no note, no spawn) on a blocked path", async () => {
+    delete process.env.SUPERBRAIN_TEST_BYPASS_BLOCKLIST;
+    const stubPath = path.join(TMP, "blocked-stub.md");
+    fs.writeFileSync(stubPath, "# x\n");
+    process.env.SUPERBRAIN_DISCOVER_STUB = stubPath;
+    try {
+      // /tmp is on the prefix blocklist when bypass is off.
+      await runDiscover("/tmp");
+      const vault = process.env.SUPERBRAIN_VAULT_DIR!;
+      // No projects/ directory should have been created.
+      expect(fs.existsSync(path.join(vault, "projects"))).toBe(false);
+    } finally {
+      delete process.env.SUPERBRAIN_DISCOVER_STUB;
+      process.env.SUPERBRAIN_TEST_BYPASS_BLOCKLIST = "1";
     }
   });
 });
