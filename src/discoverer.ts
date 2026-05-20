@@ -1,12 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
 import { vaultPath, dataDir } from "./paths.js";
 import { slug } from "./router.js";
 import { acquireLock, releaseLock } from "./lockfile.js";
 import { writeFailure } from "./sentinel.js";
-import { distillModel } from "./model.js";
 import { classifyPath, basenameSlug, hasStrongSignal, isBlockedPath, type Classification, type UmbrellaCtx } from "./projectDetect.js";
+import { claudeP } from "./claudeCli.js";
 
 // Discovery: synthesize a substantive `projects/<slug>.md` for a code repo
 // the user just opened a session in. The detection cascade lives in
@@ -186,7 +185,7 @@ function callClaudeForDiscovery(prompt: string): string {
   if (process.env.SUPERBRAIN_DISCOVER_STUB) {
     return fs.readFileSync(process.env.SUPERBRAIN_DISCOVER_STUB, "utf8");
   }
-  return execFileSync("claude", ["--model", distillModel(), "-p", prompt], { encoding: "utf8" });
+  return claudeP(prompt);
 }
 
 // Append a single trace line to ~/.superbrain/discovery.log so users (and we)

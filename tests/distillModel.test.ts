@@ -20,13 +20,17 @@ it("distillModel is hardcoded to claude-sonnet-4-6 (no env override)", () => {
   }
 });
 
-it("every `claude -p` invocation in src/distillRun.ts passes --model", () => {
-  const src = fs.readFileSync("src/distillRun.ts", "utf8");
-  // All claude-CLI invocations in the distill path must include the --model
-  // pin. Both the direct `execFileSync("claude", ...)` and our helper.
-  const calls = src.match(/execFileSync\("claude"[\s\S]*?\)/g) || [];
-  expect(calls.length).toBeGreaterThan(0);
-  for (const c of calls) {
-    expect(c, "missing --model pin: " + c).toMatch(/--model/);
+it("src/claudeCli.ts is the single claude call site and includes the --model pin", () => {
+  const src = fs.readFileSync("src/claudeCli.ts", "utf8");
+  // claudeCli.ts is the sole execFileSync("claude") call site after the
+  // cross-platform refactor. The model pin is built into the args array
+  // alongside distillModel(), so verify both are present together.
+  expect(src).toMatch(/execFileSync\("claude"/);
+  expect(src).toMatch(/distillModel\(\)/);
+  expect(src).toMatch(/--model/);
+  // No other source file may bypass the wrapper with a direct execFileSync("claude").
+  for (const f of ["src/distillRun.ts", "src/injectRun.ts", "src/discoverer.ts"]) {
+    const s = fs.readFileSync(f, "utf8");
+    expect(s, `${f} must not contain a direct execFileSync("claude")`).not.toMatch(/execFileSync\("claude"/);
   }
 });
