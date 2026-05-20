@@ -59,20 +59,38 @@ describe("strong-signal detection", () => {
 describe("blocklist (no bypass)", () => {
   beforeEach(() => { delete process.env.SUPERBRAIN_TEST_BYPASS_BLOCKLIST; });
 
-  it.each([
-    "/",
-    HOME,
-    path.join(HOME, "Documents"),
-    path.join(HOME, "Downloads"),
-    path.join(HOME, "Desktop"),
-    path.join(HOME, "Music"),
-  ])("blocks exact path %s", (p) => {
-    expect(isBlockedPath(p).blocked).toBe(true);
-  });
+  // The literal "/" entry and the "/tmp/" prefix only exist on POSIX. On
+  // Windows path.resolve("/") yields the current drive root, which is not in
+  // the blocklist (correctly — Windows has no semantic equivalent here). The
+  // HOME-relative paths (Documents, Downloads, etc.) DO exist on Windows so
+  // they stay in the parameterized list either way.
+  if (process.platform !== "win32") {
+    it.each([
+      "/",
+      HOME,
+      path.join(HOME, "Documents"),
+      path.join(HOME, "Downloads"),
+      path.join(HOME, "Desktop"),
+      path.join(HOME, "Music"),
+    ])("blocks exact path %s", (p) => {
+      expect(isBlockedPath(p).blocked).toBe(true);
+    });
 
-  it("blocks /tmp prefix children", () => {
-    expect(isBlockedPath("/tmp/anything").blocked).toBe(true);
-  });
+    it("blocks /tmp prefix children", () => {
+      expect(isBlockedPath("/tmp/anything").blocked).toBe(true);
+    });
+  } else {
+    // Windows-equivalent: confirm HOME-relative exact paths still block.
+    it.each([
+      HOME,
+      path.join(HOME, "Documents"),
+      path.join(HOME, "Downloads"),
+      path.join(HOME, "Desktop"),
+      path.join(HOME, "Music"),
+    ])("blocks exact path %s", (p) => {
+      expect(isBlockedPath(p).blocked).toBe(true);
+    });
+  }
 
   it("blocks ~/.cache prefix children", () => {
     expect(isBlockedPath(path.join(HOME, ".cache", "anything")).blocked).toBe(true);

@@ -18,8 +18,10 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  fs.rmSync(TMP_DATA, { recursive: true, force: true });
-  fs.rmSync(TMP_VAULT, { recursive: true, force: true });
+  // Windows briefly retains the better-sqlite3 file handle after close();
+  // maxRetries+retryDelay rides it out instead of failing with EBUSY.
+  fs.rmSync(TMP_DATA, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  fs.rmSync(TMP_VAULT, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
 
 describe("indexer", () => {

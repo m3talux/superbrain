@@ -111,7 +111,7 @@ describe("Go workspaces (go.work)", () => {
     for (const p of ["svc-a", "libs/foo"]) write(path.join(root, p, "go.mod"), `module ${p}\n`);
     const c = parseGoWork(root);
     expect(c!.length).toBe(2);
-    expect(c!.map(p => path.relative(root, p)).sort()).toEqual(["libs/foo", "svc-a"]);
+    expect(c!.map(p => path.relative(root, p).replace(/\\/g, "/")).sort()).toEqual(["libs/foo", "svc-a"]);
   });
 
   it("parses single-line `use ./path` form", () => {

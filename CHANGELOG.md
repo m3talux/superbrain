@@ -8,6 +8,51 @@ behavior may change without notice.
 
 ## [Unreleased]
 
+## [0.4.3]
+
+### Added
+
+- **Native Windows support** (no WSL required) alongside macOS and Linux.
+  `src/claudeCli.ts` wraps `execFile("claude", ...)` with `shell: true` on
+  Windows so the `claude.cmd` shim resolves; the three call sites in
+  `distillRun.ts`, `injectRun.ts`, and `discoverer.ts` all route through
+  this wrapper. Bootstrap (`bin/sb-bootstrap.ts`) emits platform-specific
+  hints when `npm rebuild better-sqlite3` fails (Visual Studio Build Tools
+  + Python 3 on Windows; build-essential on Linux; Xcode CLT on macOS).
+- **CI matrix**: GitHub Actions now runs the gate on `ubuntu-latest`,
+  `macos-latest`, and `windows-latest` with `fail-fast: false`.
+- **Public docs**: README has a "Supported platforms" section and an
+  "Install troubleshooting" subsection. CONTRIBUTING documents the
+  three-OS CI matrix.
+- `.gitattributes` forces LF on tracked text files so the Windows
+  runner's `git diff --exit-code dist` doesn't false-positive on line
+  endings.
+
+### Fixed
+
+- **Cross-platform path handling** (PR #27, surfaced by the cross-platform
+  audit). `vaultWriter.resolveSafe` normalizes backslashes before the
+  EXCLUDED-folder check so writes into `.obsidian/`, `.git/`, `.trash/`,
+  `node_modules/` are correctly rejected on Windows. `commands/migrate.md`
+  Obsidian vault auto-detect now covers macOS, Linux, and Windows registry
+  paths. `projectDetect.homedir` no longer short-circuits via
+  `process.env.HOME`.
+- **Indexer relpath normalization**: `src/indexer.ts` `walk()` now emits
+  forward-slash-delimited vault relpaths even on Windows, so the index
+  doesn't mix `\`-separated and `/`-separated forms.
+- **projectDetect blocklist on Windows**: prefix matching normalizes
+  separators on both sides before comparison, so `~/.cache/...`,
+  `~/.ssh/...` etc. block correctly on Windows.
+- **Test suite portability** (PR #28): every hardcoded `/tmp/<x>` test
+  path replaced with `fs.mkdtempSync(path.join(os.tmpdir(), ...))`. 42
+  test files touched; prerequisite for the Windows CI job.
+- **Test-side `execFileSync("npx", ...)` calls** now pass
+  `shell: process.platform === "win32"`, mirroring the production
+  `claudeCli` fix so test binaries spawn correctly on Windows.
+- **better-sqlite3 EBUSY on Windows**: `tests/indexer.test.ts` afterEach
+  uses `fs.rmSync` with `maxRetries: 5, retryDelay: 100` to ride out the
+  brief Windows file-handle lease after `db.close()`.
+
 ## [0.4.2]
 
 ### Added
@@ -99,7 +144,8 @@ Initial development baseline.
   a one-time guarded dependency bootstrap so a marketplace install works from a
   bare clone.
 
-[Unreleased]: https://github.com/m3talux/superbrain/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/m3talux/superbrain/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/m3talux/superbrain/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/m3talux/superbrain/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/m3talux/superbrain
 [0.1.0]: https://github.com/m3talux/superbrain
