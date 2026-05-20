@@ -96,6 +96,7 @@ describe("runDistill end-to-end skip integration", () => {
         SUPERBRAIN_DATA_DIR: data, SUPERBRAIN_VAULT_DIR: vault,
         SUPERBRAIN_SESSION_ID: "S", SUPERBRAIN_EMBED_STUB: "1" },
       encoding: "utf8",
+      shell: process.platform === "win32",
     });
     // Cursor advanced past the delta.
     expect(fs.existsSync(path.join(data, "sessions", "S.cursor"))).toBe(true);
@@ -129,6 +130,7 @@ describe("runDistill end-to-end skip integration", () => {
         SUPERBRAIN_DISTILL_STUB: stub,
         SUPERBRAIN_SESSION_ID: "S", SUPERBRAIN_EMBED_STUB: "1" },
       encoding: "utf8",
+      shell: process.platform === "win32",
     });
     // The stub envelope was applied — decision file should exist.
     expect(fs.existsSync(path.join(vault, "decisions", "2026-05-20-forced.md"))).toBe(true);

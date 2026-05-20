@@ -19,6 +19,7 @@ it("sb-recall exits 0 (no crash) when deps are absent", () => {
     input: JSON.stringify({ prompt: "anything" }),
     env: { ...process.env, CLAUDE_PLUGIN_ROOT: TMP },
     encoding: "utf8",
+    shell: process.platform === "win32",
   });
   expect(out).toBe(""); // no additionalContext, no throw
 });

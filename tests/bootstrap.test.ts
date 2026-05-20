@@ -56,6 +56,7 @@ it("sb-bootstrap is idempotent only when BOTH sentinel exists AND deps present",
     env: { ...process.env, SUPERBRAIN_DATA_DIR: TMP_DATA,
       SUPERBRAIN_PLUGIN_ROOT: TMP_PLUGIN, SUPERBRAIN_BOOTSTRAP_FAKE: "1" },
     encoding: "utf8",
+    shell: process.platform === "win32",
   });
   expect(out).toMatch(/already done/);
 });
@@ -65,6 +66,7 @@ it("sb-bootstrap (fake) writes per-install bootstrap-done on success", () => {
     env: { ...process.env, SUPERBRAIN_DATA_DIR: TMP_DATA,
       SUPERBRAIN_PLUGIN_ROOT: TMP_PLUGIN, SUPERBRAIN_BOOTSTRAP_FAKE: "1" },
     encoding: "utf8",
+    shell: process.platform === "win32",
   });
   expect(bootstrapDone(TMP_PLUGIN)).toBe(true);
 });
@@ -80,6 +82,7 @@ it("sb-bootstrap re-runs when sentinel exists but native binding is missing (upg
     env: { ...process.env, SUPERBRAIN_DATA_DIR: TMP_DATA,
       SUPERBRAIN_PLUGIN_ROOT: TMP_PLUGIN, SUPERBRAIN_BOOTSTRAP_FAKE: "1" },
     encoding: "utf8",
+    shell: process.platform === "win32",
   });
   expect(out).not.toMatch(/already done/);
 });

@@ -23,6 +23,7 @@ it("no deps: emits the rebuilding-native-deps notice, exits 0, does NOT crash", 
     env: { ...process.env, SUPERBRAIN_DATA_DIR: TMP_DATA, CLAUDE_PLUGIN_ROOT: TMP_EMPTY,
       SUPERBRAIN_FAKE_DISTILLER: "1", SUPERBRAIN_BOOTSTRAP_FAKE: "1" },
     encoding: "utf8",
+    shell: process.platform === "win32",
   });
   expect(out).toMatch(/rebuilding native dependencies/i);
   expect(out).toMatch(/additionalContext/);

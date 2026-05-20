@@ -27,6 +27,7 @@ it("after adopt, the distiller writes to the adopted vault, NOT the default data
   // the adopted location and marks <adopted>/.superbrain.
   execFileSync("npx", ["tsx", "bin/sb.ts", "adopt", adopted], {
     env: { ...process.env, SUPERBRAIN_DATA_DIR: dataDir }, encoding: "utf8",
+    shell: process.platform === "win32",
   });
   expect(fs.existsSync(path.join(adopted, ".superbrain"))).toBe(true);
   expect(fs.readFileSync(path.join(dataDir, "vault-path"), "utf8")).toBe(adopted);
@@ -51,6 +52,7 @@ it("after adopt, the distiller writes to the adopted vault, NOT the default data
       SUPERBRAIN_SESSION_ID: "S",
       SUPERBRAIN_EMBED_STUB: "1" },
     encoding: "utf8",
+    shell: process.platform === "win32",
   });
 
   // Step 3: assert the decision landed in the ADOPTED dir.
@@ -79,10 +81,12 @@ it("after adopt + a subsequent re-adopt to a different dir, writes go to the LAT
   // Adopt the first.
   execFileSync("npx", ["tsx", "bin/sb.ts", "adopt", firstAdopt], {
     env: { ...process.env, SUPERBRAIN_DATA_DIR: dataDir }, encoding: "utf8",
+    shell: process.platform === "win32",
   });
   // Adopt a different dir — must replace the recorded path, not append.
   execFileSync("npx", ["tsx", "bin/sb.ts", "adopt", secondAdopt], {
     env: { ...process.env, SUPERBRAIN_DATA_DIR: dataDir }, encoding: "utf8",
+    shell: process.platform === "win32",
   });
   expect(fs.readFileSync(path.join(dataDir, "vault-path"), "utf8")).toBe(secondAdopt);
 
@@ -102,6 +106,7 @@ it("after adopt + a subsequent re-adopt to a different dir, writes go to the LAT
       SUPERBRAIN_SESSION_ID: "S",
       SUPERBRAIN_EMBED_STUB: "1" },
     encoding: "utf8",
+    shell: process.platform === "win32",
   });
 
   expect(fs.existsSync(path.join(secondAdopt, "decisions", "2026-05-20-re-adopt-replaces.md"))).toBe(true);

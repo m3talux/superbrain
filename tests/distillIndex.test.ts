@@ -33,6 +33,7 @@ it("a note written by the distiller is searchable in the index", () => {
     env: { ...process.env, SUPERBRAIN_DATA_DIR: TMP_DATA, SUPERBRAIN_VAULT_DIR: TMP_VAULT,
       SUPERBRAIN_DISTILL_STUB: stub, SUPERBRAIN_SESSION_ID: "S", SUPERBRAIN_EMBED_STUB: "1" },
     encoding: "utf8",
+    shell: process.platform === "win32",
   });
   const ix = openIndex();
   expect(ix.bm25("sqlite-vec", 5).length).toBeGreaterThan(0);

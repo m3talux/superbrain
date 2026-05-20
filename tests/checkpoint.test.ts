@@ -20,6 +20,7 @@ function run(hook: object, extraEnv: Record<string, string> = {}) {
     env: { ...process.env, SUPERBRAIN_DATA_DIR: TMP,
            SUPERBRAIN_FAKE_DISTILLER: "1", ...extraEnv },
     encoding: "utf8",
+    shell: process.platform === "win32",
   });
 }
 

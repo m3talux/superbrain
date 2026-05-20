@@ -17,6 +17,7 @@ function run(args: string[], env: Record<string, string>) {
   return execFileSync("npx", ["tsx", "bin/sb-inject.ts", ...args], {
     env: { ...process.env, ...env },
     encoding: "utf8",
+    shell: process.platform === "win32",
   });
 }
 

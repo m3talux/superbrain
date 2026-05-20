@@ -32,6 +32,7 @@ it("rollup path also regenerates the daily note for the rollup key", () => {
       SUPERBRAIN_DISTILL_STUB: stub, SUPERBRAIN_SESSION_ID: "rollup-2026-05-18",
       SUPERBRAIN_ROLLUP: "daily:2026-05-18:v1", SUPERBRAIN_EMBED_STUB: "1" },
     encoding: "utf8",
+    shell: process.platform === "win32",
   });
 
   const daily = fs.readFileSync(path.join(TMP_VAULT, "daily/2026-05-18.md"), "utf8");

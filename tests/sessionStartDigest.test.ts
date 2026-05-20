@@ -35,6 +35,7 @@ it("SessionStart emits a hybrid recall digest in additionalContext", () => {
     env: { ...process.env, SUPERBRAIN_DATA_DIR: TMP_DATA, SUPERBRAIN_VAULT_DIR: TMP_VAULT,
            SUPERBRAIN_FAKE_DISTILLER: "1", SUPERBRAIN_EMBED_STUB: "1" },
     encoding: "utf8",
+    shell: process.platform === "win32",
   });
   expect(out).toMatch(/additionalContext/);
   expect(out).toMatch(/super-brain/);

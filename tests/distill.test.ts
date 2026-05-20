@@ -33,6 +33,7 @@ it("distills delta into routed notes, daily .log file, advances cursor, releases
       SUPERBRAIN_VAULT_DIR: TMP_VAULT, SUPERBRAIN_DISTILL_STUB: stub,
       SUPERBRAIN_SESSION_ID: "S", SUPERBRAIN_EMBED_STUB: "1" },
     encoding: "utf8",
+    shell: process.platform === "win32",
   });
 
   expect(fs.existsSync(path.join(TMP_VAULT, "decisions/2026-05-19-pick-x.md"))).toBe(true);

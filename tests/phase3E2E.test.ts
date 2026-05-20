@@ -35,6 +35,7 @@ it("pushback session yields a lesson note + reconciled preferences, injected nex
     env: { ...process.env, SUPERBRAIN_DATA_DIR: TMP_DATA, SUPERBRAIN_VAULT_DIR: TMP_VAULT,
       SUPERBRAIN_DISTILL_STUB: stub, SUPERBRAIN_SESSION_ID: "S", SUPERBRAIN_EMBED_STUB: "1" },
     encoding: "utf8",
+    shell: process.platform === "win32",
   });
 
   expect(fs.existsSync(path.join(TMP_VAULT, "lessons/2026-05-19-no-inline-comments.md"))).toBe(true);
@@ -47,6 +48,7 @@ it("pushback session yields a lesson note + reconciled preferences, injected nex
     env: { ...process.env, SUPERBRAIN_DATA_DIR: TMP_DATA, SUPERBRAIN_VAULT_DIR: TMP_VAULT,
       SUPERBRAIN_FAKE_DISTILLER: "1", SUPERBRAIN_EMBED_STUB: "1" },
     encoding: "utf8",
+    shell: process.platform === "win32",
   });
   expect(out).toContain("No inline comments unless non-obvious");
 });
