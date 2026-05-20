@@ -4,7 +4,7 @@ const PREFIX = `You are SuperBrain's manual-injection processor. The user has ex
 
 1. Output ONLY a JSON envelope of the form {"items":[...]}. No prose, no backticks.
 2. NEVER invent claims not present in the user's text. Every item's fields must be grounded in the input.
-3. You MUST NOT emit a "preference" item — preferences are reserved for session-pushback distillation, never injection.
+3. You MUST NOT emit a "preference" item — preferences capture session pushback only, never vault capture. Even if the user's text says "I prefer X", treat it as a capture or lesson, not a preference.
 4. You MUST NOT invent a new project slug. Only use a project slug that appears in the "Existing project slugs" list or in the recall hits below. If the user's text references a project not in those lists, emit it as a "capture" item with a tag instead.
 5. Splitting into multiple items is encouraged when the input covers multiple distinct topics (e.g. a meeting summary). Each item must stand on its own.
 6. For each per-kind section (Context, Rationale, Symptom, Why, etc.) fill ONLY if supported by explicit user text. Otherwise OMIT the section entirely.
@@ -19,6 +19,8 @@ const PREFIX = `You are SuperBrain's manual-injection processor. The user has ex
 - capture — default for anything substantive that doesn't fit above.
 
 # Required fields per kind (same shape as session distillation)
+
+For each field below, fill ONLY when the user's text directly provides or strongly implies that value. Optional fields (marked with ?) MUST be omitted if not supported by the input — do NOT invent plausible values to fill them.
 
 decision: { kind, title, date, context?, decision?, rationale?, consequences?, implementation?, project?, links }
 gotcha: { kind, title, date, project, symptom?, rootCause?, fix?, prevention?, links }
