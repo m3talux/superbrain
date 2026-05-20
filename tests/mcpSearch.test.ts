@@ -1,17 +1,25 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { openIndex } from "../src/searchIndex";
 import { handleSearch } from "../src/mcpSearch";
 
+let TMP: string;
+
 beforeEach(() => {
-  process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-mcps";
+  TMP = fs.mkdtempSync(path.join(os.tmpdir(), "sb-mcps-"));
+  process.env.SUPERBRAIN_DATA_DIR = TMP;
   process.env.SUPERBRAIN_EMBED_STUB = "1";
-  fs.rmSync("/tmp/sb-mcps", { recursive: true, force: true });
   const ix = openIndex();
   ix.upsertNote("decisions/x.md", 1, "h",
     [{ headingPath: "", anchor: "", text: "adopted mcpvault then replaced it with an in-process writer" }],
     [Float32Array.from(Array(384).fill(0.2))]);
   ix.close();
+});
+
+afterEach(() => {
+  fs.rmSync(TMP, { recursive: true, force: true });
 });
 
 describe("handleSearch", () => {

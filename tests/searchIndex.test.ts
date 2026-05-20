@@ -1,8 +1,19 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { openIndex, rrf } from "../src/searchIndex";
 
-beforeEach(() => { process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-idx"; fs.rmSync("/tmp/sb-idx", { recursive: true, force: true }); });
+let TMP: string;
+
+beforeEach(() => {
+  TMP = fs.mkdtempSync(path.join(os.tmpdir(), "sb-idx-"));
+  process.env.SUPERBRAIN_DATA_DIR = TMP;
+});
+
+afterEach(() => {
+  fs.rmSync(TMP, { recursive: true, force: true });
+});
 
 const vec = (n: number) => Float32Array.from(Array(384).fill(n));
 

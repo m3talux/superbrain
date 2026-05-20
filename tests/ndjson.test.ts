@@ -1,11 +1,20 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { appendEvent, readDelta } from "../src/ndjson";
 
 const SID = "sess1";
+
+let TMP: string;
+
 beforeEach(() => {
-  process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-ndjson";
-  fs.rmSync("/tmp/sb-ndjson", { recursive: true, force: true });
+  TMP = fs.mkdtempSync(path.join(os.tmpdir(), "sb-ndjson-"));
+  process.env.SUPERBRAIN_DATA_DIR = TMP;
+});
+
+afterEach(() => {
+  fs.rmSync(TMP, { recursive: true, force: true });
 });
 
 describe("ndjson", () => {

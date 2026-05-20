@@ -1,10 +1,18 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { needsRollup, markRollup } from "../src/rollupState";
 
+let TMP: string;
+
 beforeEach(() => {
-  process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-rollup";
-  fs.rmSync("/tmp/sb-rollup", { recursive: true, force: true });
+  TMP = fs.mkdtempSync(path.join(os.tmpdir(), "sb-rollup-"));
+  process.env.SUPERBRAIN_DATA_DIR = TMP;
+});
+
+afterEach(() => {
+  fs.rmSync(TMP, { recursive: true, force: true });
 });
 
 describe("rollupState", () => {

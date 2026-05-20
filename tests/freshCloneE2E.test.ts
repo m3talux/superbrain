@@ -1,22 +1,28 @@
-import { it, expect, beforeEach } from "vitest";
+import { it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 
-const CLONE = "/tmp/sb-fresh";
+let CLONE: string;
+let TMP_DATA: string;
+
 beforeEach(() => {
-  fs.rmSync(CLONE, { recursive: true, force: true });
-  fs.mkdirSync(CLONE, { recursive: true });
+  CLONE = fs.mkdtempSync(path.join(os.tmpdir(), "sb-fresh-clone-"));
+  TMP_DATA = fs.mkdtempSync(path.join(os.tmpdir(), "sb-fresh-data-"));
   // Simulate a marketplace clone: committed dist/ + manifests, NO node_modules.
   for (const d of ["dist", ".claude-plugin", "hooks"])
     fs.cpSync(d, path.join(CLONE, d), { recursive: true });
   fs.copyFileSync("package.json", path.join(CLONE, "package.json"));
 });
 
+afterEach(() => {
+  fs.rmSync(CLONE, { recursive: true, force: true });
+  fs.rmSync(TMP_DATA, { recursive: true, force: true });
+});
+
 it("every hook entrypoint loads + exits 0 with NO node_modules; SessionStart bootstraps", () => {
-  const dataDir = "/tmp/sb-fresh-data";
-  fs.rmSync(dataDir, { recursive: true, force: true });
-  const env = { ...process.env, CLAUDE_PLUGIN_ROOT: CLONE, SUPERBRAIN_DATA_DIR: dataDir,
+  const env = { ...process.env, CLAUDE_PLUGIN_ROOT: CLONE, SUPERBRAIN_DATA_DIR: TMP_DATA,
     SUPERBRAIN_BOOTSTRAP_FAKE: "1", SUPERBRAIN_FAKE_DISTILLER: "1" };
   for (const b of ["sb-observe", "sb-checkpoint", "sb-recall", "sb-distill"]) {
     const r = execFileSync(process.execPath, [path.join(CLONE, "dist/bin", `${b}.js`)], {

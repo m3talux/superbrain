@@ -1,10 +1,18 @@
-import { it, expect, beforeEach } from "vitest";
+import { it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { upsertDay, readDay, type DaySessionEntry } from "../src/dailyState";
 
+let TMP: string;
+
 beforeEach(() => {
-  fs.rmSync("/tmp/sb-ds", { recursive: true, force: true });
-  process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-ds";
+  TMP = fs.mkdtempSync(path.join(os.tmpdir(), "sb-ds-"));
+  process.env.SUPERBRAIN_DATA_DIR = TMP;
+});
+
+afterEach(() => {
+  fs.rmSync(TMP, { recursive: true, force: true });
 });
 
 const entry = (over: Partial<DaySessionEntry> = {}): DaySessionEntry =>

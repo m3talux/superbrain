@@ -1,19 +1,33 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import * as P from "../src/paths";
+
+let TMP_DATA: string;
+let TMP_VAULT: string;
 
 describe("paths", () => {
   beforeEach(() => {
-    process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-test-data";
-    process.env.SUPERBRAIN_VAULT_DIR = "/tmp/sb-test-vault";
+    TMP_DATA = fs.mkdtempSync(path.join(os.tmpdir(), "sb-test-data-"));
+    TMP_VAULT = fs.mkdtempSync(path.join(os.tmpdir(), "sb-test-vault-"));
+    process.env.SUPERBRAIN_DATA_DIR = TMP_DATA;
+    process.env.SUPERBRAIN_VAULT_DIR = TMP_VAULT;
   });
+
+  afterEach(() => {
+    fs.rmSync(TMP_DATA, { recursive: true, force: true });
+    fs.rmSync(TMP_VAULT, { recursive: true, force: true });
+  });
+
   it("derives data + vault + session paths", () => {
-    expect(P.dataDir()).toBe("/tmp/sb-test-data");
-    expect(P.vaultPath()).toBe("/tmp/sb-test-vault");
-    expect(P.sessionNdjsonPath("abc")).toBe("/tmp/sb-test-data/sessions/abc.ndjson");
-    expect(P.cursorPath("abc")).toBe("/tmp/sb-test-data/sessions/abc.cursor");
-    expect(P.sentinelPath()).toBe("/tmp/sb-test-data/last-failure.txt");
-    expect(P.rollupStatePath()).toBe("/tmp/sb-test-data/rollup-state.json");
-    expect(P.lockDir("distill")).toBe("/tmp/sb-test-data/locks/distill.lock");
+    expect(P.dataDir()).toBe(TMP_DATA);
+    expect(P.vaultPath()).toBe(TMP_VAULT);
+    expect(P.sessionNdjsonPath("abc")).toBe(path.join(TMP_DATA, "sessions/abc.ndjson"));
+    expect(P.cursorPath("abc")).toBe(path.join(TMP_DATA, "sessions/abc.cursor"));
+    expect(P.sentinelPath()).toBe(path.join(TMP_DATA, "last-failure.txt"));
+    expect(P.rollupStatePath()).toBe(path.join(TMP_DATA, "rollup-state.json"));
+    expect(P.lockDir("distill")).toBe(path.join(TMP_DATA, "locks/distill.lock"));
   });
   it("falls back to ~/.superbrain and ~/vault", () => {
     delete process.env.SUPERBRAIN_DATA_DIR;
