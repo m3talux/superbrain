@@ -78,4 +78,29 @@ describe("resolveLinks", () => {
   it("returns empty on a non-existent vault root without crashing", () => {
     expect(resolveLinks(["anything"], path.join(vault, "does-not-exist"))).toEqual([]);
   });
+
+  it("resolves links case-insensitively (Weddy -> projects/weddy)", () => {
+    touch("projects/weddy.md");
+    expect(resolveLinks(["Weddy"], vault)).toEqual(["projects/weddy"]);
+    expect(resolveLinks(["WEDDY"], vault)).toEqual(["projects/weddy"]);
+    expect(resolveLinks(["[[Engram]]"], vault)).toEqual([]);
+  });
+
+  it("resolves case-insensitive full relative paths (Projects/Weddy -> projects/weddy)", () => {
+    touch("projects/weddy.md");
+    expect(resolveLinks(["Projects/Weddy"], vault)).toEqual(["projects/weddy"]);
+  });
+
+  it("strips leading ../ and ./ from links before resolving", () => {
+    touch("people/thomas.md");
+    expect(resolveLinks(["../people/thomas"], vault)).toEqual(["people/thomas"]);
+    expect(resolveLinks(["./people/thomas"], vault)).toEqual(["people/thomas"]);
+    expect(resolveLinks(["../../people/thomas"], vault)).toEqual(["people/thomas"]);
+  });
+
+  it("strips pipe alias before resolving (Obsidian [[target|alias]] form)", () => {
+    touch("projects/weddy.md");
+    expect(resolveLinks(["weddy|the weddy project"], vault)).toEqual(["projects/weddy"]);
+    expect(resolveLinks(["[[weddy|Weddy]]"], vault)).toEqual(["projects/weddy"]);
+  });
 });
