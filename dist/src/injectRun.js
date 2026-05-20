@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
 import { route, slug } from "./router.js";
 import { writeNote } from "./vaultWriter.js";
 import { indexNote } from "./indexer.js";
@@ -10,10 +9,10 @@ import { dataDir, vaultPath } from "./paths.js";
 import { writeFailure } from "./sentinel.js";
 import { hybridRecall } from "./recall.js";
 import { parseEnvelope } from "./distillRun.js";
-import { distillModel } from "./model.js";
 import { buildInjectPrompt } from "./injectPrompt.js";
 import { acquireLock, releaseLock } from "./lockfile.js";
 import { resolveLinks } from "./wikilink.js";
+import { claudeP } from "./claudeCli.js";
 const MAX_INPUT_BYTES = 32 * 1024;
 export function sanityCheck(raw) {
     const stripped = raw.replace(/\0/g, "");
@@ -120,7 +119,7 @@ function callClaudeInject(prompt) {
     const stub = process.env.SUPERBRAIN_DISTILL_STUB;
     if (stub)
         return fs.readFileSync(stub, "utf8");
-    return execFileSync("claude", ["--model", distillModel(), "-p", prompt], { encoding: "utf8" });
+    return claudeP(prompt);
 }
 async function gatherRecall(text) {
     try {
