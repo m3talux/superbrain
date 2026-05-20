@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { depsPresent, bootstrapDone, markBootstrapDone } from "../src/bootstrap";
+import { platformHint } from "../bin/sb-bootstrap";
 
 let TMP_PLUGIN: string;
 let TMP_DATA: string;
@@ -81,4 +82,21 @@ it("sb-bootstrap re-runs when sentinel exists but native binding is missing (upg
     encoding: "utf8",
   });
   expect(out).not.toMatch(/already done/);
+});
+
+it("platformHint returns a non-empty string for known platforms and empty string for unknown", () => {
+  // We can't control process.platform at test time, so verify the contract:
+  // known platforms (win32, linux, darwin) have hint text; unknown platforms don't.
+  const knownHints: Record<string, string> = {
+    win32: "Visual Studio Build Tools",
+    linux: "build-essential",
+    darwin: "xcode-select",
+  };
+  const current = process.platform as string;
+  const hint = platformHint();
+  if (current in knownHints) {
+    expect(hint).toContain(knownHints[current]);
+  } else {
+    expect(hint).toBe("");
+  }
 });
