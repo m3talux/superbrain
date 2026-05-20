@@ -162,6 +162,37 @@ function buildVerbatimItem(text: string, opts: InjectOpts): DistilledItem {
   return { kind: "capture", title, date, body: text.trim(), links: [] };
 }
 
+function applyInjectSafety(
+  items: DistilledItem[],
+  knownProjects: Set<string>,
+  forcedProject: string | undefined,
+): DistilledItem[] {
+  const out: DistilledItem[] = [];
+  for (const it of items) {
+    if (it.kind === "preference") continue;
+
+    let project = it.project;
+    if (forcedProject) project = slug(forcedProject);
+
+    if (it.kind === "project_fact" || it.kind === "gotcha") {
+      const p = project ? slug(project) : undefined;
+      if (!p || !knownProjects.has(p)) {
+        const tag = p ? ` (project: ${p})` : "";
+        out.push({
+          kind: "capture",
+          title: it.title,
+          date: it.date,
+          body: ((it.body || "") + tag).trim(),
+          links: it.links,
+        });
+        continue;
+      }
+    }
+    out.push({ ...it, project });
+  }
+  return out;
+}
+
 export async function runInject(raw: string, opts: InjectOpts = {}): Promise<InjectResult> {
   const sane = sanityCheck(raw);
   if (!sane.ok) return { ok: false, mode: "verbatim", notes: [], message: sane.reason };
@@ -186,13 +217,15 @@ export async function runInject(raw: string, opts: InjectOpts = {}): Promise<Inj
     envelope = { items: [], openThreads: [], alsoDid: [] };
   }
 
-  if (envelope.items.length === 0) {
-    // Task 7 will replace this with verbatim fallback. For now: fail-soft.
-    return { ok: false, mode: "distill", notes: [], message: "LLM returned no items (fallback in Task 7)" };
+  const knownProjects = new Set(projectSlugs);
+  const safeItems = applyInjectSafety(envelope.items, knownProjects, opts.project);
+
+  if (safeItems.length === 0) {
+    return { ok: false, mode: "distill", notes: [], message: "LLM returned no usable items (fallback in Task 7)" };
   }
 
   const written: string[] = [];
-  for (const item of envelope.items) {
+  for (const item of safeItems) {
     const rel = await writeOne(item, "distill");
     if (rel) written.push(rel);
   }
