@@ -22,7 +22,7 @@ import { route, type DistilledItem } from "./router.js";
 import { writeNote } from "./vaultWriter.js";
 import { releaseLock } from "./lockfile.js";
 import { writeFailure } from "./sentinel.js";
-import { vaultPath, logFilePath } from "./paths.js";
+import { vaultPath, logFilePath, dataDir } from "./paths.js";
 import { markRollup } from "./rollupState.js";
 import { indexNote } from "./indexer.js";
 import { upsertDay } from "./dailyState.js";
@@ -195,6 +195,39 @@ export async function runRollup(rollupEnv: string): Promise<void> {
   }
 }
 
+// Cost optimization: skip the claude -p spawn entirely when the session
+// delta has too little signal to be worth distilling. Reads the same NDJSON
+// the distiller would have sent and decides locally — no LLM call. Saves
+// ~5K input tokens per low-signal session. Conservative on the skip side:
+// only declines when no salience markers AND no file writes AND <2 prompts
+// AND <10 total events. Anything ambiguous still distills.
+export interface SkipResult { skip: boolean; reason: string; }
+export function shouldSkipDistill(events: any[]): SkipResult {
+  if (!events || events.length === 0) return { skip: true, reason: "empty delta" };
+  const markers = events.filter(e => e?.type === "marker" || e?.reason);
+  const writeTools = events.filter(e => e?.type === "tool" && ["Write", "Edit", "MultiEdit", "Bash"].includes(e?.tool));
+  const prompts = events.filter(e => e?.type === "prompt");
+  if (markers.length === 0 && writeTools.length === 0 && prompts.length < 2 && events.length < 10) {
+    return {
+      skip: true,
+      reason: `low-signal delta: ${events.length} events, ${writeTools.length} writes, ${prompts.length} prompts, 0 markers`,
+    };
+  }
+  return { skip: false, reason: "" };
+}
+
+// Append a one-line trace to ~/.superbrain/distill.log on every distill
+// decision. Lets the user see exactly when the skip fired and why, without
+// burdening the sentinel (which is reserved for actual failures).
+function logDistillSkip(sid: string, reason: string): void {
+  try {
+    const logFile = path.join(dataDir(), "distill.log");
+    fs.mkdirSync(path.dirname(logFile), { recursive: true });
+    const stamp = new Date().toISOString().replace("T", " ").slice(0, 19);
+    fs.appendFileSync(logFile, `[${stamp}] skip ${sid}: ${reason}\n`);
+  } catch { /* best-effort */ }
+}
+
 export async function runDistill(): Promise<void> {
   const sid = process.env.SUPERBRAIN_SESSION_ID
     || (() => { try { return JSON.parse(fs.readFileSync(0, "utf8")).session_id; } catch { return "unknown"; } })();
@@ -202,6 +235,18 @@ export async function runDistill(): Promise<void> {
     const from = readCursor(sid);
     const { events, newOffset } = readDelta(sid, from);
     if (events.length === 0) { releaseLock("distill"); process.exit(0); }
+    // Pre-LLM skip check. Test stubs (SUPERBRAIN_DISTILL_STUB) bypass this so
+    // fixtures that supply a small canned envelope still go through the full
+    // routing path.
+    if (!process.env.SUPERBRAIN_DISTILL_STUB) {
+      const sk = shouldSkipDistill(events);
+      if (sk.skip) {
+        logDistillSkip(sid, sk.reason);
+        writeCursor(sid, newOffset);
+        releaseLock("distill");
+        return;
+      }
+    }
     const env = getEnvelope(JSON.stringify(events));
     const items = env.items;
     const routedByDate: Record<string, string[]> = {};

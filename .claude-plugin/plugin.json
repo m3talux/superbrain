@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "superbrain",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Automatic Claude Code -> Obsidian second brain: zero-config session capture, hybrid search, autonomous recall, daily/lessons/preferences.",
   "author": {
     "name": "m3talux"
