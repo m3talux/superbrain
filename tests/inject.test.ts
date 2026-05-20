@@ -355,7 +355,6 @@ describe("sb-inject CLI", () => {
         SUPERBRAIN_EMBED_STUB: "1",
       },
       encoding: "utf8",
-      shell: process.platform === "win32",
     });
     expect(out).toMatch(/Wrote 1 note/);
     expect(out).toMatch(/capture\//);
@@ -373,7 +372,6 @@ describe("sb-inject CLI", () => {
           SUPERBRAIN_EMBED_STUB: "1",
         },
         encoding: "utf8",
-        shell: process.platform === "win32",
       });
     } catch (e: any) {
       exitCode = e.status;
@@ -393,7 +391,6 @@ describe("sb-inject CLI", () => {
         SUPERBRAIN_EMBED_STUB: "1",
       },
       encoding: "utf8",
-      shell: process.platform === "win32",
     });
     expect(out).toMatch(/Wrote 1 note/);
   });
@@ -409,7 +406,6 @@ describe("sb-inject CLI", () => {
       },
       input: "a side thought piped via stdin",
       encoding: "utf8",
-      shell: process.platform === "win32",
     });
     expect(out).toMatch(/Wrote 1 note/);
     expect(out).toMatch(/capture\//);

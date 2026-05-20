@@ -26,7 +26,6 @@ function run(hook: object, extraEnv: Record<string, string> = {}) {
   return execFileSync("npx", ["tsx", "bin/sb-recall.ts"], {
     input: JSON.stringify(hook),
     env: { ...process.env, ...extraEnv }, encoding: "utf8",
-    shell: process.platform === "win32",
   });
 }
 

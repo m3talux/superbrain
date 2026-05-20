@@ -19,7 +19,6 @@ function run(hookJson: object) {
     input: JSON.stringify(hookJson),
     env: { ...process.env, SUPERBRAIN_DATA_DIR: TMP },
     encoding: "utf8",
-    shell: process.platform === "win32",
   });
 }
 
@@ -36,7 +35,6 @@ describe("sb-observe", () => {
     execFileSync("npx", ["tsx", "bin/sb-observe.ts"], {
       input: JSON.stringify({ session_id: "S2", hook_event_name: "PostToolUse", cwd: "/p", tool_name: "Read" }),
       env: { ...process.env, SUPERBRAIN_DATA_DIR: TMP, SUPERBRAIN_CHILD: "1" }, encoding: "utf8",
-      shell: process.platform === "win32",
     });
     expect(fs.existsSync(path.join(TMP, "sessions/S2.ndjson"))).toBe(false);
   });

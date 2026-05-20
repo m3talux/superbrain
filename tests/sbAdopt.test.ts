@@ -20,8 +20,7 @@ afterEach(() => {
 
 function run(args: string[], env: Record<string,string> = {}) {
   return execFileSync("npx", ["tsx", "bin/sb.ts", ...args], {
-    env: { ...process.env, SUPERBRAIN_DATA_DIR: TMP_DATA, ...env }, encoding: "utf8",
-    shell: process.platform === "win32" });
+    env: { ...process.env, SUPERBRAIN_DATA_DIR: TMP_DATA, ...env }, encoding: "utf8" });
 }
 
 it("adopt marks + records a writable dir, refuses a file", () => {

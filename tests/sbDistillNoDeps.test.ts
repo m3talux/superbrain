@@ -23,7 +23,6 @@ it("sb-distill releases the lock and exits 0 when deps absent", () => {
     env: { ...process.env, SUPERBRAIN_DATA_DIR: TMP_DATA,
       CLAUDE_PLUGIN_ROOT: TMP_EMPTY, SUPERBRAIN_SESSION_ID: "S" },
     encoding: "utf8",
-    shell: process.platform === "win32",
   });
   expect(fs.existsSync(path.join(TMP_DATA, "locks/distill.lock"))).toBe(false);
 });

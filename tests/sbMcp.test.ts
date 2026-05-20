@@ -28,7 +28,7 @@ it("responds to initialize, tools/list, and tools/call over stdio", () => {
     { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} },
     { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "superbrain_search", arguments: { query: "rollup converges", k: 3 } } },
   ].map((m) => JSON.stringify(m)).join("\n") + "\n";
-  const out = execFileSync("npx", ["tsx", "bin/sb-mcp.ts"], { input: msgs, encoding: "utf8", timeout: 30000, shell: process.platform === "win32" });
+  const out = execFileSync("npx", ["tsx", "bin/sb-mcp.ts"], { input: msgs, encoding: "utf8", timeout: 30000 });
   expect(out).toMatch(/"superbrain_search"/);     // tools/list
   expect(out).toMatch(/projects\/p/);             // tools/call result
 });

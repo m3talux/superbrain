@@ -10,7 +10,7 @@ Every Claude Code session — across every project, on every machine — is capt
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-black.svg)](package.json)
 [![CI](https://github.com/m3talux/superbrain/actions/workflows/ci.yml/badge.svg)](https://github.com/m3talux/superbrain/actions/workflows/ci.yml)
 [![Storage](https://img.shields.io/badge/storage-plain%20Obsidian%20markdown-blueviolet.svg)](#vault-structure)
-[![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-blue.svg)](#install-troubleshooting)
+[![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux-blue.svg)](#install-troubleshooting)
 
 </div>
 
@@ -50,12 +50,14 @@ Installed at **user scope**, the plugin's hooks register for *every* project aut
 
 ## Supported platforms
 
-- **macOS** — Apple Silicon + Intel.
-- **Linux** — Ubuntu 22.04+ verified; other distros likely fine.
-- **Windows** — native, no WSL required. First-time install may need Visual
-  Studio Build Tools + Python 3 if no prebuilt `better-sqlite3` binary
-  matches your Node version. Node 20 LTS has the broadest prebuilt coverage.
-  See [Install troubleshooting](#install-troubleshooting) below.
+- **macOS** — Apple Silicon + Intel. CI-tested.
+- **Linux** — Ubuntu 22.04+ verified; other distros likely fine. CI-tested.
+- **Windows** — native Windows support is in progress: the cross-platform
+  spawn wrapper, path-separator handling, and platform-aware bootstrap hints
+  are in place, but the test suite is not yet fully Windows-portable and
+  Windows isn't on the CI matrix. See
+  [Install troubleshooting](#install-troubleshooting) for the first-install
+  failure modes and the fixes.
 
 Tested on Node 20 LTS and Node 22.
 

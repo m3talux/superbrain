@@ -56,9 +56,7 @@ check. The `tests/freshCloneE2E.test.ts` test enforces this — do not weaken it
 
 ## CI
 
-CI runs the gate (typecheck + build + test + `git diff --exit-code dist`) on `ubuntu-latest`, `macos-latest`, and `windows-latest`. All three must be green before a PR can merge.
-
-Local development on macOS or Linux mirrors the matching CI job exactly. Windows-specific regressions surface only in the Windows job — there is no substitute for running on the actual runner.
+CI runs the gate (typecheck + build + test + `git diff --exit-code dist`) on `ubuntu-latest` today. A macOS + Windows matrix is a planned follow-up — the existing tests have implicit POSIX assumptions (bash-stubbed `claude` binaries, `sleep`-based timing, hardcoded `:` PATH separators) that need real refactoring before they're portable. Local development on macOS or Linux mirrors the CI job exactly.
 
 ## Reporting bugs / requesting features
 

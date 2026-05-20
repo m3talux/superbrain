@@ -32,7 +32,6 @@ it("writes a daily note aggregating the session's routed items + envelope fields
     env: { ...process.env, SUPERBRAIN_DATA_DIR: TMP_DATA, SUPERBRAIN_VAULT_DIR: TMP_VAULT,
       SUPERBRAIN_DISTILL_STUB: stub, SUPERBRAIN_SESSION_ID: "S", SUPERBRAIN_EMBED_STUB: "1" },
     encoding: "utf8",
-    shell: process.platform === "win32",
   });
 
   const daily = fs.readFileSync(path.join(TMP_VAULT, "daily/2026-05-19.md"), "utf8");

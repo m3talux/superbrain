@@ -28,7 +28,6 @@ it("rollup mode writes a daily note and marks rollup state", () => {
       SUPERBRAIN_DISTILL_STUB: stub, SUPERBRAIN_ROLLUP: "daily:2026-05-18:42",
       SUPERBRAIN_EMBED_STUB: "1" },
     encoding: "utf8",
-    shell: process.platform === "win32",
   });
   expect(fs.existsSync(path.join(TMP_VAULT, "capture/2026-05-18-daily-2026-05-18.md"))).toBe(true);
   const state = JSON.parse(fs.readFileSync(path.join(TMP_DATA, "rollup-state.json"), "utf8"));

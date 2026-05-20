@@ -17,7 +17,6 @@ function run(args: string[], env: Record<string, string>) {
   return execFileSync("npx", ["tsx", "bin/sb-inject.ts", ...args], {
     env: { ...process.env, ...env },
     encoding: "utf8",
-    shell: process.platform === "win32",
   });
 }
 
@@ -73,12 +72,8 @@ describe("inject E2E", () => {
       SUPERBRAIN_DISTILL_STUB: stub,
     };
 
-    // Multi-line input via --from-file: passing a string containing literal
-    // \n\n as argv gets mangled by cmd.exe on Windows (shell:true) so the
-    // CLI sees a single-line short string and picks verbatim mode by mistake.
-    const inputFile = path.join(dataDir, "long-input.txt");
-    fs.writeFileSync(inputFile, "Meeting summary:\n\n" + "details ".repeat(40));
-    const out = run(["--from-file", inputFile], env);
+    const longInput = "Meeting summary:\n\n" + "details ".repeat(40);
+    const out = run([longInput], env);
     expect(out).toMatch(/Wrote 3 notes in distill mode/);
 
     expect(fs.existsSync(path.join(vaultDir, "decisions", `${today}-use-sonnet-for-inject.md`))).toBe(true);

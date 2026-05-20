@@ -24,11 +24,7 @@ afterEach(() => {
   fs.rmSync(TMP_BIN, { recursive: true, force: true });
 });
 
-// Skip on Windows: uses a bash-shebanged stub `claude` on PATH (with POSIX
-// `:` separator) — both are POSIX-only constructs. The convergence guarantee
-// is platform-independent; covering it on Linux + macOS is sufficient.
-const itPosix = process.platform === "win32" ? it.skip : it;
-itPosix("daily rollup converges: real path triggers the writer at most once across repeated session starts", () => {
+it("daily rollup converges: real path triggers the writer at most once across repeated session starts", () => {
   const env = { ...process.env, PATH: `${TMP_BIN}:${process.env.PATH}`,
     SUPERBRAIN_DATA_DIR: TMP_DATA, SUPERBRAIN_VAULT_DIR: TMP_VAULT,
     SUPERBRAIN_EMBED_STUB: "1" };
