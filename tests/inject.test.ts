@@ -211,6 +211,8 @@ describe("inject safety filter", () => {
     expect(result.notes).toHaveLength(1);
     expect(result.notes[0]).toMatch(/^capture\//);
     expect(fs.existsSync(path.join(vaultDir, "projects/totally-invented.md"))).toBe(false);
+    const captureBody = fs.readFileSync(path.join(vaultDir, result.notes[0]), "utf8");
+    expect(captureBody).toContain("(project: totally-invented)");
   });
 
   it("--project flag overrides model's project field", async () => {
