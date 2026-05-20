@@ -27,12 +27,16 @@ Determine the source vault path in this priority order:
    - Otherwise: resolve it; if it's an existing directory containing an `.obsidian/` folder OR
      at least one `.md` file at depth ≤ 2, accept it as the source. If `--dry-run` is also in
      `$ARGUMENTS`, set `DRY_RUN=true`.
-2. Otherwise, auto-detect by reading Obsidian's vault registry (macOS):
-   - `~/Library/Application Support/obsidian/obsidian.json` → its `vaults` object lists
-     vaults the user has opened, each with a `path`. Filter to entries whose `path` exists.
+2. Otherwise, auto-detect by reading Obsidian's vault registry. The location depends on host OS:
+   - **macOS:** `~/Library/Application Support/obsidian/obsidian.json`
+   - **Linux:** `$XDG_CONFIG_HOME/obsidian/obsidian.json` if set, else `~/.config/obsidian/obsidian.json`
+   - **Windows:** `%APPDATA%\obsidian\obsidian.json` (typically `~/AppData/Roaming/obsidian/obsidian.json`)
+
+   The file's `vaults` object lists vaults the user has opened, each with a `path`.
+   Filter to entries whose `path` exists on disk.
 3. If the registry produces 0 candidates, scan these common defaults (existence check only):
-   - `~/Documents/Obsidian Vault`, `~/Documents/Obsidian/*`, `~/Obsidian`,
-   - `~/Library/Mobile Documents/iCloud~md~obsidian/Documents/*` (iCloud).
+   - **All platforms:** `~/Obsidian`, `~/Documents/Obsidian`, `~/Documents/Obsidian Vault`
+   - **macOS only:** `~/Library/Mobile Documents/iCloud~md~obsidian/Documents/*` (iCloud)
 4. Decision:
    - **0 candidates** → ask the user: *"I couldn't auto-detect an Obsidian vault. Could you give
      me the absolute path?"* Wait for a reply; validate it (directory, contains markdown).

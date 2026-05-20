@@ -82,4 +82,11 @@ describe("vaultWriter", () => {
     const r = writeNote("projects/jarvis.md", { frontmatter: fm, body: "short note", mode: "append" });
     expect(r.reason).toBeUndefined();
   });
+  it("rejects writes into excluded folders regardless of path separator style", () => {
+    // These already pass on Linux/macOS because path.resolve uses forward slashes.
+    // After the fix they also pass on Windows where path.resolve uses backslashes.
+    expect(writeNote(".obsidian/note.md", { frontmatter: { type: "project", status: "active" }, body: "", mode: "create" }).ok).toBe(false);
+    expect(writeNote(".git/HEAD.md", { frontmatter: { type: "project", status: "active" }, body: "", mode: "create" }).ok).toBe(false);
+    expect(writeNote("subdir/.trash/x.md", { frontmatter: { type: "project", status: "active" }, body: "", mode: "create" }).ok).toBe(false);
+  });
 });

@@ -19,7 +19,8 @@ function resolveSafe(rel: string): string | null {
   const abs = path.resolve(root, rel);
   if (abs !== root && !abs.startsWith(root + path.sep)) return null;
   if (!ALLOWED_EXT.has(path.extname(abs))) return null;
-  if (EXCLUDED.some((e) => (abs + "/").includes(e))) return null;
+  const normalized = abs.replace(/\\/g, "/");
+  if (EXCLUDED.some((e) => (normalized + "/").includes(e))) return null;
   return abs;
 }
 

@@ -12,7 +12,8 @@ function resolveSafe(rel) {
         return null;
     if (!ALLOWED_EXT.has(path.extname(abs)))
         return null;
-    if (EXCLUDED.some((e) => (abs + "/").includes(e)))
+    const normalized = abs.replace(/\\/g, "/");
+    if (EXCLUDED.some((e) => (normalized + "/").includes(e)))
         return null;
     return abs;
 }

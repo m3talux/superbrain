@@ -56,7 +56,7 @@ const HEAVY_DIRS = new Set([
     ".cache", ".idea", ".vscode", "coverage", ".pytest_cache",
     ".gradle", ".mvn", "bin", "obj",
 ]);
-function homedir() { return process.env.HOME || os.homedir(); }
+function homedir() { return os.homedir(); }
 // Path classification. Exposed for tests and for the "why was this skipped?"
 // trace written to ~/.superbrain/discovery.log. SUPERBRAIN_TEST_BYPASS_BLOCKLIST
 // is an internal seam — tests using /tmp paths set it; Claude Code never does.

@@ -51,7 +51,7 @@ const HEAVY_DIRS = new Set([
   ".gradle", ".mvn", "bin", "obj",
 ]);
 
-function homedir(): string { return process.env.HOME || os.homedir(); }
+function homedir(): string { return os.homedir(); }
 
 // Path classification. Exposed for tests and for the "why was this skipped?"
 // trace written to ~/.superbrain/discovery.log. SUPERBRAIN_TEST_BYPASS_BLOCKLIST
