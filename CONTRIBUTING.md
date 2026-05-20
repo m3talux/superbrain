@@ -54,6 +54,10 @@ check. The `tests/freshCloneE2E.test.ts` test enforces this — do not weaken it
 6. Keep the PR description focused on *what* changed and *why*, plus how you
    verified it.
 
+## CI
+
+CI runs the gate (typecheck + build + test + `git diff --exit-code dist`) on `ubuntu-latest` today. A macOS + Windows matrix is a planned follow-up — the existing tests have implicit POSIX assumptions (bash-stubbed `claude` binaries, `sleep`-based timing, hardcoded `:` PATH separators) that need real refactoring before they're portable. Local development on macOS or Linux mirrors the CI job exactly.
+
 ## Reporting bugs / requesting features
 
 Use the GitHub issue templates. For bugs, include your OS, Node version, and the

@@ -8,6 +8,49 @@ behavior may change without notice.
 
 ## [Unreleased]
 
+## [0.4.3]
+
+Cross-platform foundations for native Windows (no WSL) support. The product
+code is platform-clean; the CI matrix to enforce it is a planned follow-up
+(the existing test suite has implicit POSIX assumptions that need a real
+refactor before macOS/Windows can be required-green).
+
+### Added
+
+- **`src/claudeCli.ts`** — cross-platform `execFile("claude", ...)`
+  wrapper. On Windows, sets `shell: true` so the `claude.cmd` shim
+  resolves; on macOS/Linux, leaves shell unset. The three call sites in
+  `distillRun.ts`, `injectRun.ts`, and `discoverer.ts` all route through
+  this single helper.
+- **Platform-aware bootstrap failure hints** (`bin/sb-bootstrap.ts`). Each
+  of the three bootstrap steps (npm ci, npm rebuild better-sqlite3,
+  binding-load verify) now has its own try/catch with an actionable
+  message: Visual Studio Build Tools + Python 3 on Windows;
+  build-essential on Linux; Xcode CLT on macOS.
+- **Public docs**: README has a "Supported platforms" section and an
+  "Install troubleshooting" subsection mapping bootstrap failures to
+  fixes per platform.
+
+### Fixed
+
+- **Cross-platform path handling** (PR #27). `vaultWriter.resolveSafe`
+  normalizes backslashes before the EXCLUDED-folder check so writes into
+  `.obsidian/`, `.git/`, `.trash/`, `node_modules/` are correctly
+  rejected on Windows. `commands/migrate.md` Obsidian vault auto-detect
+  now covers macOS, Linux, and Windows registry paths.
+  `projectDetect.homedir` no longer short-circuits via `process.env.HOME`.
+- **Indexer relpath normalization** (`src/indexer.ts`). `walk()` now
+  emits forward-slash-delimited vault relpaths regardless of host OS, so
+  the index doesn't mix `\`-separated and `/`-separated forms.
+- **`projectDetect` blocklist separator normalization**. Prefix matching
+  normalizes separators on both sides before comparison, so
+  HOME-relative blocks (`~/.cache/`, `~/.ssh/`, etc.) fire correctly on
+  Windows where `path.join(HOME, ".cache")` returns a `\`-separated
+  string but the blocklist literals are `/`-separated.
+- **Test suite portability** (PR #28): every hardcoded `/tmp/<x>` test
+  path replaced with `fs.mkdtempSync(path.join(os.tmpdir(), ...))`. 42
+  test files touched.
+
 ## [0.4.2]
 
 ### Added
@@ -99,7 +142,8 @@ Initial development baseline.
   a one-time guarded dependency bootstrap so a marketplace install works from a
   bare clone.
 
-[Unreleased]: https://github.com/m3talux/superbrain/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/m3talux/superbrain/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/m3talux/superbrain/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/m3talux/superbrain/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/m3talux/superbrain
 [0.1.0]: https://github.com/m3talux/superbrain

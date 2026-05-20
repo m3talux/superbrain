@@ -111,11 +111,18 @@ export function isBlockedPath(p) {
     const TMPDIR = process.env.TMPDIR;
     if (TMPDIR)
         prefixes.push(TMPDIR.endsWith("/") ? TMPDIR : TMPDIR + "/");
+    // Normalize separators to / on both sides so HOME-relative prefixes
+    // (constructed via path.join, backslash on Windows) compare correctly
+    // against the candidate path (also backslash on Windows). Unix-only
+    // prefixes ('/tmp/' etc.) are already '/'-form and just won't match on
+    // Windows — which is correct, those paths don't exist there.
+    const absFwd = abs.replace(/\\/g, "/");
     for (const pref of prefixes) {
-        if (abs + "/" === pref)
-            return { blocked: true, reason: `prefix-blocklist root: ${pref}` };
-        if (abs.startsWith(pref))
-            return { blocked: true, reason: `prefix-blocklist: ${pref}` };
+        const prefFwd = pref.replace(/\\/g, "/");
+        if (absFwd + "/" === prefFwd)
+            return { blocked: true, reason: `prefix-blocklist root: ${prefFwd}` };
+        if (absFwd.startsWith(prefFwd))
+            return { blocked: true, reason: `prefix-blocklist: ${prefFwd}` };
     }
     return { blocked: false };
 }

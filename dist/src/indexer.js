@@ -14,7 +14,10 @@ function walk(dir, root, acc) {
             walk(path.join(dir, e.name), root, acc);
         }
         else if (e.name.endsWith(".md")) {
-            acc.push(path.relative(root, path.join(dir, e.name)));
+            // Vault relpaths are forward-slash-delimited everywhere else
+            // (router.ts produces 'decisions/foo.md' etc.); path.relative returns
+            // backslashes on Windows, so normalize at this boundary.
+            acc.push(path.relative(root, path.join(dir, e.name)).replace(/\\/g, "/"));
         }
     }
 }
