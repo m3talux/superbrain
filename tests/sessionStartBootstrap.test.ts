@@ -13,8 +13,11 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  fs.rmSync(TMP_DATA, { recursive: true, force: true });
-  fs.rmSync(TMP_EMPTY, { recursive: true, force: true });
+  // SessionStart spawns a detached bootstrap child that can still be writing
+  // when this fires (especially on Windows). 5s retry window rides it out.
+  const opts = { recursive: true, force: true, maxRetries: 20, retryDelay: 250 };
+  fs.rmSync(TMP_DATA, opts);
+  fs.rmSync(TMP_EMPTY, opts);
 });
 
 it("no deps: emits the rebuilding-native-deps notice, exits 0, does NOT crash", () => {

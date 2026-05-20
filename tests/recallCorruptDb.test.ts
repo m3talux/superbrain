@@ -23,7 +23,7 @@ afterEach(() => {
   if (prevStub === undefined) delete process.env.SUPERBRAIN_EMBED_STUB; else process.env.SUPERBRAIN_EMBED_STUB = prevStub;
   // better-sqlite3 briefly retains the file handle on Windows after close();
   // maxRetries+retryDelay rides it out instead of failing with EBUSY.
-  fs.rmSync(TMP, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  fs.rmSync(TMP, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
 });
 
 it("bm25Recall returns [] on a corrupt index.db (spec §7), does not throw", async () => {

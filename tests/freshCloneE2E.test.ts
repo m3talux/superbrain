@@ -20,7 +20,7 @@ afterEach(() => {
   // SessionStart spawns a detached bootstrap child that may still be writing
   // when this fires; ENOTEMPTY / EBUSY can occur briefly. maxRetries rides
   // it out instead of failing the test.
-  const opts = { recursive: true, force: true, maxRetries: 5, retryDelay: 100 };
+  const opts = { recursive: true, force: true, maxRetries: 20, retryDelay: 250 };
   fs.rmSync(CLONE, opts);
   fs.rmSync(TMP_DATA, opts);
 });
