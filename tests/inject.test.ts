@@ -276,3 +276,45 @@ describe("inject lock serialization", () => {
     fs.rmSync(path.join(dataDir, "locks/distill.lock"), { recursive: true, force: true });
   });
 });
+
+describe("inject LLM-failure fallback", () => {
+  it("falls back to verbatim capture when envelope has no items", async () => {
+    const { dataDir, vaultDir } = makeTmpEnv("fallback-empty");
+    process.env.SUPERBRAIN_DATA_DIR = dataDir;
+    process.env.SUPERBRAIN_VAULT_DIR = vaultDir;
+    process.env.SUPERBRAIN_EMBED_STUB = "1";
+
+    const stub = path.join(dataDir, "stub.json");
+    fs.writeFileSync(stub, JSON.stringify({ items: [] }));
+    process.env.SUPERBRAIN_DISTILL_STUB = stub;
+
+    const { runInject } = await import("../src/injectRun.js");
+    const result = await runInject("long input forcing distill " + "y".repeat(250), {});
+
+    expect(result.ok).toBe(true);
+    expect(result.fallback).toBe(true);
+    expect(result.notes).toHaveLength(1);
+    expect(result.notes[0]).toMatch(/^capture\//);
+    const body = fs.readFileSync(path.join(vaultDir, result.notes[0]), "utf8");
+    expect(body).toMatch(/inject_mode: verbatim/);
+  });
+
+  it("falls back to verbatim when LLM returns non-JSON garbage", async () => {
+    const { dataDir, vaultDir } = makeTmpEnv("fallback-garbage");
+    process.env.SUPERBRAIN_DATA_DIR = dataDir;
+    process.env.SUPERBRAIN_VAULT_DIR = vaultDir;
+    process.env.SUPERBRAIN_EMBED_STUB = "1";
+
+    const stub = path.join(dataDir, "stub.json");
+    fs.writeFileSync(stub, "not valid json at all");
+    process.env.SUPERBRAIN_DISTILL_STUB = stub;
+
+    const { runInject } = await import("../src/injectRun.js");
+    const result = await runInject("long input forcing distill " + "z".repeat(250), {});
+
+    expect(result.ok).toBe(true);
+    expect(result.fallback).toBe(true);
+    expect(result.notes).toHaveLength(1);
+    expect(result.notes[0]).toMatch(/^capture\//);
+  });
+});
