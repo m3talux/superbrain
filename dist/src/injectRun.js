@@ -12,6 +12,7 @@ import { hybridRecall } from "./recall.js";
 import { parseEnvelope } from "./distillRun.js";
 import { distillModel } from "./model.js";
 import { buildInjectPrompt } from "./injectPrompt.js";
+import { acquireLock, releaseLock } from "./lockfile.js";
 const MAX_INPUT_BYTES = 32 * 1024;
 export function sanityCheck(raw) {
     const stripped = raw.replace(/\0/g, "");
@@ -171,44 +172,64 @@ function applyInjectSafety(items, knownProjects, forcedProject) {
     }
     return out;
 }
+async function acquireDistillLockWithWait(maxWaitMs) {
+    const start = Date.now();
+    const intervalMs = 250;
+    while (Date.now() - start < maxWaitMs) {
+        if (acquireLock("distill"))
+            return true;
+        await new Promise((r) => setTimeout(r, intervalMs));
+    }
+    return false;
+}
 export async function runInject(raw, opts = {}) {
     const sane = sanityCheck(raw);
     if (!sane.ok)
         return { ok: false, mode: "verbatim", notes: [], message: sane.reason };
-    const mode = detectMode(sane.text, opts);
-    if (mode === "verbatim") {
-        const item = buildVerbatimItem(sane.text, opts);
-        const rel = await writeOne(item, "verbatim");
-        if (!rel)
-            return { ok: false, mode, notes: [], message: "vault write failed" };
-        await updateDaily(item.date, `inject-${Date.now()}`, [rel]);
-        appendInjectLog("verbatim", 1, sane.text);
-        return { ok: true, mode, notes: [rel] };
+    const waitMs = Number(process.env.SUPERBRAIN_INJECT_LOCK_WAIT_MS || 5000);
+    const got = await acquireDistillLockWithWait(waitMs);
+    if (!got) {
+        return { ok: false, mode: "verbatim", notes: [], message: "checkpoint in progress — try again in a moment" };
     }
-    // distill mode
-    const recallHits = await gatherRecall(sane.text);
-    const projectSlugs = listProjectSlugs();
-    const prompt = buildInjectPrompt(sane.text, recallHits, projectSlugs);
-    let envelope;
     try {
-        envelope = parseEnvelope(callClaudeInject(prompt));
+        const mode = detectMode(sane.text, opts);
+        if (mode === "verbatim") {
+            const item = buildVerbatimItem(sane.text, opts);
+            const rel = await writeOne(item, "verbatim");
+            if (!rel)
+                return { ok: false, mode, notes: [], message: "vault write failed" };
+            await updateDaily(item.date, `inject-${Date.now()}`, [rel]);
+            appendInjectLog("verbatim", 1, sane.text);
+            return { ok: true, mode, notes: [rel] };
+        }
+        // distill mode
+        const recallHits = await gatherRecall(sane.text);
+        const projectSlugs = listProjectSlugs();
+        const prompt = buildInjectPrompt(sane.text, recallHits, projectSlugs);
+        let envelope;
+        try {
+            envelope = parseEnvelope(callClaudeInject(prompt));
+        }
+        catch (e) {
+            writeFailure(`inject LLM call failed: ${e?.message || e}`);
+            envelope = { items: [], openThreads: [], alsoDid: [] };
+        }
+        const knownProjects = new Set(projectSlugs);
+        const safeItems = applyInjectSafety(envelope.items, knownProjects, opts.project);
+        if (safeItems.length === 0) {
+            return { ok: false, mode: "distill", notes: [], message: "LLM returned no usable items (fallback in Task 7)" };
+        }
+        const written = [];
+        for (const item of safeItems) {
+            const rel = await writeOne(item, "distill");
+            if (rel)
+                written.push(rel);
+        }
+        await updateDaily(todayIso(), `inject-${Date.now()}`, written);
+        appendInjectLog("distill", written.length, sane.text);
+        return { ok: written.length > 0, mode: "distill", notes: written };
     }
-    catch (e) {
-        writeFailure(`inject LLM call failed: ${e?.message || e}`);
-        envelope = { items: [], openThreads: [], alsoDid: [] };
+    finally {
+        releaseLock("distill");
     }
-    const knownProjects = new Set(projectSlugs);
-    const safeItems = applyInjectSafety(envelope.items, knownProjects, opts.project);
-    if (safeItems.length === 0) {
-        return { ok: false, mode: "distill", notes: [], message: "LLM returned no usable items (fallback in Task 7)" };
-    }
-    const written = [];
-    for (const item of safeItems) {
-        const rel = await writeOne(item, "distill");
-        if (rel)
-            written.push(rel);
-    }
-    await updateDaily(todayIso(), `inject-${Date.now()}`, written);
-    appendInjectLog("distill", written.length, sane.text);
-    return { ok: written.length > 0, mode: "distill", notes: written };
 }

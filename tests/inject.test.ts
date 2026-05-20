@@ -242,3 +242,37 @@ describe("inject safety filter", () => {
     expect(result.notes[0]).toBe("projects/wcloud.md");
   });
 });
+
+describe("inject lock serialization", () => {
+  it("acquires the distill lock and releases it on success", async () => {
+    const { dataDir, vaultDir } = makeTmpEnv("lock-success");
+    process.env.SUPERBRAIN_DATA_DIR = dataDir;
+    process.env.SUPERBRAIN_VAULT_DIR = vaultDir;
+    process.env.SUPERBRAIN_EMBED_STUB = "1";
+
+    const { runInject } = await import("../src/injectRun.js");
+    await runInject("a brief inject", { verbatim: true });
+
+    expect(fs.existsSync(path.join(dataDir, "locks/distill.lock"))).toBe(false);
+  });
+
+  it("waits-then-fails when distill lock is held by another process", async () => {
+    const { dataDir, vaultDir } = makeTmpEnv("lock-held");
+    process.env.SUPERBRAIN_DATA_DIR = dataDir;
+    process.env.SUPERBRAIN_VAULT_DIR = vaultDir;
+    process.env.SUPERBRAIN_EMBED_STUB = "1";
+
+    fs.mkdirSync(path.join(dataDir, "locks/distill.lock"), { recursive: true });
+    fs.writeFileSync(path.join(dataDir, "locks/distill.lock/pid"), "99999");
+
+    process.env.SUPERBRAIN_INJECT_LOCK_WAIT_MS = "300";
+
+    const { runInject } = await import("../src/injectRun.js");
+    const result = await runInject("a brief inject", { verbatim: true });
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toMatch(/checkpoint in progress/i);
+
+    fs.rmSync(path.join(dataDir, "locks/distill.lock"), { recursive: true, force: true });
+  });
+});
