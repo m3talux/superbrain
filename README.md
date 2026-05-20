@@ -100,6 +100,25 @@ flowchart LR
 
 - Auto-generated Maps-of-Content (`maps/`) + a lint pass.
 
+## Manual capture with `/superbrain:inject`
+
+Auto-capture handles everything SuperBrain can observe inside a Claude session. When you want to record something it didn't see — a random side thought, a meeting summary from elsewhere, a note imported from another system — use the inject command:
+
+```
+/superbrain:inject I just realized the auth-config endpoint probably needs a TTL field
+/superbrain:inject --from-file ~/Downloads/meeting-summary.md
+/superbrain:inject --project wcloud "transport is HTTP, not gRPC"
+```
+
+What it does:
+
+- **Short single-blob input** lands verbatim in `capture/`. No LLM call.
+- **Longer or multi-topic input** is split via SuperBrain's inject distiller into the right files: decisions to `decisions/`, project facts to the matching `projects/<slug>.md`, references to people to `people/`, everything else to `capture/`.
+- Today's daily note is updated either way.
+- Every injected note carries `source: inject` provenance so it's trivially auditable.
+
+Safety rails: inject never creates new project notes (use `/superbrain:discover` for that), never reshapes preferences, and never silently loses your input — if the distiller returns nothing, your text is written verbatim to `capture/`.
+
 ## Vault structure
 
 ```
