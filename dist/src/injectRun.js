@@ -217,7 +217,14 @@ export async function runInject(raw, opts = {}) {
         const knownProjects = new Set(projectSlugs);
         const safeItems = applyInjectSafety(envelope.items, knownProjects, opts.project);
         if (safeItems.length === 0) {
-            return { ok: false, mode: "distill", notes: [], message: "LLM returned no usable items (fallback in Task 7)" };
+            // Fallback: never lose user input. Write the text verbatim to capture/.
+            const item = buildVerbatimItem(sane.text, opts);
+            const rel = await writeOne(item, "verbatim");
+            if (!rel)
+                return { ok: false, mode: "distill", notes: [], message: "vault write failed" };
+            await updateDaily(item.date, `inject-${Date.now()}`, [rel]);
+            appendInjectLog("verbatim", 1, sane.text);
+            return { ok: true, mode: "distill", notes: [rel], fallback: true };
         }
         const written = [];
         for (const item of safeItems) {
