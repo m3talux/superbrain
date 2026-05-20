@@ -54,6 +54,12 @@ check. The `tests/freshCloneE2E.test.ts` test enforces this — do not weaken it
 6. Keep the PR description focused on *what* changed and *why*, plus how you
    verified it.
 
+## CI
+
+CI runs the gate (typecheck + build + test + `git diff --exit-code dist`) on `ubuntu-latest`, `macos-latest`, and `windows-latest`. All three must be green before a PR can merge.
+
+Local development on macOS or Linux mirrors the matching CI job exactly. Windows-specific regressions surface only in the Windows job — there is no substitute for running on the actual runner.
+
 ## Reporting bugs / requesting features
 
 Use the GitHub issue templates. For bugs, include your OS, Node version, and the

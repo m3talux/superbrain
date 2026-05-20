@@ -10,6 +10,7 @@ Every Claude Code session — across every project, on every machine — is capt
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-black.svg)](package.json)
 [![CI](https://github.com/m3talux/superbrain/actions/workflows/ci.yml/badge.svg)](https://github.com/m3talux/superbrain/actions/workflows/ci.yml)
 [![Storage](https://img.shields.io/badge/storage-plain%20Obsidian%20markdown-blueviolet.svg)](#vault-structure)
+[![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-blue.svg)](#install-troubleshooting)
 
 </div>
 
@@ -46,6 +47,17 @@ If you already have an Obsidian vault you want to bring along, see
 [Vault setup](#vault-setup) below — `/superbrain:migrate` is the preferred path.
 
 Installed at **user scope**, the plugin's hooks register for *every* project automatically — there is nothing else to do, ever.
+
+## Supported platforms
+
+- **macOS** — Apple Silicon + Intel.
+- **Linux** — Ubuntu 22.04+ verified; other distros likely fine.
+- **Windows** — native, no WSL required. First-time install may need Visual
+  Studio Build Tools + Python 3 if no prebuilt `better-sqlite3` binary
+  matches your Node version. Node 20 LTS has the broadest prebuilt coverage.
+  See [Install troubleshooting](#install-troubleshooting) below.
+
+Tested on Node 20 LTS and Node 22.
 
 ## How it works
 
@@ -222,6 +234,18 @@ git conflicts in regenerated files (`index.md`, rollups) — Obsidian
 Git's conflict UX or a single-writer-at-a-time habit avoids that. SuperBrain's
 job is to stay idempotent and drift-tolerant so any of these Just Work; it is
 not to own your remote.
+
+## Install troubleshooting
+
+SuperBrain runs a one-time `npm ci` + `npm rebuild better-sqlite3` on first session start. If `~/.superbrain/last-failure.txt` reports a bootstrap failure, the message includes a platform-specific hint. Common cases:
+
+- **`npm ci` failed** — network / proxy issue. Retry. If you're behind a corporate proxy, configure `npm config set proxy ...` and retry.
+- **better-sqlite3 native build failed (Windows)** — install [Visual Studio Build Tools](https://github.com/nodejs/node-gyp#on-windows) + Python 3 and retry, or switch to Node 20 LTS which has more prebuilt binaries.
+- **better-sqlite3 native build failed (Linux)** — `sudo apt install build-essential python3` and retry.
+- **better-sqlite3 native build failed (macOS)** — `xcode-select --install` and retry.
+- **better-sqlite3 binding wouldn't load under your Node version** — Node 25's ABI 141 has no published prebuild at the time of writing; downgrade to Node 22 or 20 LTS.
+
+SuperBrain re-tries bootstrap on every session start, so once the underlying issue is fixed, the next session picks it up automatically.
 
 ## Design principles
 
