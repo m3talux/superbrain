@@ -9,6 +9,7 @@ import { dataDir, vaultPath, pluginRoot } from "../src/paths.js";
 import { isChild, buildDistillCommand } from "../src/distillerEngine.js";
 import { depsPresent, runBootstrap } from "../src/bootstrap.js";
 import { recordedVaultPath } from "../src/vaultMarker.js";
+import { isUnknownProject, looksLikeCodeProject } from "../src/discoverer.js";
 // Stable per-day gate value. The rollup's own writes cannot change this string,
 // so needsRollup returns false for an already-processed key → converges.
 const ROLLUP_HASH = "v1";
@@ -91,6 +92,24 @@ async function main() {
                     detached: true, stdio: "ignore",
                     env: { ...process.env, SUPERBRAIN_CHILD: "1" }, cwd: vaultPath(),
                 }).unref();
+            }
+            catch { /* non-fatal */ }
+        }
+        // First-time project discovery: if this session opened in a project we
+        // have no note for yet, spawn a one-shot detached discoverer. Runs at
+        // most once per project (the existence of the project note is the gate)
+        // and never blocks the session. Failures land in the sentinel.
+        if (process.env.SUPERBRAIN_FAKE_DISTILLER !== "1" && depsPresent(root)) {
+            try {
+                const projectDir = h.cwd || process.env.CLAUDE_PROJECT_DIR;
+                if (projectDir && looksLikeCodeProject(projectDir) && isUnknownProject(projectDir)) {
+                    const discoverer = fileURLToPath(new URL("./sb-discover.js", import.meta.url));
+                    spawn(process.execPath, [discoverer], {
+                        detached: true, stdio: "ignore",
+                        env: { ...process.env, SUPERBRAIN_CHILD: "1", SUPERBRAIN_PROJECT_DIR: projectDir },
+                    }).unref();
+                    parts.push(`SuperBrain is mapping this project for the first time — a project note will appear in the vault shortly.`);
+                }
             }
             catch { /* non-fatal */ }
         }

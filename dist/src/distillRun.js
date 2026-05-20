@@ -1,15 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { distillModel } from "./model.js";
+export { distillModel };
 // Pin the model on every detached `claude -p` distill/rollup spawn so it never
-// inherits the user's session model (which is often Opus, and burns daily
-// quota in hours — exactly the legacy-scribe bug we replaced). Sonnet 4.6
-// balances quality (the distiller IS the product — the vault is only as good
-// as the routed notes it writes) against cost (~1/5 of Opus). No env override:
-// users should not need to think about model selection.
-export function distillModel() {
-    return "claude-sonnet-4-6";
-}
+// inherits the user's session model (often Opus, which burned the legacy
+// scribe's daily quota in hours). Sonnet 4.6 balances quality (the distiller
+// IS the product — the vault is only as good as the routed notes it writes)
+// against cost (~1/3 of Opus). No env override: users should not need to
+// think about model selection. The model constant lives in src/model.ts so
+// import-safe entrypoints can read it without pulling the rest of the
+// distill graph through gray-matter etc.
 function callClaude(prompt) {
     return execFileSync("claude", ["--model", distillModel(), "-p", prompt], { encoding: "utf8" });
 }
