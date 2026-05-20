@@ -20,7 +20,7 @@ import { route } from "./router.js";
 import { writeNote } from "./vaultWriter.js";
 import { releaseLock } from "./lockfile.js";
 import { writeFailure } from "./sentinel.js";
-import { logFilePath } from "./paths.js";
+import { logFilePath, dataDir } from "./paths.js";
 import { markRollup } from "./rollupState.js";
 import { indexNote } from "./indexer.js";
 import { upsertDay } from "./dailyState.js";
@@ -202,6 +202,32 @@ export async function runRollup(rollupEnv) {
         releaseLock("distill");
     }
 }
+export function shouldSkipDistill(events) {
+    if (!events || events.length === 0)
+        return { skip: true, reason: "empty delta" };
+    const markers = events.filter(e => e?.type === "marker" || e?.reason);
+    const writeTools = events.filter(e => e?.type === "tool" && ["Write", "Edit", "MultiEdit", "Bash"].includes(e?.tool));
+    const prompts = events.filter(e => e?.type === "prompt");
+    if (markers.length === 0 && writeTools.length === 0 && prompts.length < 2 && events.length < 10) {
+        return {
+            skip: true,
+            reason: `low-signal delta: ${events.length} events, ${writeTools.length} writes, ${prompts.length} prompts, 0 markers`,
+        };
+    }
+    return { skip: false, reason: "" };
+}
+// Append a one-line trace to ~/.superbrain/distill.log on every distill
+// decision. Lets the user see exactly when the skip fired and why, without
+// burdening the sentinel (which is reserved for actual failures).
+function logDistillSkip(sid, reason) {
+    try {
+        const logFile = path.join(dataDir(), "distill.log");
+        fs.mkdirSync(path.dirname(logFile), { recursive: true });
+        const stamp = new Date().toISOString().replace("T", " ").slice(0, 19);
+        fs.appendFileSync(logFile, `[${stamp}] skip ${sid}: ${reason}\n`);
+    }
+    catch { /* best-effort */ }
+}
 export async function runDistill() {
     const sid = process.env.SUPERBRAIN_SESSION_ID
         || (() => { try {
@@ -216,6 +242,18 @@ export async function runDistill() {
         if (events.length === 0) {
             releaseLock("distill");
             process.exit(0);
+        }
+        // Pre-LLM skip check. Test stubs (SUPERBRAIN_DISTILL_STUB) bypass this so
+        // fixtures that supply a small canned envelope still go through the full
+        // routing path.
+        if (!process.env.SUPERBRAIN_DISTILL_STUB) {
+            const sk = shouldSkipDistill(events);
+            if (sk.skip) {
+                logDistillSkip(sid, sk.reason);
+                writeCursor(sid, newOffset);
+                releaseLock("distill");
+                return;
+            }
         }
         const env = getEnvelope(JSON.stringify(events));
         const items = env.items;
