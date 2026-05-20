@@ -17,8 +17,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  fs.rmSync(CLONE, { recursive: true, force: true });
-  fs.rmSync(TMP_DATA, { recursive: true, force: true });
+  // SessionStart spawns a detached bootstrap child that may still be writing
+  // when this fires; ENOTEMPTY / EBUSY can occur briefly. maxRetries rides
+  // it out instead of failing the test.
+  const opts = { recursive: true, force: true, maxRetries: 5, retryDelay: 100 };
+  fs.rmSync(CLONE, opts);
+  fs.rmSync(TMP_DATA, opts);
 });
 
 it("every hook entrypoint loads + exits 0 with NO node_modules; SessionStart bootstraps", () => {

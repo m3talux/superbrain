@@ -20,6 +20,6 @@ describe("distillerEngine", () => {
     expect(isChild({})).toBe(false);
   });
   it("resolves a sb-distill.js path", () => {
-    expect(distillScriptPath()).toMatch(/bin\/sb-distill\.js$/);
+    expect(distillScriptPath()).toMatch(/bin[\\/]sb-distill\.js$/);
   });
 });

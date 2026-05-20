@@ -26,7 +26,11 @@ afterEach(() => {
   fs.rmSync(TMP_BIN, { recursive: true, force: true });
 });
 
-it("real checkpoint path (no fake seam) writes a vault note and releases the lock", () => {
+// Skip on Windows: this test stubs the `claude` binary via a bash-shebanged
+// shell script on PATH, which Windows can't execute. The non-real-path tests
+// use SUPERBRAIN_DISTILL_STUB instead and DO run on every OS.
+const itPosix = process.platform === "win32" ? it.skip : it;
+itPosix("real checkpoint path (no fake seam) writes a vault note and releases the lock", () => {
   fs.mkdirSync(path.join(TMP_DATA, "sessions"), { recursive: true });
   fs.writeFileSync(path.join(TMP_DATA, "sessions/S.ndjson"),
     JSON.stringify({ type: "tool", tool: "Write", file: "a.ts", cwd: "/p", ts: "t" }) + "\n");
