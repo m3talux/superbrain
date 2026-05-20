@@ -54,7 +54,7 @@ async function main() {
     const root = pluginRoot();
     if (!depsPresent(root)) {
       runBootstrap(root);
-      parts.push("SuperBrain is finishing first-time setup (installing search dependencies). Capture resumes automatically next session.");
+      parts.push("SuperBrain is rebuilding native dependencies for this install (one-time per plugin version). Capture resumes automatically next session.");
     } else {
       const { appendDigest } = await import("../src/sessionDigest.js"); // deferred heavy import
       await appendDigest(parts, h);

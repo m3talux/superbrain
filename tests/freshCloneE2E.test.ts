@@ -27,5 +27,5 @@ it("every hook entrypoint loads + exits 0 with NO node_modules; SessionStart boo
   const ss = execFileSync(process.execPath, [path.join(CLONE, "dist/bin/sb-session-start.js")], {
     input: JSON.stringify({ session_id: "S", hook_event_name: "SessionStart", source: "startup", cwd: "/p" }),
     env, encoding: "utf8" });
-  expect(ss).toMatch(/first-time setup/i);
+  expect(ss).toMatch(/rebuilding native dependencies/i);
 });

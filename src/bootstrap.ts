@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { dataDir } from "./paths.js";
+import { pluginRoot as defaultPluginRoot } from "./paths.js";
 
 // Bounded search for a compiled native addon (*.node) within a directory.
 function hasDotNode(dir: string): boolean {
@@ -34,17 +34,27 @@ export function depsPresent(pluginRoot: string): boolean {
   } catch { return false; }
 }
 
-function doneFile(): string { return path.join(dataDir(), "bootstrap-done"); }
-export function bootstrapDone(): boolean { return fs.existsSync(doneFile()); }
-export function markBootstrapDone(): void {
-  fs.mkdirSync(path.dirname(doneFile()), { recursive: true });
-  fs.writeFileSync(doneFile(), new Date().toISOString());
+// bootstrap-done is PER-INSTALL: written inside the plugin's own version dir
+// at `<pluginRoot>/.bootstrap-done`. This is critical because Claude Code
+// installs each plugin version in a fresh directory, and a global sentinel
+// (the old design at ~/.superbrain/bootstrap-done) would inherit "done"
+// across upgrades while the new install's node_modules still lacks the
+// rebuilt better-sqlite3 native binding. Per-install + the depsPresent()
+// conjoined check in bin/sb-bootstrap.ts together make bootstrap self-heal
+// across plugin upgrades and Node ABI changes.
+function doneFile(root: string): string { return path.join(root, ".bootstrap-done"); }
+export function bootstrapDone(root: string = defaultPluginRoot()): boolean {
+  return fs.existsSync(doneFile(root));
+}
+export function markBootstrapDone(root: string = defaultPluginRoot()): void {
+  fs.mkdirSync(root, { recursive: true });
+  fs.writeFileSync(doneFile(root), new Date().toISOString());
 }
 
 // Detached, fire-and-forget. The dedicated bin/sb-bootstrap.js runs `npm ci`
 // under a lock and writes bootstrap-done / the sentinel itself.
 export function runBootstrap(pluginRoot: string): void {
-  if (bootstrapDone()) return;
+  if (bootstrapDone(pluginRoot) && depsPresent(pluginRoot)) return;
   try {
     const runner = fileURLToPath(new URL("../bin/sb-bootstrap.js", import.meta.url));
     spawn(process.execPath, [runner], {
