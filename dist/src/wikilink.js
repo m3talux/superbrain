@@ -7,7 +7,7 @@ function tokenize(s) {
     return s.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
 }
 function buildIndex(vaultRoot) {
-    const ix = { byRelPath: new Set(), byBasename: new Map(), byTokens: [] };
+    const ix = { byRelPath: new Map(), byBasename: new Map(), byTokens: [] };
     for (const folder of VAULT_FOLDERS) {
         const dir = path.join(vaultRoot, folder);
         let entries;
@@ -22,15 +22,12 @@ function buildIndex(vaultRoot) {
                 continue;
             const stem = f.slice(0, -3);
             const rel = `${folder}/${stem}`;
-            ix.byRelPath.add(rel);
+            ix.byRelPath.set(rel.toLowerCase(), rel);
             const stripped = stem.replace(DATE_PREFIX, "");
-            const arr = ix.byBasename.get(stem) ?? [];
-            arr.push(rel);
-            ix.byBasename.set(stem, arr);
-            if (stripped !== stem) {
-                const arr2 = ix.byBasename.get(stripped) ?? [];
-                arr2.push(rel);
-                ix.byBasename.set(stripped, arr2);
+            for (const key of new Set([stem.toLowerCase(), stripped.toLowerCase()])) {
+                const arr = ix.byBasename.get(key) ?? [];
+                arr.push(rel);
+                ix.byBasename.set(key, arr);
             }
             ix.byTokens.push({ rel, tokens: new Set(tokenize(stripped)) });
         }
@@ -38,7 +35,19 @@ function buildIndex(vaultRoot) {
     return ix;
 }
 function normalize(raw) {
-    return raw.replace(/^\[\[/, "").replace(/\]\]$/, "").replace(/\.md$/i, "").trim();
+    // Strip [[ ]], pipe-alias (`[[target|alias]]` → `target`), .md suffix,
+    // leading `./` or `../` (Obsidian wikilinks sometimes carry path prefixes),
+    // and a leading slash.
+    let s = raw.replace(/^\[\[/, "").replace(/\]\]$/, "");
+    const pipe = s.indexOf("|");
+    if (pipe >= 0)
+        s = s.slice(0, pipe);
+    s = s.trim().replace(/\.md$/i, "");
+    while (s.startsWith("../") || s.startsWith("./"))
+        s = s.replace(/^\.\.?\//, "");
+    if (s.startsWith("/"))
+        s = s.slice(1);
+    return s.trim();
 }
 function pickPreferred(rels) {
     return [...rels].sort((a, b) => {
@@ -70,10 +79,11 @@ export function resolveLinks(links, vaultRoot) {
     return out;
 }
 function resolveOne(link, ix) {
+    const lower = link.toLowerCase();
     if (link.includes("/")) {
-        return ix.byRelPath.has(link) ? link : null;
+        return ix.byRelPath.get(lower) ?? null;
     }
-    const exact = ix.byBasename.get(link);
+    const exact = ix.byBasename.get(lower);
     if (exact && exact.length > 0)
         return pickPreferred(exact);
     const linkTokens = tokenize(link);

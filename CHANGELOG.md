@@ -34,11 +34,15 @@ behavior may change without notice.
   `resolveLinks` helper walks the vault once per call and matches each
   emitted link by (1) exact relative-path, (2) exact basename
   (preferring `projects/` → `decisions/` → ...), or (3) token-subset
-  against post-date-strip filenames for 2+ token links. Unresolved
-  links are dropped rather than rendered. `runDistill`, `runRollup`,
-  and `injectRun`'s distill branch all resolve links before routing.
-  The distill prompt also gained an explicit rule about emitting full
-  on-disk relative paths. See [PR #25](https://github.com/m3talux/superbrain/pull/25).
+  against post-date-strip filenames for 2+ token links. Resolution is
+  **case-insensitive** (so `[[Weddy]]` matches `projects/weddy.md`)
+  and strips leading `./`, `../`, and pipe-aliases (`[[target|alias]]`)
+  before matching. Unresolved links are dropped rather than rendered.
+  `runDistill`, `runRollup`, and `injectRun`'s distill branch all
+  resolve links before routing. The distill prompt also gained an
+  explicit rule about emitting full on-disk relative paths.
+  See [PR #25](https://github.com/m3talux/superbrain/pull/25) and
+  [PR #26](https://github.com/m3talux/superbrain/pull/26).
 - **`writeNote` append dedup** (#23). The distiller can re-emit the
   same `project_fact` / `gotcha` across adjacent checkpoints because
   the LLM has no memory of prior emissions; identical sections were
