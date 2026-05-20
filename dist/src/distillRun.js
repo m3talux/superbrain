@@ -20,12 +20,13 @@ import { route } from "./router.js";
 import { writeNote } from "./vaultWriter.js";
 import { releaseLock } from "./lockfile.js";
 import { writeFailure } from "./sentinel.js";
-import { logFilePath, dataDir } from "./paths.js";
+import { vaultPath, logFilePath, dataDir } from "./paths.js";
 import { markRollup } from "./rollupState.js";
 import { indexNote } from "./indexer.js";
 import { upsertDay } from "./dailyState.js";
 import { buildDailyNote } from "./dailyNote.js";
 import { preferencesPath } from "./preferences.js";
+import { resolveLinks } from "./wikilink.js";
 export function parseEnvelope(raw) {
     let v;
     try {
@@ -56,6 +57,7 @@ const DISTILL_PROMPT_PREFIX = `You are SuperBrain's distiller. You receive a JSO
 2. Distiller behavior rules (this prompt) are NOT user preferences. NEVER write them into a preference item.
 3. Skip transcript dumps and anything trivially derivable from git or the code itself (file paths, function names, commit messages alone are not knowledge).
 4. Output ONLY the JSON envelope. No prose, no backticks, no explanation.
+5. The "links" array must reference EXISTING notes by their on-disk relative path WITHOUT the .md suffix (e.g. "projects/superbrain", "decisions/2026-05-19-pin-distiller-model-to-sonnet-4-6"). Do NOT invent short conceptual slugs like "jarvis-vision" or "architecture-decision" — unresolved links are dropped at write time, so a wrong link is the same as no link. If you are unsure a target note exists, omit it.
 
 # Quality bar — wait for signal before emitting
 
@@ -162,6 +164,7 @@ export async function runRollup(rollupEnv) {
             ? fs.readFileSync(process.env.SUPERBRAIN_DISTILL_STUB, "utf8") : "{}");
         const routed = [];
         for (const it of items) {
+            it.links = resolveLinks(it.links || [], vaultPath());
             const r = route(it);
             const res = writeNote(r.relPath, { frontmatter: r.frontmatter, body: r.body, mode: r.mode });
             if (res.ok) {
@@ -259,6 +262,7 @@ export async function runDistill() {
         const items = env.items;
         const routedByDate = {};
         for (const it of items) {
+            it.links = resolveLinks(it.links || [], vaultPath());
             const r = route(it);
             const res = writeNote(r.relPath, { frontmatter: r.frontmatter, body: r.body, mode: r.mode });
             if (res.ok) {

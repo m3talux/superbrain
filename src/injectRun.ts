@@ -13,6 +13,7 @@ import { parseEnvelope } from "./distillRun.js";
 import { distillModel } from "./model.js";
 import { buildInjectPrompt } from "./injectPrompt.js";
 import { acquireLock, releaseLock } from "./lockfile.js";
+import { resolveLinks } from "./wikilink.js";
 
 export interface InjectOpts {
   verbatim?: boolean;
@@ -249,6 +250,7 @@ export async function runInject(raw: string, opts: InjectOpts = {}): Promise<Inj
     }
     const written: string[] = [];
     for (const item of safeItems) {
+      item.links = resolveLinks(item.links || [], vaultPath());
       const rel = await writeOne(item, "distill");
       if (rel) written.push(rel);
     }
