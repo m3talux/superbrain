@@ -163,3 +163,80 @@ describe("runInject — distill mode", () => {
     }
   });
 });
+
+describe("inject safety filter", () => {
+  it("drops preference items emitted by the model", async () => {
+    const { dataDir, vaultDir } = makeTmpEnv("safety-pref");
+    process.env.SUPERBRAIN_DATA_DIR = dataDir;
+    process.env.SUPERBRAIN_VAULT_DIR = vaultDir;
+    process.env.SUPERBRAIN_EMBED_STUB = "1";
+
+    const stub = path.join(dataDir, "stub.json");
+    fs.writeFileSync(stub, JSON.stringify({
+      items: [
+        { kind: "preference", title: "Preferences", date: "2026-05-20", body: "fake pref reshape", links: [] },
+        { kind: "capture", title: "real note", date: "2026-05-20", body: "real content", links: [] },
+      ],
+    }));
+    process.env.SUPERBRAIN_DISTILL_STUB = stub;
+
+    const { runInject } = await import("../src/injectRun.js");
+    const result = await runInject("long input that triggers distill mode " + "x".repeat(250), {});
+
+    expect(result.ok).toBe(true);
+    expect(result.notes).toHaveLength(1);
+    expect(result.notes[0]).toMatch(/^capture\//);
+    expect(fs.existsSync(path.join(vaultDir, "meta/preferences.md"))).toBe(false);
+  });
+
+  it("downgrades project_fact with unknown project slug to capture", async () => {
+    const { dataDir, vaultDir } = makeTmpEnv("safety-unknown");
+    process.env.SUPERBRAIN_DATA_DIR = dataDir;
+    process.env.SUPERBRAIN_VAULT_DIR = vaultDir;
+    process.env.SUPERBRAIN_EMBED_STUB = "1";
+
+    const stub = path.join(dataDir, "stub.json");
+    fs.writeFileSync(stub, JSON.stringify({
+      items: [
+        { kind: "project_fact", title: "Made-up", date: "2026-05-20",
+          project: "totally-invented", body: "claim", links: [] },
+      ],
+    }));
+    process.env.SUPERBRAIN_DISTILL_STUB = stub;
+
+    const { runInject } = await import("../src/injectRun.js");
+    const result = await runInject("text that forces distill " + "x".repeat(250), {});
+
+    expect(result.ok).toBe(true);
+    expect(result.notes).toHaveLength(1);
+    expect(result.notes[0]).toMatch(/^capture\//);
+    expect(fs.existsSync(path.join(vaultDir, "projects/totally-invented.md"))).toBe(false);
+  });
+
+  it("--project flag overrides model's project field", async () => {
+    const { dataDir, vaultDir } = makeTmpEnv("safety-override");
+    process.env.SUPERBRAIN_DATA_DIR = dataDir;
+    process.env.SUPERBRAIN_VAULT_DIR = vaultDir;
+    process.env.SUPERBRAIN_EMBED_STUB = "1";
+
+    fs.mkdirSync(path.join(vaultDir, "projects"), { recursive: true });
+    fs.writeFileSync(path.join(vaultDir, "projects/wcloud.md"), "---\n---\n# wcloud\n");
+    fs.writeFileSync(path.join(vaultDir, "projects/other.md"), "---\n---\n# other\n");
+
+    const stub = path.join(dataDir, "stub.json");
+    fs.writeFileSync(stub, JSON.stringify({
+      items: [
+        { kind: "project_fact", title: "thing", date: "2026-05-20",
+          project: "other", body: "claim", links: [] },
+      ],
+    }));
+    process.env.SUPERBRAIN_DISTILL_STUB = stub;
+
+    const { runInject } = await import("../src/injectRun.js");
+    const result = await runInject("text that forces distill " + "x".repeat(250), { project: "wcloud" });
+
+    expect(result.ok).toBe(true);
+    expect(result.notes).toHaveLength(1);
+    expect(result.notes[0]).toBe("projects/wcloud.md");
+  });
+});
