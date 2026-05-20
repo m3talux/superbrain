@@ -93,3 +93,30 @@ describe("runInject — verbatim mode", () => {
     expect(fs.readFileSync(injectLog, "utf8")).toMatch(/verbatim \| 1 notes/);
   });
 });
+
+describe("buildInjectPrompt", () => {
+  it("includes text, recall hits, project slugs, and the inject hard rules", async () => {
+    const { buildInjectPrompt } = await import("../src/injectPrompt.js");
+    const prompt = buildInjectPrompt(
+      "user typed this",
+      [{ relPath: "projects/wcloud.md", headingPath: "", anchor: "", excerpt: "wcloud project notes" }],
+      ["wcloud", "superbrain"],
+    );
+    expect(prompt).toContain("user typed this");
+    expect(prompt).toContain("projects/wcloud.md");
+    expect(prompt).toContain("wcloud project notes");
+    expect(prompt).toContain("wcloud");
+    expect(prompt).toContain("superbrain");
+    expect(prompt).toMatch(/never invent claims/i);
+    expect(prompt).toMatch(/MUST NOT emit.*preference/i);
+    expect(prompt).toMatch(/MUST NOT invent.*project/i);
+  });
+
+  it("handles empty recall + project list cleanly", async () => {
+    const { buildInjectPrompt } = await import("../src/injectPrompt.js");
+    const prompt = buildInjectPrompt("text", [], []);
+    expect(prompt).toContain("text");
+    expect(prompt).toMatch(/no related vault notes/i);
+    expect(prompt).toMatch(/no existing project slugs/i);
+  });
+});
