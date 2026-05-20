@@ -46,6 +46,14 @@ export function writeNote(rel, args) {
     // Existing file: never blind-overwrite. Append distilled body under a dated section.
     const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
     const parsed = parseNote(existing.content);
+    // Dedup: the distiller can re-emit the same project_fact / gotcha across
+    // adjacent runs (the model has no memory of prior emissions). Skip the
+    // append if the normalized new body already appears in the file. The 40-
+    // char floor avoids false positives on generic phrasing.
+    const newNorm = normBody(args.body);
+    if (newNorm.length >= 40 && normBody(parsed.content).includes(newNorm)) {
+        return { ok: true, path: abs, reason: "duplicate-skipped" };
+    }
     const mergedFm = { ...parsed.data, ...args.frontmatter, updated: stamp.slice(0, 10) };
     const appended = `${parsed.content.replace(/\s+$/, "")}\n\n## ${stamp}\n\n${args.body}\n`;
     atomicWrite(abs, serializeNote(mergedFm, appended));

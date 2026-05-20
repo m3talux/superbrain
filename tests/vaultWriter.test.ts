@@ -41,4 +41,37 @@ describe("vaultWriter", () => {
     expect(fs.existsSync("/tmp/sb-vault/capture/c.md")).toBe(false);
     expect(fs.readdirSync("/tmp/sb-vault/.trash").length).toBe(1);
   });
+  it("append: skips duplicate body that already appears in the file", () => {
+    const fm = { type: "project", status: "active", project: "jarvis" };
+    const body = "**SuperBrain v0.5 multi-tenancy is the hard prerequisite gate for Jarvis v0.1** — User explicitly established this sequencing in a planning conversation.";
+    writeNote("projects/jarvis.md", { frontmatter: fm, body, mode: "create" });
+    const first = fs.readFileSync("/tmp/sb-vault/projects/jarvis.md", "utf8");
+    const r = writeNote("projects/jarvis.md", { frontmatter: fm, body, mode: "append" });
+    expect(r.ok).toBe(true);
+    expect(r.reason).toBe("duplicate-skipped");
+    const second = fs.readFileSync("/tmp/sb-vault/projects/jarvis.md", "utf8");
+    expect(second).toBe(first);
+  });
+  it("append: still writes when body differs from existing content", () => {
+    const fm = { type: "project", status: "active", project: "jarvis" };
+    writeNote("projects/jarvis.md", { frontmatter: fm, body: "fact one with enough words to clear the dedup threshold", mode: "create" });
+    const r = writeNote("projects/jarvis.md", { frontmatter: fm, body: "fact two also with enough unique words for dedup", mode: "append" });
+    expect(r.ok).toBe(true);
+    expect(r.reason).toBeUndefined();
+    const text = fs.readFileSync("/tmp/sb-vault/projects/jarvis.md", "utf8");
+    expect(text).toContain("fact one");
+    expect(text).toContain("fact two");
+  });
+  it("append: dedup is whitespace-insensitive", () => {
+    const fm = { type: "project", status: "active", project: "jarvis" };
+    writeNote("projects/jarvis.md", { frontmatter: fm, body: "the   precise wording   matters here for the dedup match", mode: "create" });
+    const r = writeNote("projects/jarvis.md", { frontmatter: fm, body: "the precise wording matters here for the dedup match", mode: "append" });
+    expect(r.reason).toBe("duplicate-skipped");
+  });
+  it("append: does not dedup very short bodies (avoids false positives)", () => {
+    const fm = { type: "project", status: "active", project: "jarvis" };
+    writeNote("projects/jarvis.md", { frontmatter: fm, body: "short note", mode: "create" });
+    const r = writeNote("projects/jarvis.md", { frontmatter: fm, body: "short note", mode: "append" });
+    expect(r.reason).toBeUndefined();
+  });
 });
