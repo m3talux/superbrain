@@ -177,6 +177,12 @@ function callClaudeForDiscovery(prompt) {
     }
     return execFileSync("claude", ["--model", distillModel(), "-p", prompt], { encoding: "utf8" });
 }
+// Auto-discovery: fires from sb-session-start the first time a session opens
+// in a project with no existing note. Never overwrites — `isUnknownProject`
+// gate skips any project that already has a `projects/<slug>.md`. To force
+// discovery on a project that already has a note (e.g. one migrated from a
+// legacy vault with no real content), use `runDiscoverForce` via the
+// /superbrain:discover slash command.
 export async function runDiscover(projectDir) {
     if (!projectDir || !fs.existsSync(projectDir))
         return;
@@ -184,6 +190,22 @@ export async function runDiscover(projectDir) {
         return;
     if (!isUnknownProject(projectDir))
         return;
+    return runDiscoveryWrite(projectDir, "create");
+}
+// Forced discovery: runs even if a project note already exists. In that case
+// the synthesized body is appended under a `## SuperBrain discovery (date)`
+// heading rather than replacing the file, so user-authored content is never
+// clobbered. Used by `/superbrain:discover` for manual re-discovery on
+// migrated stubs and for explicit refreshes.
+export async function runDiscoverForce(projectDir) {
+    if (!projectDir || !fs.existsSync(projectDir))
+        return;
+    if (!looksLikeCodeProject(projectDir))
+        return;
+    const mode = isUnknownProject(projectDir) ? "create" : "append";
+    return runDiscoveryWrite(projectDir, mode);
+}
+async function runDiscoveryWrite(projectDir, mode) {
     if (!acquireLock("discover"))
         return;
     try {
@@ -196,22 +218,30 @@ export async function runDiscover(projectDir) {
             return;
         }
         const date = new Date().toISOString().slice(0, 10);
-        const frontmatter = [
-            "---",
-            "type: project",
-            "status: active",
-            `project: ${projectSlug(projectDir)}`,
-            `project_dir: ${JSON.stringify(projectDir)}`,
-            "discovered: true",
-            `created: '${date}'`,
-            `updated: '${date}'`,
-            "superbrain: true",
-            "---",
-            "",
-        ].join("\n");
         const notePath = projectNotePath(projectDir);
         fs.mkdirSync(path.dirname(notePath), { recursive: true });
-        fs.writeFileSync(notePath, frontmatter + body + "\n");
+        if (mode === "create") {
+            const frontmatter = [
+                "---",
+                "type: project",
+                "status: active",
+                `project: ${projectSlug(projectDir)}`,
+                `project_dir: ${JSON.stringify(projectDir)}`,
+                "discovered: true",
+                `created: '${date}'`,
+                `updated: '${date}'`,
+                "superbrain: true",
+                "---",
+                "",
+            ].join("\n");
+            fs.writeFileSync(notePath, frontmatter + body + "\n");
+        }
+        else {
+            // Append-only: never clobber user-authored content, never reorder
+            // existing sections, just stamp a fresh discovery block at the bottom.
+            const section = `\n\n## SuperBrain discovery (${date})\n\n${body}\n`;
+            fs.appendFileSync(notePath, section);
+        }
     }
     catch (e) {
         try {

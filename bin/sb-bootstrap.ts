@@ -1,16 +1,22 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
 import { acquireLock, releaseLock } from "../src/lockfile.js";
-import { bootstrapDone, markBootstrapDone } from "../src/bootstrap.js";
+import { bootstrapDone, markBootstrapDone, depsPresent } from "../src/bootstrap.js";
 import { writeFailure } from "../src/sentinel.js";
 
 function main() {
-  if (bootstrapDone()) { console.log("bootstrap already done"); process.exit(0); }
+  const root = process.env.SUPERBRAIN_PLUGIN_ROOT || process.cwd();
+  // Conjoined check: skip only when BOTH the per-install sentinel exists AND
+  // the better-sqlite3 native binding is actually present in this install.
+  // Without the depsPresent half, a stale sentinel from an earlier plugin
+  // version (or a Node ABI change) traps the new install in a permanent
+  // "bootstrap pending" state — bootstrap fires, sees sentinel, exits,
+  // depsPresent stays false forever. See PR for the Node 25 / 0.3.0 trap.
+  if (bootstrapDone(root) && depsPresent(root)) { console.log("bootstrap already done"); process.exit(0); }
   if (!acquireLock("bootstrap", { maxAgeMs: 20 * 60 * 1000 })) { process.exit(0); }
   try {
-    const root = process.env.SUPERBRAIN_PLUGIN_ROOT || process.cwd();
     if (process.env.SUPERBRAIN_BOOTSTRAP_FAKE === "1") {
-      markBootstrapDone();
+      markBootstrapDone(root);
     } else {
       execFileSync("npm", ["ci", "--omit=dev"], { cwd: root, stdio: "ignore" });
       // `npm ci` does NOT guarantee better-sqlite3's native addon: on a Node
@@ -24,7 +30,7 @@ function main() {
         ["-e", "require(require('node:path').join(process.cwd(),'node_modules','better-sqlite3'))"],
         { cwd: root, stdio: "ignore" },
       );
-      markBootstrapDone();
+      markBootstrapDone(root);
     }
   } catch (e: any) {
     writeFailure(`bootstrap failed (npm ci / better-sqlite3 native build): ${e?.message || e}`);

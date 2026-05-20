@@ -1,19 +1,29 @@
 #!/usr/bin/env node
-import { runDiscover } from "../src/discoverer.js";
+import { runDiscover, runDiscoverForce } from "../src/discoverer.js";
 import { depsPresent } from "../src/bootstrap.js";
 import { pluginRoot } from "../src/paths.js";
 // Detached, lock-serialized project discoverer. Spawned by sb-session-start
-// the first time a session opens in an unknown project. Fire-and-forget —
-// failures land in the sentinel, never the user's session.
+// the first time a session opens in an unknown project (auto mode). Also
+// invokable manually via `/superbrain:discover` (force mode) — `--force`
+// runs even when a project note already exists and appends a
+// `## SuperBrain discovery (date)` section instead of overwriting.
+// Fire-and-forget; failures land in the sentinel.
 async function main() {
     if (!depsPresent(pluginRoot())) {
         process.exit(0);
     }
-    const projectDir = process.env.SUPERBRAIN_PROJECT_DIR
+    const args = process.argv.slice(2);
+    const force = args.includes("--force");
+    const positional = args.filter(a => !a.startsWith("--"));
+    const projectDir = positional[0]
+        || process.env.SUPERBRAIN_PROJECT_DIR
         || process.env.CLAUDE_PROJECT_DIR
         || process.cwd();
     try {
-        await runDiscover(projectDir);
+        if (force)
+            await runDiscoverForce(projectDir);
+        else
+            await runDiscover(projectDir);
     }
     catch { /* sentinel handles errors inside runDiscover */ }
     process.exit(0);
