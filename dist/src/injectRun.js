@@ -152,6 +152,7 @@ function applyInjectSafety(items, knownProjects, forcedProject) {
         let project = it.project;
         if (forcedProject)
             project = slug(forcedProject);
+        // Inject must never create new project notes — that's reserved for /superbrain:discover.
         if (it.kind === "project_fact" || it.kind === "gotcha") {
             const p = project ? slug(project) : undefined;
             if (!p || !knownProjects.has(p)) {
