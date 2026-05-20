@@ -1,10 +1,18 @@
-import { it, expect, beforeEach } from "vitest";
+import { it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { compileInjectionBlock } from "../src/preferences";
 
+let TMP: string;
+
 beforeEach(() => {
-  fs.rmSync("/tmp/sb-pref", { recursive: true, force: true });
-  process.env.SUPERBRAIN_VAULT_DIR = "/tmp/sb-pref";
+  TMP = fs.mkdtempSync(path.join(os.tmpdir(), "sb-pref-"));
+  process.env.SUPERBRAIN_VAULT_DIR = TMP;
+});
+
+afterEach(() => {
+  fs.rmSync(TMP, { recursive: true, force: true });
 });
 
 it("returns '' when preferences.md is absent", () => {
@@ -12,8 +20,8 @@ it("returns '' when preferences.md is absent", () => {
 });
 
 it("compiles a compact block from preferences.md body", () => {
-  fs.mkdirSync("/tmp/sb-pref/meta", { recursive: true });
-  fs.writeFileSync("/tmp/sb-pref/meta/preferences.md",
+  fs.mkdirSync(path.join(TMP, "meta"), { recursive: true });
+  fs.writeFileSync(path.join(TMP, "meta/preferences.md"),
     "---\ntype: preference\ncreated: 2026-05-19\n---\n\n## Code\n- No inline comments\n\n## Tests\n- Integration over unit\n");
   const b = compileInjectionBlock();
   expect(b).toContain("Your preferences (SuperBrain)");
@@ -22,7 +30,7 @@ it("compiles a compact block from preferences.md body", () => {
 });
 
 it("returns '' for an empty/whitespace body", () => {
-  fs.mkdirSync("/tmp/sb-pref/meta", { recursive: true });
-  fs.writeFileSync("/tmp/sb-pref/meta/preferences.md", "---\ntype: preference\n---\n\n   \n");
+  fs.mkdirSync(path.join(TMP, "meta"), { recursive: true });
+  fs.writeFileSync(path.join(TMP, "meta/preferences.md"), "---\ntype: preference\n---\n\n   \n");
   expect(compileInjectionBlock()).toBe("");
 });

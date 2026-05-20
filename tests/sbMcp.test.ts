@@ -1,17 +1,25 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { openIndex } from "../src/searchIndex";
 
+let TMP: string;
+
 beforeEach(() => {
-  process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-mcp";
+  TMP = fs.mkdtempSync(path.join(os.tmpdir(), "sb-mcp-"));
+  process.env.SUPERBRAIN_DATA_DIR = TMP;
   process.env.SUPERBRAIN_EMBED_STUB = "1";
-  fs.rmSync("/tmp/sb-mcp", { recursive: true, force: true });
   const ix = openIndex();
   ix.upsertNote("projects/p.md", 1, "h",
     [{ headingPath: "", anchor: "", text: "the daily rollup converges with a stable v1 gate" }],
     [Float32Array.from(Array(384).fill(0.7))]);
   ix.close();
+});
+
+afterEach(() => {
+  fs.rmSync(TMP, { recursive: true, force: true });
 });
 
 it("responds to initialize, tools/list, and tools/call over stdio", () => {

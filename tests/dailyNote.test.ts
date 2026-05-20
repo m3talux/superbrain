@@ -1,11 +1,19 @@
-import { it, expect, beforeEach } from "vitest";
+import { it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { upsertDay } from "../src/dailyState";
 import { buildDailyNote } from "../src/dailyNote";
 
+let TMP: string;
+
 beforeEach(() => {
-  fs.rmSync("/tmp/sb-dn", { recursive: true, force: true });
-  process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-dn";
+  TMP = fs.mkdtempSync(path.join(os.tmpdir(), "sb-dn-"));
+  process.env.SUPERBRAIN_DATA_DIR = TMP;
+});
+
+afterEach(() => {
+  fs.rmSync(TMP, { recursive: true, force: true });
 });
 
 it("merges sessions into a hybrid note (links, not bodies)", () => {

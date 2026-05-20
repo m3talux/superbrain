@@ -1,26 +1,35 @@
-import { it, expect, beforeEach } from "vitest";
+import { it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { execFileSync } from "node:child_process";
 
+let TMP_DATA: string;
+let TMP_VAULT: string;
+
 beforeEach(() => {
-  fs.rmSync("/tmp/sb-am", { recursive: true, force: true });
-  fs.rmSync("/tmp/sb-am-home", { recursive: true, force: true });
-  fs.rmSync("/tmp/sb-am-vault", { recursive: true, force: true });
-  process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-am";
+  TMP_DATA = fs.mkdtempSync(path.join(os.tmpdir(), "sb-am-data-"));
+  TMP_VAULT = fs.mkdtempSync(path.join(os.tmpdir(), "sb-am-vault-"));
+  process.env.SUPERBRAIN_DATA_DIR = TMP_DATA;
+});
+
+afterEach(() => {
+  fs.rmSync(TMP_DATA, { recursive: true, force: true });
+  fs.rmSync(TMP_VAULT, { recursive: true, force: true });
 });
 
 function run(args: string[], env: Record<string,string> = {}) {
   return execFileSync("npx", ["tsx", "bin/sb.ts", ...args], {
-    env: { ...process.env, SUPERBRAIN_DATA_DIR: "/tmp/sb-am", ...env }, encoding: "utf8" });
+    env: { ...process.env, SUPERBRAIN_DATA_DIR: TMP_DATA, ...env }, encoding: "utf8" });
 }
 
 it("adopt marks + records a writable dir, refuses a file", () => {
-  fs.mkdirSync("/tmp/sb-am-vault", { recursive: true });
-  run(["adopt", "/tmp/sb-am-vault"]);
-  expect(fs.existsSync("/tmp/sb-am-vault/.superbrain")).toBe(true);
-  expect(fs.readFileSync("/tmp/sb-am/vault-path", "utf8")).toBe("/tmp/sb-am-vault");
-  fs.writeFileSync("/tmp/sb-am-file", "x");
-  expect(() => run(["adopt", "/tmp/sb-am-file"])).toThrow();
+  run(["adopt", TMP_VAULT]);
+  expect(fs.existsSync(path.join(TMP_VAULT, ".superbrain"))).toBe(true);
+  expect(fs.readFileSync(path.join(TMP_DATA, "vault-path"), "utf8")).toBe(TMP_VAULT);
+  const tmpFile = path.join(TMP_DATA, "sb-am-file");
+  fs.writeFileSync(tmpFile, "x");
+  expect(() => run(["adopt", tmpFile])).toThrow();
 });
 
 // The `migrate` subcommand was removed. /superbrain:migrate is now a fully

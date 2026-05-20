@@ -1,10 +1,18 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { acquireLock, releaseLock } from "../src/lockfile";
 
+let TMP: string;
+
 beforeEach(() => {
-  process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-lock";
-  fs.rmSync("/tmp/sb-lock", { recursive: true, force: true });
+  TMP = fs.mkdtempSync(path.join(os.tmpdir(), "sb-lock-"));
+  process.env.SUPERBRAIN_DATA_DIR = TMP;
+});
+
+afterEach(() => {
+  fs.rmSync(TMP, { recursive: true, force: true });
 });
 
 describe("lockfile", () => {
