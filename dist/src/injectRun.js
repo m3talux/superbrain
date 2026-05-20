@@ -1,12 +1,17 @@
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { route, slug } from "./router.js";
 import { writeNote } from "./vaultWriter.js";
 import { indexNote } from "./indexer.js";
 import { upsertDay } from "./dailyState.js";
 import { buildDailyNote } from "./dailyNote.js";
-import { dataDir } from "./paths.js";
+import { dataDir, vaultPath } from "./paths.js";
 import { writeFailure } from "./sentinel.js";
+import { hybridRecall } from "./recall.js";
+import { parseEnvelope } from "./distillRun.js";
+import { distillModel } from "./model.js";
+import { buildInjectPrompt } from "./injectPrompt.js";
 const MAX_INPUT_BYTES = 32 * 1024;
 export function sanityCheck(raw) {
     const stripped = raw.replace(/\0/g, "");
@@ -96,6 +101,33 @@ async function updateDaily(date, sid, routedRel) {
         writeFailure(`inject daily upsert failed: ${e?.message || e}`);
     }
 }
+function listProjectSlugs() {
+    try {
+        const dir = path.join(vaultPath(), "projects");
+        if (!fs.existsSync(dir))
+            return [];
+        return fs.readdirSync(dir)
+            .filter((f) => f.endsWith(".md"))
+            .map((f) => f.replace(/\.md$/, ""));
+    }
+    catch {
+        return [];
+    }
+}
+function callClaudeInject(prompt) {
+    const stub = process.env.SUPERBRAIN_DISTILL_STUB;
+    if (stub)
+        return fs.readFileSync(stub, "utf8");
+    return execFileSync("claude", ["--model", distillModel(), "-p", prompt], { encoding: "utf8" });
+}
+async function gatherRecall(text) {
+    try {
+        return await hybridRecall(text, 5);
+    }
+    catch {
+        return [];
+    }
+}
 function buildVerbatimItem(text, opts) {
     const date = todayIso();
     const firstLine = text.split(/\n/, 1)[0].trim();
@@ -126,6 +158,29 @@ export async function runInject(raw, opts = {}) {
         appendInjectLog("verbatim", 1, sane.text);
         return { ok: true, mode, notes: [rel] };
     }
-    // distill path lands in Task 4 (will be replaced then)
-    return { ok: false, mode, notes: [], message: "distill mode not yet implemented" };
+    // distill mode
+    const recallHits = await gatherRecall(sane.text);
+    const projectSlugs = listProjectSlugs();
+    const prompt = buildInjectPrompt(sane.text, recallHits, projectSlugs);
+    let envelope;
+    try {
+        envelope = parseEnvelope(callClaudeInject(prompt));
+    }
+    catch (e) {
+        writeFailure(`inject LLM call failed: ${e?.message || e}`);
+        envelope = { items: [], openThreads: [], alsoDid: [] };
+    }
+    if (envelope.items.length === 0) {
+        // Task 7 will replace this with verbatim fallback. For now: fail-soft.
+        return { ok: false, mode: "distill", notes: [], message: "LLM returned no items (fallback in Task 7)" };
+    }
+    const written = [];
+    for (const item of envelope.items) {
+        const rel = await writeOne(item, "distill");
+        if (rel)
+            written.push(rel);
+    }
+    await updateDaily(todayIso(), `inject-${Date.now()}`, written);
+    appendInjectLog("distill", written.length, sane.text);
+    return { ok: written.length > 0, mode: "distill", notes: written };
 }

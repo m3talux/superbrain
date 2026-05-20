@@ -120,3 +120,40 @@ describe("buildInjectPrompt", () => {
     expect(prompt).toMatch(/no existing project slugs/i);
   });
 });
+
+describe("runInject — distill mode", () => {
+  it("processes a multi-topic dump into multiple routed notes", async () => {
+    const { dataDir, vaultDir } = makeTmpEnv("distill");
+    process.env.SUPERBRAIN_DATA_DIR = dataDir;
+    process.env.SUPERBRAIN_VAULT_DIR = vaultDir;
+    process.env.SUPERBRAIN_EMBED_STUB = "1";
+
+    const stub = path.join(dataDir, "stub.json");
+    fs.writeFileSync(stub, JSON.stringify({
+      items: [
+        { kind: "decision", title: "Pick option A", date: "2026-05-20",
+          context: "two options", decision: "go with A", rationale: "simpler", links: [] },
+        { kind: "capture", title: "Side thought", date: "2026-05-20",
+          body: "remember to check Y", links: [] },
+      ],
+    }));
+    process.env.SUPERBRAIN_DISTILL_STUB = stub;
+
+    const longInput = "long multi-topic dump\n\n" + "x".repeat(250);
+    const { runInject } = await import("../src/injectRun.js");
+    const result = await runInject(longInput, {});
+
+    expect(result.ok).toBe(true);
+    expect(result.mode).toBe("distill");
+    expect(result.notes).toHaveLength(2);
+    expect(result.notes.some((p) => p.startsWith("decisions/"))).toBe(true);
+    expect(result.notes.some((p) => p.startsWith("capture/"))).toBe(true);
+    for (const rel of result.notes) {
+      const body = fs.readFileSync(path.join(vaultDir, rel), "utf8");
+      expect(body).toMatch(/source: inject/);
+      expect(body).toMatch(/inject_mode: distill/);
+    }
+
+    delete process.env.SUPERBRAIN_DISTILL_STUB;
+  });
+});
