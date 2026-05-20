@@ -3,8 +3,8 @@ import * as P from "../src/paths";
 
 describe("paths", () => {
   beforeEach(() => {
-    process.env.CLAUDE_PLUGIN_DATA = "/tmp/sb-test-data";
-    process.env.SUPERBRAIN_VAULT = "/tmp/sb-test-vault";
+    process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-test-data";
+    process.env.SUPERBRAIN_VAULT_DIR = "/tmp/sb-test-vault";
   });
   it("derives data + vault + session paths", () => {
     expect(P.dataDir()).toBe("/tmp/sb-test-data");
@@ -16,8 +16,8 @@ describe("paths", () => {
     expect(P.lockDir("distill")).toBe("/tmp/sb-test-data/locks/distill.lock");
   });
   it("falls back to ~/.superbrain and ~/vault", () => {
-    delete process.env.CLAUDE_PLUGIN_DATA;
-    delete process.env.SUPERBRAIN_VAULT;
+    delete process.env.SUPERBRAIN_DATA_DIR;
+    delete process.env.SUPERBRAIN_VAULT_DIR;
     expect(P.dataDir()).toMatch(/\.superbrain$/);
     expect(P.vaultPath()).toMatch(/(vault|Documents\/SuperBrain)$/);
   });

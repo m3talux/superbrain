@@ -58,12 +58,12 @@ async function main() {
       const { appendDigest } = await import("../src/sessionDigest.js"); // deferred heavy import
       await appendDigest(parts, h);
     }
-    // One-time courtesy notice when using the owned default vault (no explicit/adopted vault).
+    // One-time courtesy notice when using the owned default vault (no adopted vault).
     try {
-      if (!process.env.SUPERBRAIN_VAULT && !recordedVaultPath()) {
+      if (!recordedVaultPath()) {
         const flag = path.join(dataDir(), "owned-vault-notice");
         if (!fs.existsSync(flag)) {
-          parts.push("SuperBrain is capturing into its own vault. To use an existing Obsidian vault instead, run `/superbrain:adopt <path>` or set SUPERBRAIN_VAULT.");
+          parts.push("SuperBrain is capturing into ~/.superbrain/vault. To pull an existing Obsidian vault into that location, run `/superbrain:migrate` (preferred). To point SuperBrain at an already-established Obsidian vault instead, run `/superbrain:adopt <path>`.");
           fs.mkdirSync(path.dirname(flag), { recursive: true }); fs.writeFileSync(flag, "1");
         }
       }

@@ -5,7 +5,7 @@ import { parseNote } from "../src/frontmatter";
 
 beforeEach(() => {
   fs.rmSync("/tmp/sb-vwr", { recursive: true, force: true });
-  process.env.SUPERBRAIN_VAULT = "/tmp/sb-vwr";
+  process.env.SUPERBRAIN_VAULT_DIR = "/tmp/sb-vwr";
 });
 
 it("replace creates when absent", () => {

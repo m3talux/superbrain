@@ -4,7 +4,7 @@ import { compileInjectionBlock } from "../src/preferences";
 
 beforeEach(() => {
   fs.rmSync("/tmp/sb-pref", { recursive: true, force: true });
-  process.env.SUPERBRAIN_VAULT = "/tmp/sb-pref";
+  process.env.SUPERBRAIN_VAULT_DIR = "/tmp/sb-pref";
 });
 
 it("returns '' when preferences.md is absent", () => {

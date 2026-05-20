@@ -16,7 +16,7 @@ beforeEach(() => {
 it("every hook entrypoint loads + exits 0 with NO node_modules; SessionStart bootstraps", () => {
   const dataDir = "/tmp/sb-fresh-data";
   fs.rmSync(dataDir, { recursive: true, force: true });
-  const env = { ...process.env, CLAUDE_PLUGIN_ROOT: CLONE, CLAUDE_PLUGIN_DATA: dataDir,
+  const env = { ...process.env, CLAUDE_PLUGIN_ROOT: CLONE, SUPERBRAIN_DATA_DIR: dataDir,
     SUPERBRAIN_BOOTSTRAP_FAKE: "1", SUPERBRAIN_FAKE_DISTILLER: "1" };
   for (const b of ["sb-observe", "sb-checkpoint", "sb-recall", "sb-distill"]) {
     const r = execFileSync(process.execPath, [path.join(CLONE, "dist/bin", `${b}.js`)], {

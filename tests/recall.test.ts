@@ -4,7 +4,7 @@ import { openIndex } from "../src/searchIndex";
 import { bm25Recall, hybridRecall } from "../src/recall";
 
 beforeEach(() => {
-  process.env.CLAUDE_PLUGIN_DATA = "/tmp/sb-recall";
+  process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-recall";
   process.env.SUPERBRAIN_EMBED_STUB = "1";
   fs.rmSync("/tmp/sb-recall", { recursive: true, force: true });
   const ix = openIndex();

@@ -4,8 +4,8 @@ import { execFileSync } from "node:child_process";
 import { openIndex } from "../src/searchIndex";
 
 beforeEach(() => {
-  process.env.CLAUDE_PLUGIN_DATA = "/tmp/sb-di";
-  process.env.SUPERBRAIN_VAULT = "/tmp/sb-di-vault";
+  process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-di";
+  process.env.SUPERBRAIN_VAULT_DIR = "/tmp/sb-di-vault";
   fs.rmSync("/tmp/sb-di", { recursive: true, force: true });
   fs.rmSync("/tmp/sb-di-vault", { recursive: true, force: true });
 });
@@ -20,7 +20,7 @@ it("a note written by the distiller is searchable in the index", () => {
   ]));
   fs.mkdirSync("/tmp/sb-di/locks/distill.lock", { recursive: true });
   execFileSync("npx", ["tsx", "bin/sb-distill.ts"], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: "/tmp/sb-di", SUPERBRAIN_VAULT: "/tmp/sb-di-vault",
+    env: { ...process.env, SUPERBRAIN_DATA_DIR: "/tmp/sb-di", SUPERBRAIN_VAULT_DIR: "/tmp/sb-di-vault",
       SUPERBRAIN_DISTILL_STUB: stub, SUPERBRAIN_SESSION_ID: "S", SUPERBRAIN_EMBED_STUB: "1" },
     encoding: "utf8",
   });

@@ -11,14 +11,14 @@ beforeEach(() => {
   fs.mkdirSync(DIR, { recursive: true });
   // A non-sqlite file at the index path => openIndex()'s WAL pragma throws.
   fs.writeFileSync(`${DIR}/index.db`, "this is definitely not a sqlite database");
-  prevData = process.env.CLAUDE_PLUGIN_DATA;
+  prevData = process.env.SUPERBRAIN_DATA_DIR;
   prevStub = process.env.SUPERBRAIN_EMBED_STUB;
-  process.env.CLAUDE_PLUGIN_DATA = DIR;
+  process.env.SUPERBRAIN_DATA_DIR = DIR;
   process.env.SUPERBRAIN_EMBED_STUB = "1";
 });
 
 afterEach(() => {
-  if (prevData === undefined) delete process.env.CLAUDE_PLUGIN_DATA; else process.env.CLAUDE_PLUGIN_DATA = prevData;
+  if (prevData === undefined) delete process.env.SUPERBRAIN_DATA_DIR; else process.env.SUPERBRAIN_DATA_DIR = prevData;
   if (prevStub === undefined) delete process.env.SUPERBRAIN_EMBED_STUB; else process.env.SUPERBRAIN_EMBED_STUB = prevStub;
   fs.rmSync(DIR, { recursive: true, force: true });
 });

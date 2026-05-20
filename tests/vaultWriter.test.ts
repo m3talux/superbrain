@@ -3,7 +3,7 @@ import fs from "node:fs";
 import { writeNote, softDelete } from "../src/vaultWriter";
 
 beforeEach(() => {
-  process.env.SUPERBRAIN_VAULT = "/tmp/sb-vault";
+  process.env.SUPERBRAIN_VAULT_DIR = "/tmp/sb-vault";
   fs.rmSync("/tmp/sb-vault", { recursive: true, force: true });
 });
 

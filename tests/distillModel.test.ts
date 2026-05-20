@@ -4,21 +4,15 @@ import { distillModel } from "../src/distillRun.js";
 
 // Cost-control invariant: the detached distill/rollup `claude -p` spawns must
 // NEVER inherit the user's session model (often Opus, which burned the legacy
-// scribe's daily quota in hours). The model is pinned via `--model` on every
-// call site, honoring SUPERBRAIN_MODEL with a Sonnet default.
+// scribe's daily quota in hours). The model is hardcoded — no env override —
+// so users never have to think about model selection.
 
-it("defaults to claude-sonnet-4-6 and honors SUPERBRAIN_MODEL override (trims, ignores empty)", () => {
+it("distillModel is hardcoded to claude-sonnet-4-6 (no env override)", () => {
+  // Even if a user sets SUPERBRAIN_MODEL the function ignores it: the model is
+  // a code-level decision, not a user-facing knob.
   const prev = process.env.SUPERBRAIN_MODEL;
   try {
-    delete process.env.SUPERBRAIN_MODEL;
-    expect(distillModel()).toBe("claude-sonnet-4-6");
-    process.env.SUPERBRAIN_MODEL = "claude-haiku-4-5-20251001";
-    expect(distillModel()).toBe("claude-haiku-4-5-20251001");
-    process.env.SUPERBRAIN_MODEL = "  claude-opus-4-7  ";
-    expect(distillModel()).toBe("claude-opus-4-7");
-    process.env.SUPERBRAIN_MODEL = "";
-    expect(distillModel()).toBe("claude-sonnet-4-6");
-    process.env.SUPERBRAIN_MODEL = "   ";
+    process.env.SUPERBRAIN_MODEL = "claude-opus-4-7";
     expect(distillModel()).toBe("claude-sonnet-4-6");
   } finally {
     if (prev === undefined) delete process.env.SUPERBRAIN_MODEL;

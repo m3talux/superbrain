@@ -41,10 +41,11 @@ Determine the source vault path in this priority order:
 
 The destination vault is **SuperBrain's own vault**: resolve it by running
 `node "${CLAUDE_PLUGIN_ROOT}/dist/bin/sb.js" install` once (idempotent — creates `dataDir`),
-then use the SuperBrain vault location, which is `$SUPERBRAIN_VAULT` if set, else the recorded
-adopted path (`<dataDir>/vault-path` contents) if present, else `<dataDir>/vault` (default
-`~/.superbrain/vault`). The `.superbrain` ownership marker must exist or be created there
-(it will be, by `vaultPath()` on the next plugin run; you do not need to write it).
+then use the SuperBrain vault location, which is the recorded adopted path
+(`<dataDir>/vault-path` contents) if present, else `<dataDir>/vault` (always
+`~/.superbrain/vault`). The `.superbrain` ownership marker must exist or be
+created there (it will be, by `vaultPath()` on the next plugin run; you do not
+need to write it).
 
 # Step 2 — Enumerate source notes
 
@@ -131,5 +132,5 @@ This slash command runs **in your active session**, at whatever Claude model you
 not on a pinned model. For a vault with hundreds of notes, categorization quality matters but
 Opus is expensive. Before invoking on a big vault, consider switching your session to Sonnet
 (`/model claude-sonnet-4-6`) — similar judgment quality at ~1/5 the cost. Switch back after.
-(The plugin's own detached distill/rollup spawns are already pinned to Sonnet by default; see
-`SUPERBRAIN_MODEL` in the README.)
+(The plugin's own detached distill/rollup spawns are hardcoded to Sonnet 4.6;
+this concern only applies to the in-session migrate command.)

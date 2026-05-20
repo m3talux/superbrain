@@ -37,11 +37,13 @@ This isn't vibes: ~23 prior-art projects and the current Claude Code platform we
 ```
 
 That's it. On the **first session** the plugin runs a one-time setup (installs its
-search dependencies in the background) and tells you it's doing so; capture is fully
-active from the next session. By default SuperBrain writes to its own vault at
-`~/.superbrain/vault`. To use an existing Obsidian vault instead, run
-`/superbrain:adopt /path/to/your/vault` (or set `SUPERBRAIN_VAULT`). Optional:
-`/superbrain:migrate` folds an existing Obsidian vault into SuperBrain's structure — **non-destructive** (only reads the source, copies into the SuperBrain vault); pass a path or let Claude auto-detect it; `--dry-run` to preview.
+search dependencies in the background) and tells you it's doing so; capture is
+fully active from the next session. SuperBrain writes to its own vault at
+`~/.superbrain/vault` — a fixed, predictable location with no environment
+variables to set. Point Obsidian at that folder and you're done.
+
+If you already have an Obsidian vault you want to bring along, see
+[Vault setup](#vault-setup) below — `/superbrain:migrate` is the preferred path.
 
 Installed at **user scope**, the plugin's hooks register for *every* project automatically — there is nothing else to do, ever.
 
@@ -53,10 +55,12 @@ flowchart LR
   B --> C{Checkpoint?<br/>PreCompact / SessionEnd /<br/>Stop if pending}
   C -->|detached, lock-serialized| D[sb-distill<br/>claude -p]
   D --> E[Router]
-  E --> F[(Obsidian vault<br/>notes • log.md)]
+  E --> F[(Obsidian vault<br/>notes only)]
+  E --> L[(~/.superbrain/logs/<br/>per-day .log files)]
   C -.->|byte cursor| B
   G[SessionStart] -->|idempotent catch-up| H[Daily / weekly / monthly rollup]
   H --> F
+  L --> H
 ```
 
 1. **Observe** — `PostToolUse` / `UserPromptSubmit` hooks append a compact event line to a per-session NDJSON log. **No LLM** on this path, so it can never rate-limit, stall, or disrupt your turn.
@@ -74,7 +78,7 @@ flowchart LR
 - ✅ Smart router: decisions / project facts / people / gotchas / triage capture
 - ✅ Self-healing daily/weekly/monthly rollup catch-up — no cron, no daemon
 - ✅ Append-or-create, **never** blind-overwrites a note you edited in Obsidian; soft-delete to `.trash/`
-- ✅ Idempotent & resumable (byte cursor + `log.md`); silent failures surface once on next session
+- ✅ Idempotent & resumable (byte cursor + per-day `~/.superbrain/logs/<date>.log` files); silent failures surface once on next session
 - ✅ One-command migration off a legacy custom scribe (archives, never deletes)
 
 **Search & recall**
@@ -107,22 +111,56 @@ flowchart LR
 ├── capture/       raw inbound, triaged by rollups
 ├── meta/          preferences.md — deduplicated profile auto-injected at SessionStart
 ├── maps/          auto-generated Maps-of-Content   (planned)
-├── index.md       catalog — the primary navigation surface
-└── log.md         append-only, grep-parseable timeline
+└── index.md       catalog — the primary navigation surface
+```
+
+System telemetry (NOT in the vault — lives next to it in `~/.superbrain/`):
+
+```
+~/.superbrain/
+├── logs/<date>.log    per-day append-only write log; powers the daily rollup
+├── sessions/          per-session NDJSON event streams + cursors
+├── transcripts/       full session transcripts (when captured)
+├── index.db           hybrid search index (FTS5 + sqlite-vec)
+└── rollup-state.json  hash-gated rollup convergence state
 ```
 
 Generated files are namespaced so the rollup regenerator never touches notes you authored.
 
+## Vault setup
+
+SuperBrain's vault lives at `~/.superbrain/vault` — fixed, predictable, no env vars. Two ways to bring an existing Obsidian vault into the picture:
+
+### Migrate (preferred)
+
+```text
+/superbrain:migrate                  # auto-detects your vault
+/superbrain:migrate ~/Documents/MyVault   # explicit path
+/superbrain:migrate --dry-run        # preview without writing
+```
+
+`/superbrain:migrate` reads your existing Obsidian vault (the source is **never modified**) and copies its content into `~/.superbrain/vault`, fitting it into SuperBrain's structure (`projects/`, `decisions/`, `people/`, `daily/`, etc.). From then on, SuperBrain owns and extends a vault it fully understands — its router, rollups, and index all behave predictably. **This is the recommended path** for almost every user.
+
+### Adopt (advanced — only when migration isn't an option)
+
+```text
+/superbrain:adopt ~/Documents/MyEstablishedVault
+```
+
+`/superbrain:adopt` does **not** copy anything; it records your existing path as the vault location and starts writing into it directly. Use this only when you have a heavily established Obsidian setup whose structure you do not want to change — broken into folders, plugins, layouts, or conventions SuperBrain isn't designed around.
+
+The trade-off: SuperBrain will work *on top of* whatever's already there rather than *alongside* a structure it owns. The router may write into folders that don't match your existing convention; rollups will live alongside your hand-authored notes; the search-index reconciler will still self-heal but has more drift to manage. Migration sidesteps all of that.
+
+When in doubt: **migrate, don't adopt.**
+
 ## Configuration
 
-All optional — sensible defaults mean a clean install needs none.
+SuperBrain is configured by command, not by environment. There are no
+required env vars. The single optional one:
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `SUPERBRAIN_VAULT` | `~/.superbrain/vault` | Where notes are written |
-| `CLAUDE_PLUGIN_DATA` | `~/.superbrain` | Runtime state (cursors, queue, rollup state) |
-| `SUPERBRAIN_MODEL` | `claude-sonnet-4-6` | Model used by the detached `claude -p` distill/rollup spawns. Pinned by default so the distiller never inherits your session's Opus and burns the daily quota; override to `claude-haiku-4-5-20251001` for cheaper-but-lower-quality, or `claude-opus-4-7` (best with `ANTHROPIC_API_KEY`) for higher quality. |
-| `ANTHROPIC_API_KEY` | *(unset)* | Optional escape hatch — distillation uses the API path instead of your subscription |
+| Variable | Purpose |
+|---|---|
+| `ANTHROPIC_API_KEY` | Optional escape hatch — distillation uses the Anthropic API instead of your Claude Code subscription. Useful if you want the distill/rollup spawns to bypass subscription quota. |
 
 > **Heads-up (2026-06-15):** background `claude -p` / Agent-SDK usage on subscription plans draws from a separate capped monthly credit after this date. If captures stop, SuperBrain surfaces a one-time notice on session start — set `ANTHROPIC_API_KEY` to switch to the API path.
 
@@ -160,7 +198,7 @@ of the following on top with no special configuration:
 
 Whichever you choose, treat it as **backup / sync owned by you**, not by the
 plugin. Running the same vault from two machines concurrently can still produce
-git conflicts in regenerated files (`index.md`, `log.md`, rollups) — Obsidian
+git conflicts in regenerated files (`index.md`, rollups) — Obsidian
 Git's conflict UX or a single-writer-at-a-time habit avoids that. SuperBrain's
 job is to stay idempotent and drift-tolerant so any of these Just Work; it is
 not to own your remote.

@@ -10,7 +10,7 @@ beforeEach(() => {
 
 it("sb-distill releases the lock and exits 0 when deps absent", () => {
   execFileSync("npx", ["tsx", "bin/sb-distill.ts"], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: "/tmp/sb-dnd",
+    env: { ...process.env, SUPERBRAIN_DATA_DIR: "/tmp/sb-dnd",
       CLAUDE_PLUGIN_ROOT: "/tmp/sb-dnd-empty", SUPERBRAIN_SESSION_ID: "S" },
     encoding: "utf8",
   });

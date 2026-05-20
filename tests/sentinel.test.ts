@@ -3,7 +3,7 @@ import fs from "node:fs";
 import { writeFailure, readAndClearFailure } from "../src/sentinel";
 
 beforeEach(() => {
-  process.env.CLAUDE_PLUGIN_DATA = "/tmp/sb-sentinel";
+  process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-sentinel";
   fs.rmSync("/tmp/sb-sentinel", { recursive: true, force: true });
 });
 

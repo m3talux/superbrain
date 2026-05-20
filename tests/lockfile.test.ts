@@ -3,7 +3,7 @@ import fs from "node:fs";
 import { acquireLock, releaseLock } from "../src/lockfile";
 
 beforeEach(() => {
-  process.env.CLAUDE_PLUGIN_DATA = "/tmp/sb-lock";
+  process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-lock";
   fs.rmSync("/tmp/sb-lock", { recursive: true, force: true });
 });
 
