@@ -13,13 +13,14 @@ async function main() {
   if (!depsPresent(pluginRoot())) { process.exit(0); }
   const args = process.argv.slice(2);
   const force = args.includes("--force");
+  const all = args.includes("--all");
   const positional = args.filter(a => !a.startsWith("--"));
   const projectDir = positional[0]
     || process.env.SUPERBRAIN_PROJECT_DIR
     || process.env.CLAUDE_PROJECT_DIR
     || process.cwd();
   try {
-    if (force) await runDiscoverForce(projectDir);
+    if (force) await runDiscoverForce(projectDir, { all });
     else await runDiscover(projectDir);
   } catch { /* sentinel handles errors inside runDiscover */ }
   process.exit(0);

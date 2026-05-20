@@ -13,7 +13,7 @@ async function main() {
   const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
   const { z } = await import("zod");
   const { handleSearch } = await import("../src/mcpSearch.js");
-  const server = new McpServer({ name: "superbrain", version: "0.3.1" });
+  const server = new McpServer({ name: "superbrain", version: "0.4.0" });
   server.tool(
     "superbrain_search",
     "Search the user's SuperBrain Obsidian vault (past decisions, projects, people, gotchas).",
