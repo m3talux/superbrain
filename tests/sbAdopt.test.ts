@@ -6,12 +6,12 @@ beforeEach(() => {
   fs.rmSync("/tmp/sb-am", { recursive: true, force: true });
   fs.rmSync("/tmp/sb-am-home", { recursive: true, force: true });
   fs.rmSync("/tmp/sb-am-vault", { recursive: true, force: true });
-  process.env.CLAUDE_PLUGIN_DATA = "/tmp/sb-am";
+  process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-am";
 });
 
 function run(args: string[], env: Record<string,string> = {}) {
   return execFileSync("npx", ["tsx", "bin/sb.ts", ...args], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: "/tmp/sb-am", ...env }, encoding: "utf8" });
+    env: { ...process.env, SUPERBRAIN_DATA_DIR: "/tmp/sb-am", ...env }, encoding: "utf8" });
 }
 
 it("adopt marks + records a writable dir, refuses a file", () => {

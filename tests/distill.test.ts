@@ -7,7 +7,7 @@ beforeEach(() => {
   fs.rmSync("/tmp/sb-dist-vault", { recursive: true, force: true });
 });
 
-it("distills delta into routed notes, log.md, advances cursor, releases lock", () => {
+it("distills delta into routed notes, daily .log file, advances cursor, releases lock", () => {
   fs.mkdirSync("/tmp/sb-dist/sessions", { recursive: true });
   fs.writeFileSync("/tmp/sb-dist/sessions/S.ndjson",
     JSON.stringify({ type: "tool", tool: "Write", file: "a.ts", cwd: "/p", ts: "t" }) + "\n");
@@ -19,14 +19,17 @@ it("distills delta into routed notes, log.md, advances cursor, releases lock", (
   fs.writeFileSync("/tmp/sb-dist/sessions/S.prompt.json", "{}");
 
   execFileSync("npx", ["tsx", "bin/sb-distill.ts"], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: "/tmp/sb-dist",
-      SUPERBRAIN_VAULT: "/tmp/sb-dist-vault", SUPERBRAIN_DISTILL_STUB: stub,
+    env: { ...process.env, SUPERBRAIN_DATA_DIR: "/tmp/sb-dist",
+      SUPERBRAIN_VAULT_DIR: "/tmp/sb-dist-vault", SUPERBRAIN_DISTILL_STUB: stub,
       SUPERBRAIN_SESSION_ID: "S", SUPERBRAIN_EMBED_STUB: "1" },
     encoding: "utf8",
   });
 
   expect(fs.existsSync("/tmp/sb-dist-vault/decisions/2026-05-19-pick-x.md")).toBe(true);
-  expect(fs.readFileSync("/tmp/sb-dist-vault/log.md", "utf8")).toMatch(/Pick X/);
+  // The daily .log file lives in dataDir/logs/<today>.log and is named with the
+  // current date (not the item's date) since appendLog stamps it at write time.
+  const today = new Date().toISOString().slice(0, 10);
+  expect(fs.readFileSync(`/tmp/sb-dist/logs/${today}.log`, "utf8")).toMatch(/Pick X/);
   expect(Number(fs.readFileSync("/tmp/sb-dist/sessions/S.cursor", "utf8"))).toBeGreaterThan(0);
   expect(fs.existsSync("/tmp/sb-dist/locks/distill.lock")).toBe(false);
 });

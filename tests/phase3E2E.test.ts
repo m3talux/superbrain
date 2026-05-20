@@ -22,7 +22,7 @@ it("pushback session yields a lesson note + reconciled preferences, injected nex
   fs.mkdirSync("/tmp/sb-e3/locks/distill.lock", { recursive: true });
 
   execFileSync("npx", ["tsx", "bin/sb-distill.ts"], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: "/tmp/sb-e3", SUPERBRAIN_VAULT: "/tmp/sb-e3-vault",
+    env: { ...process.env, SUPERBRAIN_DATA_DIR: "/tmp/sb-e3", SUPERBRAIN_VAULT_DIR: "/tmp/sb-e3-vault",
       SUPERBRAIN_DISTILL_STUB: stub, SUPERBRAIN_SESSION_ID: "S", SUPERBRAIN_EMBED_STUB: "1" },
     encoding: "utf8",
   });
@@ -34,7 +34,7 @@ it("pushback session yields a lesson note + reconciled preferences, injected nex
 
   const out = execFileSync("npx", ["tsx", "bin/sb-session-start.ts"], {
     input: JSON.stringify({ session_id: "S2", hook_event_name: "SessionStart", source: "startup", cwd: "/p" }),
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: "/tmp/sb-e3", SUPERBRAIN_VAULT: "/tmp/sb-e3-vault",
+    env: { ...process.env, SUPERBRAIN_DATA_DIR: "/tmp/sb-e3", SUPERBRAIN_VAULT_DIR: "/tmp/sb-e3-vault",
       SUPERBRAIN_FAKE_DISTILLER: "1", SUPERBRAIN_EMBED_STUB: "1" },
     encoding: "utf8",
   });

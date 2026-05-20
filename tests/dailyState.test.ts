@@ -4,7 +4,7 @@ import { upsertDay, readDay, type DaySessionEntry } from "../src/dailyState";
 
 beforeEach(() => {
   fs.rmSync("/tmp/sb-ds", { recursive: true, force: true });
-  process.env.CLAUDE_PLUGIN_DATA = "/tmp/sb-ds";
+  process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-ds";
 });
 
 const entry = (over: Partial<DaySessionEntry> = {}): DaySessionEntry =>

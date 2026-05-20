@@ -17,7 +17,7 @@ beforeEach(() => {
 it("SessionStart injects compiled preferences and today's open threads", () => {
   const out = execFileSync("npx", ["tsx", "bin/sb-session-start.ts"], {
     input: JSON.stringify({ session_id: "S", hook_event_name: "SessionStart", source: "startup", cwd: "/p" }),
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: "/tmp/sb-ssp", SUPERBRAIN_VAULT: "/tmp/sb-ssp-vault",
+    env: { ...process.env, SUPERBRAIN_DATA_DIR: "/tmp/sb-ssp", SUPERBRAIN_VAULT_DIR: "/tmp/sb-ssp-vault",
       SUPERBRAIN_FAKE_DISTILLER: "1", SUPERBRAIN_EMBED_STUB: "1" },
     encoding: "utf8",
   });

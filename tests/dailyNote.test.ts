@@ -5,7 +5,7 @@ import { buildDailyNote } from "../src/dailyNote";
 
 beforeEach(() => {
   fs.rmSync("/tmp/sb-dn", { recursive: true, force: true });
-  process.env.CLAUDE_PLUGIN_DATA = "/tmp/sb-dn";
+  process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-dn";
 });
 
 it("merges sessions into a hybrid note (links, not bodies)", () => {

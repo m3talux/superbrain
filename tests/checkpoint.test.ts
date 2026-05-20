@@ -7,7 +7,7 @@ beforeEach(() => fs.rmSync("/tmp/sb-ckpt", { recursive: true, force: true }));
 function run(hook: object, extraEnv: Record<string, string> = {}) {
   return execFileSync("npx", ["tsx", "bin/sb-checkpoint.ts"], {
     input: JSON.stringify(hook),
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: "/tmp/sb-ckpt",
+    env: { ...process.env, SUPERBRAIN_DATA_DIR: "/tmp/sb-ckpt",
            SUPERBRAIN_FAKE_DISTILLER: "1", ...extraEnv },
     encoding: "utf8",
   });

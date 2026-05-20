@@ -4,7 +4,7 @@ import { appendEvent, readDelta } from "../src/ndjson";
 
 const SID = "sess1";
 beforeEach(() => {
-  process.env.CLAUDE_PLUGIN_DATA = "/tmp/sb-ndjson";
+  process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-ndjson";
   fs.rmSync("/tmp/sb-ndjson", { recursive: true, force: true });
 });
 

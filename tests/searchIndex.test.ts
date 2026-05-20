@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import fs from "node:fs";
 import { openIndex, rrf } from "../src/searchIndex";
 
-beforeEach(() => { process.env.CLAUDE_PLUGIN_DATA = "/tmp/sb-idx"; fs.rmSync("/tmp/sb-idx", { recursive: true, force: true }); });
+beforeEach(() => { process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-idx"; fs.rmSync("/tmp/sb-idx", { recursive: true, force: true }); });
 
 const vec = (n: number) => Float32Array.from(Array(384).fill(n));
 

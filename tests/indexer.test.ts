@@ -4,8 +4,8 @@ import { indexNote, reconcile } from "../src/indexer";
 import { openIndex } from "../src/searchIndex";
 
 beforeEach(() => {
-  process.env.CLAUDE_PLUGIN_DATA = "/tmp/sb-indexer";
-  process.env.SUPERBRAIN_VAULT = "/tmp/sb-indexer-vault";
+  process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-indexer";
+  process.env.SUPERBRAIN_VAULT_DIR = "/tmp/sb-indexer-vault";
   process.env.SUPERBRAIN_EMBED_STUB = "1";
   fs.rmSync("/tmp/sb-indexer", { recursive: true, force: true });
   fs.rmSync("/tmp/sb-indexer-vault", { recursive: true, force: true });

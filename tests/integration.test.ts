@@ -24,7 +24,7 @@ it("real checkpoint path (no fake seam) writes a vault note and releases the loc
   execFileSync("node", [DIST_CHECKPOINT], {
     input: JSON.stringify({ session_id: "S", hook_event_name: "Stop", cwd: "/p", transcript_path: "/dev/null" }),
     env: { ...process.env, PATH: `${BIN}:${process.env.PATH}`,
-      CLAUDE_PLUGIN_DATA: "/tmp/sb-int", SUPERBRAIN_VAULT: "/tmp/sb-int-vault" },
+      SUPERBRAIN_DATA_DIR: "/tmp/sb-int", SUPERBRAIN_VAULT_DIR: "/tmp/sb-int-vault" },
     encoding: "utf8",
   });
   // checkpoint spawns the detached writer; give it a moment
@@ -33,6 +33,7 @@ it("real checkpoint path (no fake seam) writes a vault note and releases the loc
   const found = fs.existsSync(vault) && fs.readdirSync(vault, { recursive: true } as any)
     .some((f: any) => String(f).endsWith(".md"));
   expect(found).toBe(true);
-  expect(fs.readFileSync(`${vault}/log.md`, "utf8")).toMatch(/Use X/);
+  const today = new Date().toISOString().slice(0, 10);
+  expect(fs.readFileSync(`/tmp/sb-int/logs/${today}.log`, "utf8")).toMatch(/Use X/);
   expect(fs.existsSync("/tmp/sb-int/locks/distill.lock")).toBe(false);
 });

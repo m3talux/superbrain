@@ -19,7 +19,7 @@ it("writes a daily note aggregating the session's routed items + envelope fields
   fs.mkdirSync("/tmp/sb-dd/locks/distill.lock", { recursive: true });
 
   execFileSync("npx", ["tsx", "bin/sb-distill.ts"], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: "/tmp/sb-dd", SUPERBRAIN_VAULT: "/tmp/sb-dd-vault",
+    env: { ...process.env, SUPERBRAIN_DATA_DIR: "/tmp/sb-dd", SUPERBRAIN_VAULT_DIR: "/tmp/sb-dd-vault",
       SUPERBRAIN_DISTILL_STUB: stub, SUPERBRAIN_SESSION_ID: "S", SUPERBRAIN_EMBED_STUB: "1" },
     encoding: "utf8",
   });

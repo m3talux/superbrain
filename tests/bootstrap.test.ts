@@ -6,7 +6,7 @@ import { depsPresent, bootstrapDone, markBootstrapDone } from "../src/bootstrap"
 beforeEach(() => {
   fs.rmSync("/tmp/sb-bs", { recursive: true, force: true });
   fs.rmSync("/tmp/sb-bs-data", { recursive: true, force: true });
-  process.env.CLAUDE_PLUGIN_DATA = "/tmp/sb-bs-data";
+  process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-bs-data";
 });
 
 it("depsPresent is false without the better-sqlite3 native binding, true with it", () => {
@@ -31,7 +31,7 @@ it("bootstrapDone reflects the marker", () => {
 it("sb-bootstrap is idempotent: no-op when bootstrap-done exists", () => {
   markBootstrapDone();
   const out = execFileSync("npx", ["tsx", "bin/sb-bootstrap.ts"], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: "/tmp/sb-bs-data",
+    env: { ...process.env, SUPERBRAIN_DATA_DIR: "/tmp/sb-bs-data",
       SUPERBRAIN_PLUGIN_ROOT: "/tmp/sb-bs", SUPERBRAIN_BOOTSTRAP_FAKE: "1" },
     encoding: "utf8",
   });
@@ -41,7 +41,7 @@ it("sb-bootstrap is idempotent: no-op when bootstrap-done exists", () => {
 it("sb-bootstrap (fake) writes bootstrap-done on success", () => {
   fs.mkdirSync("/tmp/sb-bs", { recursive: true });
   execFileSync("npx", ["tsx", "bin/sb-bootstrap.ts"], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: "/tmp/sb-bs-data",
+    env: { ...process.env, SUPERBRAIN_DATA_DIR: "/tmp/sb-bs-data",
       SUPERBRAIN_PLUGIN_ROOT: "/tmp/sb-bs", SUPERBRAIN_BOOTSTRAP_FAKE: "1" },
     encoding: "utf8",
   });

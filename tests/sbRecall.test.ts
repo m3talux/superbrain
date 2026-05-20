@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { openIndex } from "../src/searchIndex";
 
 beforeEach(() => {
-  process.env.CLAUDE_PLUGIN_DATA = "/tmp/sb-rh";
+  process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-rh";
   process.env.SUPERBRAIN_EMBED_STUB = "1";
   fs.rmSync("/tmp/sb-rh", { recursive: true, force: true });
   const ix = openIndex();

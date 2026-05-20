@@ -7,14 +7,14 @@ import { setRecordedVaultPath, isOwned } from "../src/vaultMarker";
 
 beforeEach(() => {
   fs.rmSync("/tmp/sb-pr-data", { recursive: true, force: true });
-  process.env.CLAUDE_PLUGIN_DATA = "/tmp/sb-pr-data";
-  delete process.env.SUPERBRAIN_VAULT;
+  process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-pr-data";
+  delete process.env.SUPERBRAIN_VAULT_DIR;
   delete process.env.CLAUDE_PLUGIN_ROOT;
 });
 
-it("SUPERBRAIN_VAULT wins and is marked", () => {
+it("SUPERBRAIN_VAULT_DIR wins and is marked", () => {
   fs.mkdirSync("/tmp/sb-pr-explicit", { recursive: true });
-  process.env.SUPERBRAIN_VAULT = "/tmp/sb-pr-explicit";
+  process.env.SUPERBRAIN_VAULT_DIR = "/tmp/sb-pr-explicit";
   expect(vaultPath()).toBe("/tmp/sb-pr-explicit");
   expect(isOwned("/tmp/sb-pr-explicit")).toBe(true);
 });

@@ -3,7 +3,7 @@ import fs from "node:fs";
 import { needsRollup, markRollup } from "../src/rollupState";
 
 beforeEach(() => {
-  process.env.CLAUDE_PLUGIN_DATA = "/tmp/sb-rollup";
+  process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-rollup";
   fs.rmSync("/tmp/sb-rollup", { recursive: true, force: true });
 });
 

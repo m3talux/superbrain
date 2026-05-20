@@ -5,7 +5,7 @@ import { MARKER, isOwned, markOwned, recordedVaultPath, setRecordedVaultPath } f
 beforeEach(() => {
   fs.rmSync("/tmp/sb-vm", { recursive: true, force: true });
   fs.rmSync("/tmp/sb-vm-data", { recursive: true, force: true });
-  process.env.CLAUDE_PLUGIN_DATA = "/tmp/sb-vm-data";
+  process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-vm-data";
 });
 
 it("markOwned writes the marker; isOwned detects it", () => {

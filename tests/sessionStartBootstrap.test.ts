@@ -11,7 +11,7 @@ beforeEach(() => {
 it("no deps: emits first-time-setup notice, exits 0, does NOT crash", () => {
   const out = execFileSync("npx", ["tsx", "bin/sb-session-start.ts"], {
     input: JSON.stringify({ session_id: "S", hook_event_name: "SessionStart", source: "startup", cwd: "/p" }),
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: "/tmp/sb-ssb", CLAUDE_PLUGIN_ROOT: "/tmp/sb-ssb-empty",
+    env: { ...process.env, SUPERBRAIN_DATA_DIR: "/tmp/sb-ssb", CLAUDE_PLUGIN_ROOT: "/tmp/sb-ssb-empty",
       SUPERBRAIN_FAKE_DISTILLER: "1", SUPERBRAIN_BOOTSTRAP_FAKE: "1" },
     encoding: "utf8",
   });

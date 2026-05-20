@@ -15,7 +15,7 @@ beforeEach(() => {
 
 it("daily rollup converges: real path triggers the writer at most once across repeated session starts", () => {
   const env = { ...process.env, PATH: `${BIN}:${process.env.PATH}`,
-    CLAUDE_PLUGIN_DATA: "/tmp/sb-conv", SUPERBRAIN_VAULT: "/tmp/sb-conv-vault",
+    SUPERBRAIN_DATA_DIR: "/tmp/sb-conv", SUPERBRAIN_VAULT_DIR: "/tmp/sb-conv-vault",
     SUPERBRAIN_EMBED_STUB: "1" };
   const input = JSON.stringify({ session_id: "S", hook_event_name: "SessionStart", source: "startup", cwd: "/p" });
   for (let i = 0; i < 3; i++) {
