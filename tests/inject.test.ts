@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
+import { execFileSync } from "node:child_process";
 import { sanityCheck, detectMode } from "../src/injectRun.js";
 
 afterEach(() => {
@@ -316,5 +317,57 @@ describe("inject LLM-failure fallback", () => {
     expect(result.fallback).toBe(true);
     expect(result.notes).toHaveLength(1);
     expect(result.notes[0]).toMatch(/^capture\//);
+  });
+});
+
+describe("sb-inject CLI", () => {
+  it("writes a verbatim capture when given text on argv", () => {
+    const { dataDir, vaultDir } = makeTmpEnv("cli-text");
+    const out = execFileSync("npx", ["tsx", "bin/sb-inject.ts", "a brief side thought from CLI"], {
+      env: {
+        ...process.env,
+        SUPERBRAIN_DATA_DIR: dataDir,
+        SUPERBRAIN_VAULT_DIR: vaultDir,
+        SUPERBRAIN_EMBED_STUB: "1",
+      },
+      encoding: "utf8",
+    });
+    expect(out).toMatch(/Wrote 1 note/);
+    expect(out).toMatch(/capture\//);
+  });
+
+  it("exits 2 on empty input", () => {
+    const { dataDir, vaultDir } = makeTmpEnv("cli-empty");
+    let exitCode = 0;
+    try {
+      execFileSync("npx", ["tsx", "bin/sb-inject.ts", ""], {
+        env: {
+          ...process.env,
+          SUPERBRAIN_DATA_DIR: dataDir,
+          SUPERBRAIN_VAULT_DIR: vaultDir,
+          SUPERBRAIN_EMBED_STUB: "1",
+        },
+        encoding: "utf8",
+      });
+    } catch (e: any) {
+      exitCode = e.status;
+    }
+    expect(exitCode).toBe(2);
+  });
+
+  it("reads text from --from-file", () => {
+    const { dataDir, vaultDir } = makeTmpEnv("cli-file");
+    const inputFile = path.join(dataDir, "input.txt");
+    fs.writeFileSync(inputFile, "hello from a file");
+    const out = execFileSync("npx", ["tsx", "bin/sb-inject.ts", "--from-file", inputFile], {
+      env: {
+        ...process.env,
+        SUPERBRAIN_DATA_DIR: dataDir,
+        SUPERBRAIN_VAULT_DIR: vaultDir,
+        SUPERBRAIN_EMBED_STUB: "1",
+      },
+      encoding: "utf8",
+    });
+    expect(out).toMatch(/Wrote 1 note/);
   });
 });
