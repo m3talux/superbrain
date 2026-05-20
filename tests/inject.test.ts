@@ -216,6 +216,30 @@ describe("inject safety filter", () => {
     expect(captureBody).toContain("(project: totally-invented)");
   });
 
+  it("downgrades gotcha with unknown project slug to capture", async () => {
+    const { dataDir, vaultDir } = makeTmpEnv("safety-gotcha");
+    process.env.SUPERBRAIN_DATA_DIR = dataDir;
+    process.env.SUPERBRAIN_VAULT_DIR = vaultDir;
+    process.env.SUPERBRAIN_EMBED_STUB = "1";
+
+    const stub = path.join(dataDir, "stub.json");
+    fs.writeFileSync(stub, JSON.stringify({
+      items: [
+        { kind: "gotcha", title: "Hidden bug", date: "2026-05-20",
+          project: "unknown-svc", symptom: "thing crashes", fix: "do X", links: [] },
+      ],
+    }));
+    process.env.SUPERBRAIN_DISTILL_STUB = stub;
+
+    const { runInject } = await import("../src/injectRun.js");
+    const result = await runInject("text that forces distill " + "g".repeat(250), {});
+
+    expect(result.ok).toBe(true);
+    expect(result.notes).toHaveLength(1);
+    expect(result.notes[0]).toMatch(/^capture\//);
+    expect(fs.existsSync(path.join(vaultDir, "projects/unknown-svc.md"))).toBe(false);
+  });
+
   it("--project flag overrides model's project field", async () => {
     const { dataDir, vaultDir } = makeTmpEnv("safety-override");
     process.env.SUPERBRAIN_DATA_DIR = dataDir;
@@ -369,5 +393,21 @@ describe("sb-inject CLI", () => {
       encoding: "utf8",
     });
     expect(out).toMatch(/Wrote 1 note/);
+  });
+
+  it("reads text from stdin when no argv text and no --from-file", () => {
+    const { dataDir, vaultDir } = makeTmpEnv("cli-stdin");
+    const out = execFileSync("npx", ["tsx", "bin/sb-inject.ts"], {
+      env: {
+        ...process.env,
+        SUPERBRAIN_DATA_DIR: dataDir,
+        SUPERBRAIN_VAULT_DIR: vaultDir,
+        SUPERBRAIN_EMBED_STUB: "1",
+      },
+      input: "a side thought piped via stdin",
+      encoding: "utf8",
+    });
+    expect(out).toMatch(/Wrote 1 note/);
+    expect(out).toMatch(/capture\//);
   });
 });
