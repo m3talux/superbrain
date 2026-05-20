@@ -1,5 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { sanityCheck, detectMode } from "../src/injectRun.js";
+
+afterEach(() => {
+  delete process.env.SUPERBRAIN_DATA_DIR;
+  delete process.env.SUPERBRAIN_VAULT_DIR;
+  delete process.env.SUPERBRAIN_EMBED_STUB;
+  delete process.env.SUPERBRAIN_DISTILL_STUB;
+  delete process.env.SUPERBRAIN_INJECT_LOCK_WAIT_MS;
+});
 
 describe("sanityCheck", () => {
   it("rejects empty string", () => {
@@ -153,7 +161,5 @@ describe("runInject — distill mode", () => {
       expect(body).toMatch(/source: inject/);
       expect(body).toMatch(/inject_mode: distill/);
     }
-
-    delete process.env.SUPERBRAIN_DISTILL_STUB;
   });
 });
