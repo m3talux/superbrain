@@ -73,6 +73,7 @@ flowchart LR
 **Capture**
 
 - ✅ Globally installed, zero per-project setup, **no API key** (reuses your Claude Code auth)
+- ✅ **One-shot project discovery** on first session in an unknown repo: walks the tree, reads the manifests + CLAUDE.md + README, asks one Sonnet call to produce a substantive `projects/<slug>.md` (stack / architecture / top-level folders / key files / docs / conventions / open questions). Once per project, ever. Never overwrites an existing note.
 - ✅ Automatic capture that does **not** degrade on multi-day sessions
 - ✅ Plain Obsidian markdown — wikilinks, frontmatter, fully `git`-portable, zero lock-in
 - ✅ Smart router: decisions / project facts / people / gotchas / triage capture
