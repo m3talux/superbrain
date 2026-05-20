@@ -13,6 +13,7 @@ import { parseEnvelope } from "./distillRun.js";
 import { distillModel } from "./model.js";
 import { buildInjectPrompt } from "./injectPrompt.js";
 import { acquireLock, releaseLock } from "./lockfile.js";
+import { resolveLinks } from "./wikilink.js";
 const MAX_INPUT_BYTES = 32 * 1024;
 export function sanityCheck(raw) {
     const stripped = raw.replace(/\0/g, "");
@@ -228,6 +229,7 @@ export async function runInject(raw, opts = {}) {
         }
         const written = [];
         for (const item of safeItems) {
+            item.links = resolveLinks(item.links || [], vaultPath());
             const rel = await writeOne(item, "distill");
             if (rel)
                 written.push(rel);
