@@ -17,7 +17,7 @@ afterEach(() => {
 
 describe("vaultWriter", () => {
   it("creates a note with validated frontmatter", () => {
-    const r = writeNote("projects/x.md", { frontmatter: { type: "project", status: "active" }, body: "# X", mode: "create" });
+    const r = writeNote("projects/x.md", { frontmatter: { type: "project", status: "active", project: "x" }, body: "# X", mode: "create" });
     expect(r.ok).toBe(true);
     expect(fs.readFileSync(path.join(TMP, "projects/x.md"), "utf8")).toContain("type: project");
   });
@@ -35,9 +35,9 @@ describe("vaultWriter", () => {
     expect(t).toContain("first"); expect(t).toContain("second");
   });
   it("dirty guard: appends instead of clobbering a user-edited note", () => {
-    writeNote("projects/z.md", { frontmatter: { type: "project", status: "active" }, body: "orig", mode: "create" });
+    writeNote("projects/z.md", { frontmatter: { type: "project", status: "active", project: "z" }, body: "orig", mode: "create" });
     fs.appendFileSync(path.join(TMP, "projects/z.md"), "\nUSER EDIT\n");
-    const r = writeNote("projects/z.md", { frontmatter: { type: "project", status: "active" }, body: "machine", mode: "create" });
+    const r = writeNote("projects/z.md", { frontmatter: { type: "project", status: "active", project: "z" }, body: "machine", mode: "create" });
     expect(r.ok).toBe(true);
     const t = fs.readFileSync(path.join(TMP, "projects/z.md"), "utf8");
     expect(t).toContain("USER EDIT");

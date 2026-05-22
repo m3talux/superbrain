@@ -42,8 +42,8 @@ it("replace no-ops when normalized body unchanged (mtime stable)", () => {
 });
 
 it("create/append modes still behave as before (regression guard)", () => {
-  writeNote("projects/x.md", { frontmatter: { type: "project", status: "active", created: "2026-05-19" }, body: "first", mode: "create" });
-  writeNote("projects/x.md", { frontmatter: { type: "project", status: "active", created: "2026-05-19" }, body: "second", mode: "append" });
+  writeNote("projects/x.md", { frontmatter: { type: "project", status: "active", project: "x", created: "2026-05-19" }, body: "first", mode: "create" });
+  writeNote("projects/x.md", { frontmatter: { type: "project", status: "active", project: "x", created: "2026-05-19" }, body: "second", mode: "append" });
   const c = fs.readFileSync(path.join(TMP, "projects/x.md"), "utf8");
   expect(c).toContain("first");
   expect(c).toContain("second");
