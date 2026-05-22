@@ -26,7 +26,9 @@ it("a note written by the distiller is searchable in the index", () => {
     JSON.stringify({ type: "tool", tool: "Write", file: "a.ts", cwd: "/p", ts: "t" }) + "\n");
   const stub = path.join(TMP_DATA, "stub.json");
   fs.writeFileSync(stub, JSON.stringify([
-    { kind: "decision", title: "Adopt sqlite-vec", body: "fast local KNN", date: "2026-05-19", links: [] },
+    { kind: "decision", title: "Adopt sqlite-vec", project: "test",
+      body: "## Decision\nAdopt sqlite-vec.\n## Why\n- Fast local KNN.\n## Alternatives considered\n- **Alt A** — rejected because slower.\n## Consequences\n- Better search.",
+      date: "2026-05-19", links: [] },
   ]));
   fs.mkdirSync(path.join(TMP_DATA, "locks/distill.lock"), { recursive: true });
   execFileSync("npx", ["tsx", "bin/sb-distill.ts"], {

@@ -22,6 +22,10 @@ import { buildDailyNote } from "./dailyNote.js";
 import { preferencesPath } from "./preferences.js";
 import { resolveLinks } from "./wikilink.js";
 import { gcTranscript } from "./transcriptStore.js";
+import { classify } from "./classification.js";
+import { recordRejection } from "./rejectQueue.js";
+import { type NoteType } from "./templates.js";
+import { serializeNote } from "./frontmatter.js";
 
 export interface DistilledEnvelope {
   items: DistilledItem[];
@@ -249,6 +253,35 @@ export async function runDistill(): Promise<void> {
     for (const it of items) {
       it.links = resolveLinks(it.links || [], vaultPath());
       const r = route(it);
+      // Classification gate: only classify kinds that are valid NoteTypes.
+      // project_fact and preference are not in NoteType and are always passed through.
+      const classifiableKinds = new Set<string>(["decision", "lesson", "capture", "project", "daily", "person"]);
+      if (classifiableKinds.has(it.kind)) {
+        let skipWrite = false;
+        try {
+          // Merge item.project into frontmatter for classify: some router cases
+          // (lesson, person) omit project even when the distiller provided one.
+          const classifyFm = it.project
+            ? { ...r.frontmatter, project: it.project }
+            : r.frontmatter;
+          const candidateDoc = serializeNote(classifyFm, r.body);
+          const cr = classify({ proposedType: it.kind as NoteType, title: it.title, body: candidateDoc });
+          if (!cr.accepted) {
+            recordRejection(vaultPath(), {
+              type: it.kind,
+              reason: cr.reason ?? "rejected by classifier",
+              sessionId: sid,
+              title: it.title,
+              excerpt: candidateDoc.slice(0, 500),
+            });
+            skipWrite = true;
+          }
+        } catch (e: any) {
+          // Classifier or recordRejection threw — fail open: log and continue with the write.
+          writeFailure(`classify failed for '${it.title}': ${e?.message || e}`);
+        }
+        if (skipWrite) continue;
+      }
       const res = writeNote(r.relPath, { frontmatter: r.frontmatter, body: r.body, mode: r.mode });
       if (res.ok) {
         appendLog(it.title || it.kind, r.relPath);

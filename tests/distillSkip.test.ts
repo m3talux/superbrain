@@ -121,7 +121,9 @@ describe("runDistill end-to-end skip integration", () => {
     fs.mkdirSync(path.join(data, "locks", "distill.lock"), { recursive: true });
     const stub = path.join(TMP, "stub.json");
     fs.writeFileSync(stub, JSON.stringify({ items: [
-      { kind: "decision", title: "Forced", body: "via stub", date: "2026-05-20", links: [] }
+      { kind: "decision", title: "Forced", project: "test",
+        body: "## Decision\nForce it.\n## Why\n- Needed.\n## Alternatives considered\n- **Alt A** — rejected because cost.\n## Consequences\n- Done.",
+        date: "2026-05-20", links: [] }
     ]}));
     execFileSync("npx", ["tsx", "bin/sb-distill.ts"], {
       env: { ...process.env,

@@ -36,7 +36,9 @@ it("happy path: GCs the transcript snapshot after a successful distill", () => {
   fs.writeFileSync(
     stub,
     JSON.stringify([
-      { kind: "decision", title: "Pick X", body: "rationale", date: "2026-05-19", links: [] },
+      { kind: "decision", title: "Pick X", project: "test",
+        body: "## Decision\nPick X.\n## Why\n- Best fit.\n## Alternatives considered\n- **Alt A** — rejected because cost.\n## Consequences\n- Trade-offs apply.",
+        date: "2026-05-19", links: [] },
     ]),
   );
 

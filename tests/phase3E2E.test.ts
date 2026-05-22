@@ -24,7 +24,11 @@ it("pushback session yields a lesson note + reconciled preferences, injected nex
   const stub = path.join(TMP_DATA, "stub.json");
   fs.writeFileSync(stub, JSON.stringify({
     items: [
-      { kind: "lesson", title: "No inline comments", body: "User reverted commented code.", rule: "Do not add inline comments unless non-obvious.", date: "2026-05-19", links: [] },
+      { kind: "lesson", title: "No inline comments", project: "test",
+        rule: "Do not add inline comments unless non-obvious.",
+        why: "User reverted commented code on 2026-05-19.",
+        whenApplies: "Whenever writing code.",
+        date: "2026-05-19", links: [] },
       { kind: "preference", title: "preferences", body: "## Code\n- No inline comments unless non-obvious", date: "2026-05-19", links: [] },
     ],
     digest: "Learned a code-style preference", openThreads: [],
