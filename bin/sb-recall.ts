@@ -13,8 +13,8 @@ async function main() {
     let h: any; try { h = JSON.parse(readStdin()); } catch { process.exit(0); }
     const prompt = (h?.prompt || "").trim();
     if (!prompt) process.exit(0);
-    const { bm25Recall } = await import("../src/recall.js"); // deferred: only after deps check
-    const hits = await bm25Recall(prompt, 5);
+    const { hybridRecall } = await import("../src/recall.js"); // deferred: only after deps check
+    const hits = await hybridRecall(prompt, 5);
     if (hits.length) {
       const lines = hits.map((p: any) => `- [[${p.relPath.replace(/\.md$/, "")}]]${p.headingPath ? " › " + p.headingPath : ""} — ${p.excerpt}`);
       process.stdout.write(JSON.stringify({
