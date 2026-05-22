@@ -5,6 +5,8 @@ import { vaultPath } from "./paths.js";
 import { chunkNote } from "./chunker.js";
 import { embed } from "./embed.js";
 import { openIndex } from "./searchIndex.js";
+import { parseNote } from "./frontmatter.js";
+import { deriveEdges, deleteEdgesFrom, upsertEdges } from "./edges.js";
 
 const EXCLUDED = new Set([".trash", ".obsidian", ".git", "node_modules"]);
 
@@ -26,10 +28,14 @@ const sha = (s: string) => crypto.createHash("sha256").update(s).digest("hex");
 async function indexInto(ix: ReturnType<typeof openIndex>, relPath: string) {
   const abs = path.join(vaultPath(), relPath);
   const raw = fs.readFileSync(abs, "utf8");
+  const { data: fm } = parseNote(raw);
   const chunks = chunkNote(raw);
+  // Always refresh edges (delete old, insert new) regardless of chunk count
+  deleteEdgesFrom(ix.db, relPath);
   if (chunks.length === 0) { ix.deleteNote(relPath); return; }
   const embs = await embed(chunks.map((c) => c.text));
   ix.upsertNote(relPath, Math.floor(fs.statSync(abs).mtimeMs), sha(raw), chunks, embs);
+  upsertEdges(ix.db, deriveEdges(relPath, fm));
 }
 
 export async function indexNote(relPath: string): Promise<void> {

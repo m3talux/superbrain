@@ -52,6 +52,10 @@ export function ensureEdgesTable(db: Database): void {
   `);
 }
 
+export function deleteEdgesFrom(db: Database, fromPath: string): void {
+  db.prepare("DELETE FROM vault_edges WHERE from_path = ?").run(fromPath);
+}
+
 export function upsertEdges(db: Database, edges: Edge[]): void {
   const ins = db.prepare(
     "INSERT OR REPLACE INTO vault_edges (from_path, to_path, kind) VALUES (?, ?, ?)"

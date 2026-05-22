@@ -37,6 +37,9 @@ export function ensureEdgesTable(db) {
     CREATE INDEX IF NOT EXISTS idx_vault_edges_from ON vault_edges(from_path);
   `);
 }
+export function deleteEdgesFrom(db, fromPath) {
+    db.prepare("DELETE FROM vault_edges WHERE from_path = ?").run(fromPath);
+}
 export function upsertEdges(db, edges) {
     const ins = db.prepare("INSERT OR REPLACE INTO vault_edges (from_path, to_path, kind) VALUES (?, ?, ?)");
     const run = db.transaction((batch) => {

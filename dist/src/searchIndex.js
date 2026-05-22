@@ -4,6 +4,7 @@ import Database from "better-sqlite3";
 import * as sqliteVec from "sqlite-vec";
 import { dataDir } from "./paths.js";
 import { EMBED_DIM } from "./embed.js";
+import { ensureEdgesTable } from "./edges.js";
 export function rrf(lists, k, c = 60) {
     const score = new Map();
     for (const list of lists)
@@ -25,6 +26,7 @@ export function openIndex() {
     CREATE VIRTUAL TABLE IF NOT EXISTS vec_chunks USING vec0(
       chunk_id integer primary key, embedding float[${EMBED_DIM}]);
   `);
+    ensureEdgesTable(db);
     const delByPath = db.transaction((relPath) => {
         const rows = db.prepare("SELECT id, heading_path, text FROM chunks WHERE rel_path=?").all(relPath);
         for (const r of rows) {
@@ -52,6 +54,7 @@ export function openIndex() {
         return r ? { relPath: r.rel_path, headingPath: r.heading_path, anchor: r.anchor, text: r.text } : null;
     }).filter(Boolean);
     return {
+        db,
         upsertNote: (rp, mt, h, c, e) => upsert(rp, mt, h, c, e),
         deleteNote: (rp) => delByPath(rp),
         bm25: (q, k) => {
