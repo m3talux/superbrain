@@ -4,6 +4,8 @@ import { isChild } from "../src/distillerEngine.js";
 import { depsPresent } from "../src/bootstrap.js";
 import { pluginRoot } from "../src/paths.js";
 import { getInjectedSlugs, appendInjectedSlugs } from "../src/sessionInjected.js";
+import { logInject } from "../src/injectTelemetry.js";
+import { estimateTokens } from "../src/injectBudget.js";
 function readStdin() { try {
     return fs.readFileSync(0, "utf8");
 }
@@ -39,12 +41,26 @@ async function main() {
                 catch { /* best-effort */ }
             }
             const lines = hits.map((p) => `- [[${p.relPath.replace(/\.md$/, "")}]]${p.headingPath ? " › " + p.headingPath : ""} — ${p.excerpt}`);
+            const recallText = "SuperBrain recall (your vault may already answer this):\n" + lines.join("\n");
             process.stdout.write(JSON.stringify({
                 hookSpecificOutput: {
                     hookEventName: "UserPromptSubmit",
-                    additionalContext: "SuperBrain recall (your vault may already answer this):\n" + lines.join("\n"),
+                    additionalContext: recallText,
                 },
             }));
+            try {
+                logInject({
+                    hook: "UserPromptSubmit",
+                    sid,
+                    tokens: {
+                        recall: estimateTokens(recallText),
+                        preferences: 0,
+                        openThreads: 0,
+                        notices: 0,
+                    },
+                });
+            }
+            catch { /* best-effort */ }
         }
     }
     catch { /* never disrupt the turn */ }

@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { readInjectLog, summarize } from "../src/injectTelemetry.js";
 function dirSize(p) {
     if (!fs.existsSync(p))
         return 0;
@@ -77,8 +78,26 @@ function main() {
     if (cmd === "disk")
         return disk();
     if (cmd === "inject") {
-        // T33 will implement this — for now print a TODO and exit 0.
-        console.log("sb-doctor inject: not yet implemented (see T33)");
+        const limit = 50;
+        const records = readInjectLog(limit);
+        const s = summarize(records);
+        console.log(`Inject telemetry (last ${limit} sessions):`);
+        const channels = ["recall", "preferences", "openThreads", "notices"];
+        const hookOrder = ["SessionStart", "UserPromptSubmit"];
+        const hooks = hookOrder.filter((h) => s.byHook[h]);
+        if (hooks.length === 0) {
+            console.log("  (no records yet)");
+            return;
+        }
+        for (const hook of hooks) {
+            const entry = s.byHook[hook];
+            console.log(`  ${hook} (${entry.count} record${entry.count === 1 ? "" : "s"}):`);
+            for (const ch of channels) {
+                const val = String(Math.round(entry.avg[ch] || 0));
+                console.log(`    ${ch.padEnd(16)} ${val.padStart(4)} tok avg`);
+            }
+            console.log(`    ${"Total".padEnd(16)} ${String(Math.round(entry.avgTotal)).padStart(4)} tok avg`);
+        }
         return;
     }
     console.error(`unknown subcommand: ${cmd}`);
