@@ -1,4 +1,4 @@
-import { openIndex, rrf, type Hit, type Index } from "./searchIndex.js";
+import { openIndex, rrfWithScores, type Hit, type Index } from "./searchIndex.js";
 import { embed } from "./embed.js";
 
 export interface Pointer { relPath: string; headingPath: string; anchor: string; excerpt: string; }
@@ -18,7 +18,11 @@ export async function bm25Recall(query: string, k: number): Promise<Pointer[]> {
   finally { ix?.close(); }
 }
 
-export async function hybridRecall(query: string, k: number): Promise<Pointer[]> {
+export async function hybridRecall(
+  query: string,
+  k: number,
+  opts?: { projectSlug?: string },
+): Promise<Pointer[]> {
   let ix: Index | undefined;
   try {
     ix = openIndex();
@@ -35,11 +39,45 @@ export async function hybridRecall(query: string, k: number): Promise<Pointer[]>
     // lexical overlap + high embedding similarity) is disabled until P2.1 adds a
     // calibrated vector-distance threshold. See docs/superpowers/specs/2026-05-19-superbrain-phase2-design.md §"Known limitation".
     if (bm.length === 0) return [];
-    if (vec.length === 0) return toPointers(bm.slice(0, k));
+    if (vec.length === 0) {
+      const hits = bm.slice(0, k);
+      if (!opts?.projectSlug) return toPointers(hits);
+      const projects = ix.getProjectsForPaths([...new Set(hits.map((h) => h.relPath))]);
+      const boosted = hits
+        .map((h) => ({ h, score: boostScore(1, projects.get(h.relPath), opts.projectSlug) }))
+        .sort((a, b) => b.score - a.score)
+        .map((e) => e.h);
+      return toPointers(boosted);
+    }
     const byKey = new Map<string, Hit>();
     [...bm, ...vec].forEach((h) => byKey.set(keyOf(h), h));
-    const fused = rrf([bm.map(keyOf), vec.map(keyOf)], k);
-    return toPointers(fused.map((kk) => byKey.get(kk)!).filter(Boolean));
+    const fused = rrfWithScores([bm.map(keyOf), vec.map(keyOf)], k * 2);
+
+    if (opts?.projectSlug) {
+      // Batch-lookup project for all candidate relPaths
+      const candidateRelPaths = [...new Set(
+        fused.map((e) => byKey.get(e.id)).filter(Boolean).map((h) => h!.relPath),
+      )];
+      const projects = ix.getProjectsForPaths(candidateRelPaths);
+      const boosted = fused
+        .map((e) => {
+          const hit = byKey.get(e.id);
+          if (!hit) return null;
+          return { id: e.id, score: boostScore(e.score, projects.get(hit.relPath), opts.projectSlug) };
+        })
+        .filter((e): e is { id: string; score: number } => e !== null)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, k);
+      return toPointers(boosted.map((e) => byKey.get(e.id)!).filter(Boolean));
+    }
+
+    return toPointers(fused.slice(0, k).map((e) => byKey.get(e.id)!).filter(Boolean));
   } catch { return []; }
   finally { ix?.close(); }
+}
+
+function boostScore(score: number, noteProject: string | undefined, projectSlug: string | undefined): number {
+  if (!projectSlug) return score;
+  if (noteProject === projectSlug || noteProject === "global") return score * 2;
+  return score;
 }
