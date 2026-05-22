@@ -6,6 +6,7 @@ import { dataDir } from "../src/paths.js";
 import { acquireLock, releaseLock } from "../src/lockfile.js";
 import { writeFailure } from "../src/sentinel.js";
 import { isChild, buildDistillCommand } from "../src/distillerEngine.js";
+import { snapshotTranscript } from "../src/transcriptStore.js";
 
 function readStdin(): string { try { return fs.readFileSync(0, "utf8"); } catch { return ""; } }
 
@@ -25,9 +26,7 @@ function main() {
     try {
       if (h.transcript_path && fs.existsSync(h.transcript_path) && fs.statSync(h.transcript_path).isFile()) {
         const dir = path.join(dataDir(), "transcripts");
-        fs.mkdirSync(dir, { recursive: true });
-        copy = path.join(dir, `${sid}.${Date.now()}.jsonl`);
-        fs.copyFileSync(h.transcript_path, copy);
+        copy = snapshotTranscript(dir, sid, h.transcript_path);
       }
     } catch { /* transcript copy best-effort */ }
 

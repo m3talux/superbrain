@@ -43,4 +43,23 @@ describe("sb-checkpoint", () => {
     run({ session_id: "S", hook_event_name: "PreCompact", cwd: "/p", transcript_path: "/dev/null" }, { SUPERBRAIN_CHILD: "1" });
     expect(fs.existsSync(path.join(TMP, "distill-invoked"))).toBe(false);
   });
+
+  it("multiple checkpoints for the same session produce exactly one snapshot file (no timestamped suffix)", () => {
+    const sid = "sid-overwrite-test";
+    const transcriptsDir = path.join(TMP, "transcripts");
+    const fakeTranscript = path.join(TMP, "transcript.jsonl");
+
+    // Run checkpoint 3 times, each time with different transcript content
+    for (let i = 1; i <= 3; i++) {
+      fs.writeFileSync(fakeTranscript, `{"turn":${i}}\n`);
+      run({ session_id: sid, hook_event_name: "PreCompact", cwd: "/p", transcript_path: fakeTranscript });
+    }
+
+    const files = fs.readdirSync(transcriptsDir).filter(f => f.startsWith(sid));
+    expect(files).toHaveLength(1);
+    expect(files[0]).toBe(`${sid}.jsonl`);
+
+    const content = fs.readFileSync(path.join(transcriptsDir, files[0]), "utf8");
+    expect(content).toBe('{"turn":3}\n');
+  });
 });
