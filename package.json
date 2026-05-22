@@ -5,7 +5,8 @@
   "type": "module",
   "license": "MIT",
   "bin": {
-    "superbrain": "dist/bin/sb.js"
+    "superbrain": "dist/bin/sb.js",
+    "sb-doctor": "dist/bin/sb-doctor.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
