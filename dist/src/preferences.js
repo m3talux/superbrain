@@ -2,6 +2,19 @@ import fs from "node:fs";
 import path from "node:path";
 import { vaultPath } from "./paths.js";
 import { parseNote } from "./frontmatter.js";
+const CAP_BYTES = 3072;
+const SENTINEL = "\n[…truncated; see meta/preferences.md]\n";
+export function capPreferences(content) {
+    if (Buffer.byteLength(content, "utf8") <= CAP_BYTES)
+        return content;
+    const sentinelBytes = Buffer.byteLength(SENTINEL, "utf8");
+    const budget = CAP_BYTES - sentinelBytes;
+    let out = content;
+    while (Buffer.byteLength(out, "utf8") > budget) {
+        out = out.slice(0, -1);
+    }
+    return out + SENTINEL;
+}
 export function preferencesPath() {
     return path.join(vaultPath(), "meta", "preferences.md");
 }
@@ -13,7 +26,7 @@ export function compileInjectionBlock() {
     catch {
         return "";
     }
-    const body = parseNote(raw).content.trim();
+    const body = capPreferences(parseNote(raw).content.trim());
     if (!body)
         return "";
     return `--- Your preferences (SuperBrain) ---\n${body}\n-------------------------------------`;
