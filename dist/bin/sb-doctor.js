@@ -2,7 +2,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { spawnSync } from "node:child_process";
 import { readInjectLog, summarize } from "../src/injectTelemetry.js";
+import { vaultPath } from "../src/paths.js";
 function dirSize(p) {
     if (!fs.existsSync(p))
         return 0;
@@ -69,10 +71,120 @@ function disk() {
     }
     console.log(`  ${"Total".padEnd(maxNameLen + 1)} ${humanize(total).padStart(6)}`);
 }
+const MIGRATION_STEPS = [
+    { name: "backfill-frontmatter", script: "scripts/backfill-frontmatter.ts" },
+    { name: "retro-collapse-duplicates", script: "scripts/retro-collapse-duplicates.ts" },
+    { name: "migrate-vault", script: "scripts/migrate-vault.ts" },
+    { name: "retro-prune-preferences", script: "scripts/retro-prune-preferences.ts" },
+];
+function pluginRoot() {
+    // dist/bin/sb-doctor.js → plugin root is 2 dirs up
+    return path.resolve(path.dirname(process.argv[1] || __filename), "..", "..");
+}
+async function migrateAll() {
+    const vault = vaultPath();
+    const root = pluginRoot();
+    const isFake = process.env.SUPERBRAIN_FAKE_MIGRATE === "1";
+    console.log("SuperBrain migrate-all");
+    console.log(`Vault: ${vault}`);
+    console.log("");
+    // Dry-run each step
+    for (let i = 0; i < MIGRATION_STEPS.length; i++) {
+        const step = MIGRATION_STEPS[i];
+        console.log(`Step ${i + 1}/${MIGRATION_STEPS.length}: ${step.name}`);
+        if (isFake) {
+            console.log("  (fake mode — skipping dry-run)");
+        }
+        else {
+            const scriptPath = path.join(root, step.script);
+            if (!fs.existsSync(scriptPath)) {
+                console.log(`  (script not found: ${step.script})`);
+            }
+            else {
+                const r = spawnSync("npx", ["tsx", scriptPath, vault], {
+                    stdio: ["ignore", "pipe", "pipe"],
+                    encoding: "utf8",
+                });
+                const out = (r.stdout || "").trim();
+                const err = (r.stderr || "").trim();
+                if (out)
+                    console.log(out.split("\n").map((l) => `  ${l}`).join("\n"));
+                if (err)
+                    console.error(err.split("\n").map((l) => `  ${l}`).join("\n"));
+                if (r.status !== 0)
+                    console.log(`  (exited with status ${r.status})`);
+            }
+        }
+        console.log("");
+    }
+    // Prompt for confirmation
+    const answer = await new Promise((resolve) => {
+        process.stdout.write("Apply all 4 steps? [y/N]: ");
+        let buf = "";
+        let resolved = false;
+        function onData(chunk) {
+            buf += chunk.toString();
+            const nl = buf.indexOf("\n");
+            if (nl !== -1 && !resolved) {
+                resolved = true;
+                process.stdin.removeListener("data", onData);
+                process.stdin.removeListener("end", onEnd);
+                resolve(buf.slice(0, nl).trim().toLowerCase());
+            }
+        }
+        function onEnd() {
+            if (!resolved) {
+                resolved = true;
+                resolve(buf.trim().toLowerCase());
+            }
+        }
+        process.stdin.resume();
+        process.stdin.on("data", onData);
+        process.stdin.on("end", onEnd);
+    });
+    if (answer !== "y") {
+        console.log("Aborted.");
+        process.exit(0);
+    }
+    console.log("\nApplying...\n");
+    for (let i = 0; i < MIGRATION_STEPS.length; i++) {
+        const step = MIGRATION_STEPS[i];
+        console.log(`Step ${i + 1}/${MIGRATION_STEPS.length}: ${step.name} --apply`);
+        if (isFake) {
+            console.log("  [fake] applied");
+        }
+        else {
+            const scriptPath = path.join(root, step.script);
+            if (!fs.existsSync(scriptPath)) {
+                console.log(`  (skipped — script not found: ${step.script})`);
+                continue;
+            }
+            const r = spawnSync("npx", ["tsx", scriptPath, vault, "--apply"], {
+                stdio: ["ignore", "pipe", "pipe"],
+                encoding: "utf8",
+            });
+            const out = (r.stdout || "").trim();
+            const err = (r.stderr || "").trim();
+            if (out)
+                console.log(out.split("\n").map((l) => `  ${l}`).join("\n"));
+            if (err)
+                console.error(err.split("\n").map((l) => `  ${l}`).join("\n"));
+            if (r.status !== 0) {
+                console.error(`  Step exited with status ${r.status} — continuing`);
+            }
+            else {
+                console.log("  done");
+            }
+        }
+        console.log("");
+    }
+    console.log("migrate-all complete.");
+    process.exit(0);
+}
 function main() {
     const cmd = process.argv[2];
     if (!cmd || cmd === "--help" || cmd === "-h") {
-        console.log("usage: sb-doctor <disk|inject>");
+        console.log("usage: sb-doctor <disk|inject|migrate-all>");
         process.exit(0);
     }
     if (cmd === "disk")
@@ -98,6 +210,10 @@ function main() {
             }
             console.log(`    ${"Total".padEnd(16)} ${String(Math.round(entry.avgTotal)).padStart(4)} tok avg`);
         }
+        return;
+    }
+    if (cmd === "migrate-all") {
+        migrateAll().catch((e) => { console.error(e); process.exit(1); });
         return;
     }
     console.error(`unknown subcommand: ${cmd}`);
