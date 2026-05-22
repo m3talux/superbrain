@@ -41,7 +41,9 @@ it("after adopt, the distiller writes to the adopted vault, NOT the default data
     JSON.stringify({ type: "tool", tool: "Write", file: "a.ts", cwd: "/p", ts: "t" }) + "\n");
   const stub = path.join(TMP, "stub.json");
   fs.writeFileSync(stub, JSON.stringify([
-    { kind: "decision", title: "Adopt Routing Works", body: "asserted", date: "2026-05-20", links: [] },
+    { kind: "decision", title: "Adopt Routing Works", project: "test",
+      body: "## Decision\nRouting works.\n## Why\n- Verified.\n## Alternatives considered\n- **Alt A** — rejected because cost.\n## Consequences\n- Correct vault used.",
+      date: "2026-05-20", links: [] },
   ]));
   fs.mkdirSync(path.join(dataDir, "locks", "distill.lock"), { recursive: true });
   execFileSync("npx", ["tsx", "bin/sb-distill.ts"], {
@@ -92,7 +94,9 @@ it("after adopt + a subsequent re-adopt to a different dir, writes go to the LAT
     JSON.stringify({ type: "tool", tool: "Write", file: "a.ts", cwd: "/p", ts: "t" }) + "\n");
   const stub = path.join(TMP, "stub2.json");
   fs.writeFileSync(stub, JSON.stringify([
-    { kind: "decision", title: "Re-Adopt Replaces", body: "yes", date: "2026-05-20", links: [] },
+    { kind: "decision", title: "Re-Adopt Replaces", project: "test",
+      body: "## Decision\nRe-adopt replaces.\n## Why\n- New vault.\n## Alternatives considered\n- **Alt A** — rejected because cost.\n## Consequences\n- Latest vault wins.",
+      date: "2026-05-20", links: [] },
   ]));
   fs.mkdirSync(path.join(dataDir, "locks", "distill.lock"), { recursive: true });
   execFileSync("npx", ["tsx", "bin/sb-distill.ts"], {

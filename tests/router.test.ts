@@ -13,18 +13,19 @@ describe("router", () => {
       kind: "decision",
       title: "Pin distiller model to Sonnet 4.6",
       date: "2026-05-19",
-      context: "Legacy scribe burned Opus quota in hours.",
       decision: "Hardcode --model claude-sonnet-4-6; no env override.",
-      rationale: "Sonnet 4.6 is ~1/5 the cost for comparable summarization quality.",
+      why: "Sonnet 4.6 is ~1/5 the cost for comparable summarization quality.",
+      alternatives: "- **Opus passthrough** — rejected because cost.",
       consequences: "Users wanting more must set ANTHROPIC_API_KEY.",
-      implementation: "src/distillRun.ts:distillModel() returns the literal.",
       links: ["projects/superbrain"],
     });
-    expect(r.body).toContain("## Context");
     expect(r.body).toContain("## Decision");
-    expect(r.body).toContain("## Rationale");
+    expect(r.body).toContain("## Why");
+    expect(r.body).toContain("## Alternatives considered");
     expect(r.body).toContain("## Consequences");
-    expect(r.body).toContain("## Implementation");
+    expect(r.body).not.toContain("## Context");
+    expect(r.body).not.toContain("## Rationale");
+    expect(r.body).not.toContain("## Implementation");
     expect(r.body).toContain("[[projects/superbrain]]");
   });
   it("omits empty sections in the structured ADR template", () => {
@@ -32,15 +33,13 @@ describe("router", () => {
       kind: "decision",
       title: "X",
       date: "2026-05-19",
-      context: "ctx",
       decision: "d",
       links: [],
     });
-    expect(r.body).toContain("## Context");
     expect(r.body).toContain("## Decision");
-    expect(r.body).not.toContain("## Rationale");
+    expect(r.body).not.toContain("## Why");
+    expect(r.body).not.toContain("## Alternatives considered");
     expect(r.body).not.toContain("## Consequences");
-    expect(r.body).not.toContain("## Implementation");
   });
   it("assembles structured lesson sections (Rule / Why / When)", () => {
     const r = route({
@@ -94,5 +93,25 @@ describe("router", () => {
     const r = route({ kind: "capture", title: "stray idea", body: "x", date: "2026-05-19", links: [] });
     expect(r.relPath).toMatch(/^capture\/2026-05-19-stray-idea\.md$/);
     expect(r.frontmatter.tags).toContain("triage");
+  });
+});
+
+describe("router daily mis-route", () => {
+  it("kind=daily routes to daily/<date>.md", () => {
+    const r = route({ kind: "daily", title: "daily-2026-05-22", body: "journal entry", date: "2026-05-22", links: [] });
+    expect(r.relPath).toBe("daily/2026-05-22.md");
+    expect(r.frontmatter.type).toBe("daily");
+  });
+
+  it("capture with daily-YYYY-MM-DD title routes to daily/", () => {
+    const r = route({ kind: "capture", title: "daily-2026-05-20", body: "some notes", date: "2026-05-20", links: [] });
+    expect(r.relPath).toBe("daily/2026-05-20.md");
+    expect(r.frontmatter.type).toBe("daily");
+  });
+
+  it("regular capture still routes to capture/", () => {
+    const r = route({ kind: "capture", title: "Some Finding", body: "x", date: "2026-05-20", links: [] });
+    expect(r.relPath).toMatch(/^capture\//);
+    expect(r.frontmatter.type).toBe("capture");
   });
 });

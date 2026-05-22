@@ -1,8 +1,8 @@
-import { it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { compileInjectionBlock } from "../src/preferences";
+import { compileInjectionBlock, capPreferences } from "../src/preferences";
 
 let TMP: string;
 
@@ -13,6 +13,33 @@ beforeEach(() => {
 
 afterEach(() => {
   fs.rmSync(TMP, { recursive: true, force: true });
+});
+
+describe("capPreferences", () => {
+  it("passes through content under the cap", () => {
+    const small = "## rule 1\nbe nice\n";
+    expect(capPreferences(small)).toBe(small);
+  });
+
+  it("truncates content over 3KB and appends a sentinel", () => {
+    const long = "x".repeat(10000);
+    const out = capPreferences(long);
+    expect(Buffer.byteLength(out, "utf8")).toBeLessThanOrEqual(3072 + 60);
+    expect(out.endsWith("[…truncated; see meta/preferences.md]\n")).toBe(true);
+  });
+
+  it("keeps content close to but under 3072 bytes when truncated", () => {
+    const long = "x".repeat(10000);
+    const out = capPreferences(long);
+    expect(Buffer.byteLength(out, "utf8")).toBeLessThanOrEqual(3072 + 60);
+  });
+
+  it("handles multibyte unicode without splitting code points", () => {
+    const u = "é".repeat(3000); // ~6000 bytes
+    const out = capPreferences(u);
+    expect(Buffer.byteLength(out, "utf8")).toBeLessThanOrEqual(3072 + 60);
+    expect(out).not.toContain("�");
+  });
 });
 
 it("returns '' when preferences.md is absent", () => {
@@ -33,4 +60,14 @@ it("returns '' for an empty/whitespace body", () => {
   fs.mkdirSync(path.join(TMP, "meta"), { recursive: true });
   fs.writeFileSync(path.join(TMP, "meta/preferences.md"), "---\ntype: preference\n---\n\n   \n");
   expect(compileInjectionBlock()).toBe("");
+});
+
+it("compileInjectionBlock applies the 3KB cap on large preferences", () => {
+  fs.mkdirSync(path.join(TMP, "meta"), { recursive: true });
+  const bigBody = "x".repeat(10000);
+  fs.writeFileSync(path.join(TMP, "meta/preferences.md"), `---\ntype: preference\n---\n\n${bigBody}\n`);
+  const out = compileInjectionBlock();
+  // The block includes header/footer lines — total must stay bounded
+  expect(Buffer.byteLength(out, "utf8")).toBeLessThanOrEqual(3072 + 200);
+  expect(out).toContain("[…truncated; see meta/preferences.md]");
 });

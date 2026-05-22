@@ -23,7 +23,9 @@ it("writes a daily note aggregating the session's routed items + envelope fields
     JSON.stringify({ type: "tool", tool: "Write", file: "a.ts", cwd: "/p", ts: "t" }) + "\n");
   const stub = path.join(TMP_DATA, "stub.json");
   fs.writeFileSync(stub, JSON.stringify({
-    items: [{ kind: "decision", title: "Pick X", body: "why", date: "2026-05-19", links: [] }],
+    items: [{ kind: "decision", title: "Pick X", project: "test",
+      body: "## Decision\nPick X.\n## Why\n- Best fit.\n## Alternatives considered\n- **Alt A** — rejected because cost.\n## Consequences\n- Trade-offs apply.",
+      date: "2026-05-19", links: [] }],
     digest: "Chose X for the pipeline", openThreads: ["wire Y"], alsoDid: ["cleaned logs"],
   }));
   fs.mkdirSync(path.join(TMP_DATA, "locks/distill.lock"), { recursive: true });

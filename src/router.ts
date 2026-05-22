@@ -1,4 +1,4 @@
-export type Kind = "decision" | "project_fact" | "person" | "gotcha" | "capture" | "lesson" | "preference";
+export type Kind = "decision" | "project_fact" | "person" | "gotcha" | "capture" | "lesson" | "preference" | "daily";
 
 // DistilledItem carries either freeform `body` (capture, person, simple cases)
 // OR structured per-kind sections (decision/lesson/gotcha). When structured
@@ -15,16 +15,17 @@ export interface DistilledItem {
   rule?: string;
 
   // Structured sections used for substantive notes:
-  context?: string;        // decision/gotcha — what was happening
+  context?: string;        // decision/gotcha — what was happening (legacy)
   decision?: string;       // decision — what was decided
-  rationale?: string;      // decision — why this over alternatives
+  rationale?: string;      // decision — why this over alternatives (legacy)
+  why?: string;            // decision/lesson — constraint/reasoning
+  alternatives?: string;   // decision — discarded options and reasons
   consequences?: string;   // decision — trade-offs, what this enables/precludes
-  implementation?: string; // decision — concrete next steps or changes made
+  implementation?: string; // decision — concrete next steps or changes made (legacy)
   symptom?: string;        // gotcha — observable failure
   rootCause?: string;      // gotcha — technical explanation
   fix?: string;            // gotcha — what resolves it
   prevention?: string;     // gotcha — how to avoid hitting it again
-  why?: string;            // lesson — reasoning + incident
   whenApplies?: string;    // lesson — when to invoke the rule
 
   // Freeform fallback. Used for captures and as a back-compat slot when the
@@ -62,11 +63,10 @@ export function route(item: DistilledItem): RouteResult {
   switch (item.kind) {
     case "decision": {
       const structured = joinSections([
-        section("Context", item.context),
         section("Decision", item.decision),
-        section("Rationale", item.rationale),
+        section("Why", item.why || item.rationale),
+        section("Alternatives considered", item.alternatives),
         section("Consequences", item.consequences),
-        section("Implementation", item.implementation),
       ]);
       const inner = structured || (item.body || "").trim();
       return {
@@ -137,12 +137,31 @@ export function route(item: DistilledItem): RouteResult {
         body: (item.body || "").trim(),
         mode: "replace",
       };
-    default:
+    case "daily":
+      return {
+        relPath: `daily/${item.date}.md`,
+        frontmatter: { type: "daily", ...base },
+        body: withLinks((item.body || "").trim(), item.links),
+        mode: "append",
+      };
+    default: {
+      // Re-route capture items whose title matches `daily-YYYY-MM-DD` — these
+      // are daily notes that were mis-classified as captures.
+      const dailyTitle = (item.title || "").match(/^daily-(\d{4}-\d{2}-\d{2})$/);
+      if (dailyTitle) {
+        return {
+          relPath: `daily/${dailyTitle[1]}.md`,
+          frontmatter: { type: "daily", ...base },
+          body: withLinks((item.body || "").trim(), item.links),
+          mode: "append",
+        };
+      }
       return {
         relPath: `capture/${item.date}-${slug(item.title)}.md`,
         frontmatter: { type: "capture", status: "active", tags: ["triage"], ...base },
         body: withLinks(`# ${item.title}\n\n${(item.body || "").trim()}`, item.links),
         mode: "create",
       };
+    }
   }
 }
