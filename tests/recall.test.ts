@@ -102,3 +102,73 @@ describe("project-scoped recall", () => {
     expect(results.length).toBeGreaterThan(0);
   });
 });
+
+describe("recency decay", () => {
+  const MS_PER_DAY = 86_400_000;
+
+  it("decays scores by exp(-ageDays/90)", async () => {
+    const now = Date.now();
+    const old = now - 90 * MS_PER_DAY;
+    const ix = openIndex();
+    ix.upsertNote(
+      "decay/today.md", 1, "h-t",
+      [{ headingPath: "", anchor: "root", text: "recency decay test note freshness" }],
+      [STUB_VEC],
+      undefined,
+      new Date(now).toISOString(),
+    );
+    ix.upsertNote(
+      "decay/old90.md", 1, "h-o",
+      [{ headingPath: "", anchor: "root", text: "recency decay test note freshness" }],
+      [STUB_VEC],
+      undefined,
+      new Date(old).toISOString(),
+    );
+    ix.close();
+
+    const results = await hybridRecall("recency decay test note freshness", 5);
+    const todayIdx = results.findIndex((r) => r.relPath === "decay/today.md");
+    const oldIdx = results.findIndex((r) => r.relPath === "decay/old90.md");
+    expect(todayIdx).toBeGreaterThanOrEqual(0);
+    expect(oldIdx).toBeGreaterThanOrEqual(0);
+    // today's note must rank above the 90-day-old note
+    expect(todayIdx).toBeLessThan(oldIdx);
+  });
+
+  it("does not crash when created date is missing", async () => {
+    // Note indexed without a created field → decay treats it as today (factor 1.0)
+    const r = await hybridRecall("sqlite-vec", 3);
+    expect(r.length).toBeGreaterThan(0);
+    expect(r[0].relPath).toBe("decisions/2026-05-01-vec.md");
+  });
+
+  it("365-day-old note ranks below a today note with half the raw relevance", async () => {
+    const now = Date.now();
+    const old365 = now - 365 * MS_PER_DAY;
+    const ix = openIndex();
+    // old note gets two matching words; today note gets one — but recency wins
+    ix.upsertNote(
+      "decay/strong-old.md", 1, "h-so",
+      [{ headingPath: "", anchor: "root", text: "ancient vault knowledge archive deep recall" }],
+      [STUB_VEC],
+      undefined,
+      new Date(old365).toISOString(),
+    );
+    ix.upsertNote(
+      "decay/fresh-weak.md", 1, "h-fw",
+      [{ headingPath: "", anchor: "root", text: "ancient vault knowledge" }],
+      [STUB_VEC],
+      undefined,
+      new Date(now).toISOString(),
+    );
+    ix.close();
+
+    const results = await hybridRecall("ancient vault knowledge", 5);
+    const freshIdx = results.findIndex((r) => r.relPath === "decay/fresh-weak.md");
+    const oldIdx = results.findIndex((r) => r.relPath === "decay/strong-old.md");
+    expect(freshIdx).toBeGreaterThanOrEqual(0);
+    expect(oldIdx).toBeGreaterThanOrEqual(0);
+    // fresh note must outrank 365-day-old note despite the old note matching more words
+    expect(freshIdx).toBeLessThan(oldIdx);
+  });
+});

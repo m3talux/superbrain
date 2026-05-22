@@ -34,7 +34,10 @@ async function indexInto(ix: ReturnType<typeof openIndex>, relPath: string) {
   deleteEdgesFrom(ix.db, relPath);
   if (chunks.length === 0) { ix.deleteNote(relPath); return; }
   const embs = await embed(chunks.map((c) => c.text));
-  ix.upsertNote(relPath, Math.floor(fs.statSync(abs).mtimeMs), sha(raw), chunks, embs, fm.project as string | undefined);
+  const created = typeof fm.created === "string" ? fm.created
+    : fm.created instanceof Date ? (fm.created as Date).toISOString()
+    : undefined;
+  ix.upsertNote(relPath, Math.floor(fs.statSync(abs).mtimeMs), sha(raw), chunks, embs, fm.project as string | undefined, created);
   upsertEdges(ix.db, deriveEdges(relPath, fm));
 }
 

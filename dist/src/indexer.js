@@ -36,7 +36,10 @@ async function indexInto(ix, relPath) {
         return;
     }
     const embs = await embed(chunks.map((c) => c.text));
-    ix.upsertNote(relPath, Math.floor(fs.statSync(abs).mtimeMs), sha(raw), chunks, embs, fm.project);
+    const created = typeof fm.created === "string" ? fm.created
+        : fm.created instanceof Date ? fm.created.toISOString()
+            : undefined;
+    ix.upsertNote(relPath, Math.floor(fs.statSync(abs).mtimeMs), sha(raw), chunks, embs, fm.project, created);
     upsertEdges(ix.db, deriveEdges(relPath, fm));
 }
 export async function indexNote(relPath) {

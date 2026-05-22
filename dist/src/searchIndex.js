@@ -21,7 +21,7 @@ export function openIndex() {
     sqliteVec.load(db);
     db.pragma("journal_mode = WAL");
     db.exec(`
-    CREATE TABLE IF NOT EXISTS notes (rel_path TEXT PRIMARY KEY, mtime INTEGER, hash TEXT, project TEXT);
+    CREATE TABLE IF NOT EXISTS notes (rel_path TEXT PRIMARY KEY, mtime INTEGER, hash TEXT, project TEXT, created TEXT);
     CREATE TABLE IF NOT EXISTS chunks (
       id INTEGER PRIMARY KEY, rel_path TEXT, heading_path TEXT, anchor TEXT, text TEXT);
     CREATE INDEX IF NOT EXISTS chunks_rel ON chunks(rel_path);
@@ -29,10 +29,13 @@ export function openIndex() {
     CREATE VIRTUAL TABLE IF NOT EXISTS vec_chunks USING vec0(
       chunk_id integer primary key, embedding float[${EMBED_DIM}]);
   `);
-    // Migrate: add project column if it doesn't exist (idempotent)
+    // Migrate: add columns if they don't exist (idempotent)
     const cols = db.pragma("table_info(notes)").map((c) => c.name);
     if (!cols.includes("project")) {
         db.exec("ALTER TABLE notes ADD COLUMN project TEXT");
+    }
+    if (!cols.includes("created")) {
+        db.exec("ALTER TABLE notes ADD COLUMN created TEXT");
     }
     ensureEdgesTable(db);
     const delByPath = db.transaction((relPath) => {
@@ -47,15 +50,15 @@ export function openIndex() {
     const insChunk = db.prepare("INSERT INTO chunks(rel_path,heading_path,anchor,text) VALUES (?,?,?,?)");
     const insFts = db.prepare("INSERT INTO chunks_fts(rowid,text) VALUES (?,?)");
     const insVec = db.prepare("INSERT INTO vec_chunks(chunk_id,embedding) VALUES (?,?)");
-    const insNote = db.prepare("INSERT OR REPLACE INTO notes(rel_path,mtime,hash,project) VALUES (?,?,?,?)");
-    const upsert = db.transaction((relPath, mtime, hash, chunks, embs, project) => {
+    const insNote = db.prepare("INSERT OR REPLACE INTO notes(rel_path,mtime,hash,project,created) VALUES (?,?,?,?,?)");
+    const upsert = db.transaction((relPath, mtime, hash, chunks, embs, project, created) => {
         delByPath(relPath);
         chunks.forEach((c, i) => {
             const id = Number(insChunk.run(relPath, c.headingPath, c.anchor, c.text).lastInsertRowid);
             insFts.run(id, (c.headingPath ? c.headingPath + " " : "") + c.text);
             insVec.run(BigInt(id), JSON.stringify(Array.from(embs[i])));
         });
-        insNote.run(relPath, mtime, hash, project ?? null);
+        insNote.run(relPath, mtime, hash, project ?? null, created ?? null);
     });
     const hydrate = (ids) => ids.map((id) => {
         const r = db.prepare("SELECT rel_path,heading_path,anchor,text FROM chunks WHERE id=?").get(id);
@@ -63,7 +66,7 @@ export function openIndex() {
     }).filter(Boolean);
     return {
         db,
-        upsertNote: (rp, mt, h, c, e, project) => upsert(rp, mt, h, c, e, project),
+        upsertNote: (rp, mt, h, c, e, project, created) => upsert(rp, mt, h, c, e, project, created),
         deleteNote: (rp) => delByPath(rp),
         bm25: (q, k) => {
             const terms = q.replace(/[^\w\s]/g, " ").trim().split(/\s+/).filter(Boolean);
@@ -81,6 +84,13 @@ export function openIndex() {
             const placeholders = relPaths.map(() => "?").join(",");
             const rows = db.prepare(`SELECT rel_path, project FROM notes WHERE rel_path IN (${placeholders}) AND project IS NOT NULL`).all(...relPaths);
             return new Map(rows.map((r) => [r.rel_path, r.project]));
+        },
+        getCreatedForPaths: (relPaths) => {
+            if (relPaths.length === 0)
+                return new Map();
+            const placeholders = relPaths.map(() => "?").join(",");
+            const rows = db.prepare(`SELECT rel_path, created FROM notes WHERE rel_path IN (${placeholders}) AND created IS NOT NULL`).all(...relPaths);
+            return new Map(rows.map((r) => [r.rel_path, r.created]));
         },
         getNoteMeta: (rp) => {
             const r = db.prepare("SELECT mtime,hash FROM notes WHERE rel_path=?").get(rp);

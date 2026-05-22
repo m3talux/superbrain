@@ -41,35 +41,42 @@ export async function hybridRecall(query, k, opts) {
             return [];
         if (vec.length === 0) {
             const hits = bm.slice(0, k);
-            if (!opts?.projectSlug)
-                return toPointers(hits);
-            const projects = ix.getProjectsForPaths([...new Set(hits.map((h) => h.relPath))]);
-            const boosted = hits
-                .map((h) => ({ h, score: boostScore(1, projects.get(h.relPath), opts.projectSlug) }))
-                .sort((a, b) => b.score - a.score)
-                .map((e) => e.h);
-            return toPointers(boosted);
+            const relPaths = [...new Set(hits.map((h) => h.relPath))];
+            const projects = opts?.projectSlug ? ix.getProjectsForPaths(relPaths) : new Map();
+            const created = ix.getCreatedForPaths(relPaths);
+            const now = Date.now();
+            const scored = hits
+                .map((h) => {
+                let score = boostScore(1, projects.get(h.relPath), opts?.projectSlug);
+                score *= decayFactor(created.get(h.relPath), now);
+                return { h, score };
+            })
+                .sort((a, b) => b.score - a.score);
+            return toPointers(scored.map((e) => e.h));
         }
         const byKey = new Map();
         [...bm, ...vec].forEach((h) => byKey.set(keyOf(h), h));
         const fused = rrfWithScores([bm.map(keyOf), vec.map(keyOf)], k * 2);
-        if (opts?.projectSlug) {
-            // Batch-lookup project for all candidate relPaths
-            const candidateRelPaths = [...new Set(fused.map((e) => byKey.get(e.id)).filter(Boolean).map((h) => h.relPath))];
-            const projects = ix.getProjectsForPaths(candidateRelPaths);
-            const boosted = fused
-                .map((e) => {
-                const hit = byKey.get(e.id);
-                if (!hit)
-                    return null;
-                return { id: e.id, score: boostScore(e.score, projects.get(hit.relPath), opts.projectSlug) };
-            })
-                .filter((e) => e !== null)
-                .sort((a, b) => b.score - a.score)
-                .slice(0, k);
-            return toPointers(boosted.map((e) => byKey.get(e.id)).filter(Boolean));
-        }
-        return toPointers(fused.slice(0, k).map((e) => byKey.get(e.id)).filter(Boolean));
+        // Batch-lookup project and created for all candidate relPaths
+        const candidateRelPaths = [...new Set(fused.map((e) => byKey.get(e.id)).filter(Boolean).map((h) => h.relPath))];
+        const projects = opts?.projectSlug
+            ? ix.getProjectsForPaths(candidateRelPaths)
+            : new Map();
+        const created = ix.getCreatedForPaths(candidateRelPaths);
+        const now = Date.now();
+        const decayed = fused
+            .map((e) => {
+            const hit = byKey.get(e.id);
+            if (!hit)
+                return null;
+            let score = boostScore(e.score, projects.get(hit.relPath), opts?.projectSlug);
+            score *= decayFactor(created.get(hit.relPath), now);
+            return { id: e.id, score };
+        })
+            .filter((e) => e !== null)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, k);
+        return toPointers(decayed.map((e) => byKey.get(e.id)).filter(Boolean));
     }
     catch {
         return [];
@@ -84,4 +91,13 @@ function boostScore(score, noteProject, projectSlug) {
     if (noteProject === projectSlug || noteProject === "global")
         return score * 2;
     return score;
+}
+function decayFactor(created, nowMs) {
+    if (!created)
+        return 1;
+    const createdMs = Date.parse(created);
+    if (isNaN(createdMs))
+        return 1;
+    const ageDays = (nowMs - createdMs) / 86_400_000;
+    return Math.exp(-ageDays / 90);
 }
