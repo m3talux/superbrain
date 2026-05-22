@@ -21,7 +21,7 @@ export async function bm25Recall(query: string, k: number): Promise<Pointer[]> {
 export async function hybridRecall(
   query: string,
   k: number,
-  opts?: { projectSlug?: string },
+  opts?: { projectSlug?: string; excludeSlugs?: string[] },
 ): Promise<Pointer[]> {
   let ix: Index | undefined;
   try {
@@ -40,7 +40,8 @@ export async function hybridRecall(
     // calibrated vector-distance threshold. See docs/superpowers/specs/2026-05-19-superbrain-phase2-design.md §"Known limitation".
     if (bm.length === 0) return [];
     if (vec.length === 0) {
-      const hits = bm.slice(0, k);
+      const exclude = new Set(opts?.excludeSlugs ?? []);
+      const hits = bm.filter((h) => !exclude.has(h.relPath)).slice(0, k);
       const relPaths = [...new Set(hits.map((h) => h.relPath))];
       const projects = opts?.projectSlug ? ix.getProjectsForPaths(relPaths) : new Map<string, string>();
       const created = ix.getCreatedForPaths(relPaths);
@@ -67,10 +68,12 @@ export async function hybridRecall(
       : new Map<string, string>();
     const created = ix.getCreatedForPaths(candidateRelPaths);
     const now = Date.now();
+    const exclude = new Set(opts?.excludeSlugs ?? []);
     const decayed = fused
       .map((e) => {
         const hit = byKey.get(e.id);
         if (!hit) return null;
+        if (exclude.has(hit.relPath)) return null;
         let score = boostScore(e.score, projects.get(hit.relPath), opts?.projectSlug);
         score *= decayFactor(created.get(hit.relPath), now);
         return { id: e.id, score };

@@ -172,3 +172,28 @@ describe("recency decay", () => {
     expect(freshIdx).toBeLessThan(oldIdx);
   });
 });
+
+describe("excludeSlugs filtering", () => {
+  it("excludes paths in excludeSlugs before top-k slice", async () => {
+    const results = await hybridRecall("sqlite-vec", 5);
+    expect(results.length).toBeGreaterThan(0);
+
+    // Exclude the top result's path — it must no longer appear.
+    const topPath = results[0].relPath;
+    const filtered = await hybridRecall("sqlite-vec", 5, { excludeSlugs: [topPath] });
+    expect(filtered.every((r) => r.relPath !== topPath)).toBe(true);
+  });
+
+  it("returns empty when all candidates are excluded", async () => {
+    const all = await hybridRecall("sqlite-vec", 10);
+    const allPaths = all.map((r) => r.relPath);
+    const filtered = await hybridRecall("sqlite-vec", 10, { excludeSlugs: allPaths });
+    expect(filtered).toEqual([]);
+  });
+
+  it("does not affect results when excludeSlugs is empty", async () => {
+    const r1 = await hybridRecall("sqlite-vec", 5, { excludeSlugs: [] });
+    const r2 = await hybridRecall("sqlite-vec", 5);
+    expect(r1.map((r) => r.relPath)).toEqual(r2.map((r) => r.relPath));
+  });
+});

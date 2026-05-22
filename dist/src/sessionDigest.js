@@ -4,10 +4,12 @@ import { compileInjectionBlock } from "./preferences.js";
 import { readDay } from "./dailyState.js";
 import { fitToBudget, INJECT_LIMITS } from "./injectBudget.js";
 import { classifyPath, basenameSlug } from "./projectDetect.js";
+import { appendInjectedSlugs } from "./sessionInjected.js";
 export async function appendDigest(parts, h) {
     // Hybrid recall digest: project-slug filtered when cwd resolves to a known project.
     try {
         const cwd = h.cwd || "";
+        const sid = h.session_id || "";
         let query;
         let recallOpts;
         if (cwd) {
@@ -33,6 +35,13 @@ export async function appendDigest(parts, h) {
             const body = fitToBudget(lines, INJECT_LIMITS.recall);
             if (body)
                 parts.push("SuperBrain memory — relevant past notes:\n" + body);
+            // Record injected paths so UserPromptSubmit can exclude them.
+            if (sid) {
+                try {
+                    appendInjectedSlugs(sid, hits.map((p) => p.relPath));
+                }
+                catch { /* best-effort */ }
+            }
         }
     }
     catch { /* recall is best-effort */ }
