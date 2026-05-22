@@ -21,6 +21,7 @@ import { upsertDay } from "./dailyState.js";
 import { buildDailyNote } from "./dailyNote.js";
 import { preferencesPath } from "./preferences.js";
 import { resolveLinks } from "./wikilink.js";
+import { gcTranscript } from "./transcriptStore.js";
 
 export interface DistilledEnvelope {
   items: DistilledItem[];
@@ -272,6 +273,10 @@ export async function runDistill(): Promise<void> {
       }
     } catch (e: any) { writeFailure(`daily note failed: ${e?.message || e}`); }
     writeCursor(sid, newOffset);
+    // GC the transcript snapshot now that distillation succeeded. Best-effort:
+    // a missing snapshot is fine (checkpoint may not have run), and a deletion
+    // failure must never abort an otherwise-successful distill.
+    try { gcTranscript(path.join(dataDir(), "transcripts"), sid); } catch { /* best-effort */ }
   } catch (e: any) {
     writeFailure(`distill failed: ${e?.message || e}`);
   } finally {
