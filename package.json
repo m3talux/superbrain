@@ -1,6 +1,6 @@
 {
   "name": "superbrain",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "description": "Automatic Claude Code -> Obsidian second brain: zero-config session capture, hybrid search, autonomous recall, daily/lessons/preferences.",
   "type": "module",
   "license": "MIT",

@@ -8,6 +8,28 @@ behavior may change without notice.
 
 ## [Unreleased]
 
+## [0.5.0] — Vault quality and scale
+
+**Disk:** transcript snapshots no longer accumulate — `bin/sb-checkpoint.ts` overwrites one `<sid>.jsonl` per session, and successful distills GC their snapshot. `auto-sync.sh` adds a weekly transcript/.trash sweep + monthly vault gc. New `sb-doctor disk` command for inspection.
+
+**Format:** Six per-type templates (`decision`, `lesson`, `capture`, `project`, `daily`, `person`) with code validators. Word ceilings (350/300/200) and required sections enforced at write time. Frontmatter normalization: bare-ISO dates, mandatory `type`. Body `## See also` sections forbidden — graph edges live in frontmatter.
+
+**Distiller:** Items now flow through `classify → dedup-session → dedup-vault → validate → write OR reject`. Rejected items go to `meta/distill-rejects.md` with reason; vault and session never block.
+
+**Recall:** UserPromptSubmit upgraded from `bm25Recall` to `hybridRecall`. Project-scoped 2× boost. Recency decay (`exp(-ageDays/90)`). Cross-hook deduplication via `sessions/<sid>.injected.json`. Explicit per-channel token budgets (~1.4k total ceiling) with regression-test guard.
+
+**Preferences:** Two-tier system — small auto-injected core (capped at 3KB/500 tokens) + `meta/preferences-candidates.md` queue with auto-promotion when ≥3 imperative cross-project observations accumulate. `scripts/retro-prune-preferences.ts` helps demote situational entries.
+
+**Graph:** Frontmatter-derived edges persisted to `vault_edges` SQLite table. Stale edges cleared on re-index. Indexer populates the table from `project:`, `created:`, `related:`, `superseded_by:` fields.
+
+**Projects:** New `projectWriter` appends dated subsections under `## Recent activity` with 20KB auto-archive to `projects/_archive/<slug>-<year>-Q<n>.md`.
+
+**Retro-clean scripts (vault, user-applied):** `scripts/backfill-frontmatter.ts` (add missing type/project, normalize dates), `scripts/retro-collapse-duplicates.ts` (collapse known clusters), `scripts/retro-prune-preferences.ts`.
+
+**Observability:** `sb-doctor` CLI with `disk` and `inject` subcommands. Inject token telemetry logged to `~/.superbrain/inject.log`.
+
+**Internal:** 506 tests, all green. CI gates: inject-budget guard (worst-case ≤1500 tokens) + disk-budget guard (1 snapshot per session id).
+
 ## [0.4.3]
 
 Cross-platform foundations for native Windows (no WSL) support. The product
