@@ -3,12 +3,32 @@ import { hybridRecall } from "./recall.js";
 import { compileInjectionBlock } from "./preferences.js";
 import { readDay } from "./dailyState.js";
 import { fitToBudget, INJECT_LIMITS } from "./injectBudget.js";
+import { classifyPath, basenameSlug } from "./projectDetect.js";
 
 export async function appendDigest(parts: string[], h: any): Promise<void> {
-  // Hybrid recall digest (cwd/recent-topic seeded). Tiered: pointers, not bodies.
+  // Hybrid recall digest: project-slug filtered when cwd resolves to a known project.
   try {
-    const seed = `${path.basename(h.cwd || "")} recent work decisions gotchas`.trim();
-    const hits = await hybridRecall(seed, 5);
+    const cwd: string = h.cwd || "";
+    let query: string;
+    let recallOpts: { projectSlug?: string } | undefined;
+
+    if (cwd) {
+      const classification = classifyPath(cwd);
+      if (classification.kind === "single" || classification.kind === "umbrella") {
+        const slug = basenameSlug(classification.projectDir);
+        query = slug;
+        recallOpts = { projectSlug: slug };
+      } else {
+        // blocked or skip — fall back to bare basename, no project filter
+        query = path.basename(cwd);
+        recallOpts = undefined;
+      }
+    } else {
+      query = "";
+      recallOpts = undefined;
+    }
+
+    const hits = await hybridRecall(query, 5, recallOpts);
     if (hits.length) {
       const lines = hits.map((p) => `- [[${p.relPath.replace(/\.md$/, "")}]] — ${p.excerpt}`);
       const body = fitToBudget(lines, INJECT_LIMITS.recall);
