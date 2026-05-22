@@ -95,12 +95,31 @@ export function route(item) {
                 body: (item.body || "").trim(),
                 mode: "replace",
             };
-        default:
+        case "daily":
+            return {
+                relPath: `daily/${item.date}.md`,
+                frontmatter: { type: "daily", ...base },
+                body: withLinks((item.body || "").trim(), item.links),
+                mode: "append",
+            };
+        default: {
+            // Re-route capture items whose title matches `daily-YYYY-MM-DD` — these
+            // are daily notes that were mis-classified as captures.
+            const dailyTitle = (item.title || "").match(/^daily-(\d{4}-\d{2}-\d{2})$/);
+            if (dailyTitle) {
+                return {
+                    relPath: `daily/${dailyTitle[1]}.md`,
+                    frontmatter: { type: "daily", ...base },
+                    body: withLinks((item.body || "").trim(), item.links),
+                    mode: "append",
+                };
+            }
             return {
                 relPath: `capture/${item.date}-${slug(item.title)}.md`,
                 frontmatter: { type: "capture", status: "active", tags: ["triage"], ...base },
                 body: withLinks(`# ${item.title}\n\n${(item.body || "").trim()}`, item.links),
                 mode: "create",
             };
+        }
     }
 }

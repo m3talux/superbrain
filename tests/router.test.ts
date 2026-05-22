@@ -96,3 +96,23 @@ describe("router", () => {
     expect(r.frontmatter.tags).toContain("triage");
   });
 });
+
+describe("router daily mis-route", () => {
+  it("kind=daily routes to daily/<date>.md", () => {
+    const r = route({ kind: "daily", title: "daily-2026-05-22", body: "journal entry", date: "2026-05-22", links: [] });
+    expect(r.relPath).toBe("daily/2026-05-22.md");
+    expect(r.frontmatter.type).toBe("daily");
+  });
+
+  it("capture with daily-YYYY-MM-DD title routes to daily/", () => {
+    const r = route({ kind: "capture", title: "daily-2026-05-20", body: "some notes", date: "2026-05-20", links: [] });
+    expect(r.relPath).toBe("daily/2026-05-20.md");
+    expect(r.frontmatter.type).toBe("daily");
+  });
+
+  it("regular capture still routes to capture/", () => {
+    const r = route({ kind: "capture", title: "Some Finding", body: "x", date: "2026-05-20", links: [] });
+    expect(r.relPath).toMatch(/^capture\//);
+    expect(r.frontmatter.type).toBe("capture");
+  });
+});
