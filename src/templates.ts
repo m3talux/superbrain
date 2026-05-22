@@ -256,5 +256,10 @@ export function validateNote(type: NoteType, body: string): ValidationResult {
     }
   }
 
+  // Forbid ## See also — edges are frontmatter-driven
+  if (/(^|\n)## See also(\n|$)/.test(body)) {
+    errors.push("body contains forbidden `## See also` section; edges live in frontmatter (project, created, related, superseded_by)");
+  }
+
   return { valid: errors.length === 0, errors };
 }

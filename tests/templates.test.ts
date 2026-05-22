@@ -207,3 +207,50 @@ describe("validateNote — daily: non-wikilink bullets", () => {
     expect(r.errors.some(e => e.includes("Open threads"))).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// validateNote — forbid ## See also
+// ---------------------------------------------------------------------------
+
+describe("validateNote — ## See also is forbidden", () => {
+  it("rejects a note containing ## See also (graph is frontmatter-driven)", () => {
+    const body = `---
+type: decision
+created: 2026-05-22
+project: superbrain
+status: active
+superbrain: true
+---
+
+# Use hybrid recall
+
+## Decision
+x
+
+## Why
+y
+
+## Alternatives considered
+- **BM25 only** — no semantic
+
+## Consequences
+z
+
+## See also
+- [[projects/superbrain]]
+`;
+    const r = validateNote("decision", body);
+    expect(r.valid).toBe(false);
+    expect(r.errors.join(",")).toMatch(/See also/);
+  });
+
+  it("applies the See also rule to all types", () => {
+    for (const t of ["decision", "lesson", "capture", "project", "daily", "person"] as const) {
+      const body = `## See also\n- [[x]]`;
+      const r = validateNote(t, body);
+      // The body won't have the required sections so it'll fail for other reasons too, but
+      // the See also error message must be present in the errors list.
+      expect(r.errors.join("\n")).toMatch(/See also/);
+    }
+  });
+});
