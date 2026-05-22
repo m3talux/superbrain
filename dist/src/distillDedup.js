@@ -49,6 +49,16 @@ function itemText(it) {
     ].filter(Boolean);
     return parts.join("\n").trim() || it.title;
 }
+export async function dedupAgainstVault(item, searchFn, threshold = DEFAULT_THRESHOLD) {
+    const query = `${item.title}\n${item.body}`;
+    const results = await searchFn(query, { k: 1, type: item.type, project: item.project });
+    if (!results.length)
+        return {};
+    const top = results[0];
+    if (top.score >= threshold)
+        return { match: top.path, score: top.score };
+    return {};
+}
 function cosine(a, b) {
     let dot = 0;
     let na = 0;

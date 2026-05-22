@@ -23,6 +23,9 @@ import { gcTranscript } from "./transcriptStore.js";
 import { classify } from "./classification.js";
 import { recordRejection } from "./rejectQueue.js";
 import { serializeNote } from "./frontmatter.js";
+import { dedupAgainstVault } from "./distillDedup.js";
+import { openIndex } from "./searchIndex.js";
+import { embed } from "./embed.js";
 export function parseEnvelope(raw) {
     let v;
     try {
@@ -272,6 +275,59 @@ export async function runDistill() {
                 }
                 (routedByDate[it.date] ||= []).push(r.relPath);
                 continue;
+            }
+            // Vault-dedup gate: skip write if vault already contains a near-duplicate.
+            // Inline adapter: embeds the query, runs vectorKNN against the index, and
+            // computes cosine similarity from the returned chunk text embedding.
+            // type/project filters are passed through for future support but are currently
+            // best-effort (vectorKNN has no per-field filter).
+            {
+                let vaultDedupSkip = false;
+                try {
+                    const vaultSearchFn = async (query, _opts) => {
+                        let ix;
+                        try {
+                            ix = openIndex();
+                            const [qv] = await embed([query]);
+                            const hits = ix.vectorKNN(qv, 1);
+                            if (!hits.length)
+                                return [];
+                            // Compute cosine between query vector and re-embed the top hit's text.
+                            const [hv] = await embed([hits[0].text]);
+                            let dot = 0, na = 0, nb = 0;
+                            const n = Math.min(qv.length, hv.length);
+                            for (let i = 0; i < n; i++) {
+                                dot += qv[i] * hv[i];
+                                na += qv[i] ** 2;
+                                nb += hv[i] ** 2;
+                            }
+                            const sim = (na && nb) ? dot / (Math.sqrt(na) * Math.sqrt(nb)) : 0;
+                            return [{ path: hits[0].relPath, score: sim }];
+                        }
+                        catch {
+                            return [];
+                        }
+                        finally {
+                            ix?.close();
+                        }
+                    };
+                    const vaultMatch = await dedupAgainstVault({ title: it.title, body: r.body, project: it.project, type: r.frontmatter.type }, vaultSearchFn);
+                    if (vaultMatch.match) {
+                        recordRejection(vaultPath(), {
+                            type: r.frontmatter.type ?? it.kind,
+                            reason: `dedup vs ${vaultMatch.match} (score ${vaultMatch.score?.toFixed(2)})`,
+                            sessionId: sid,
+                            title: it.title,
+                            excerpt: r.body.slice(0, 500),
+                        });
+                        vaultDedupSkip = true;
+                    }
+                }
+                catch (e) {
+                    writeFailure(`vault dedup error: ${e?.message || e}`);
+                }
+                if (vaultDedupSkip)
+                    continue;
             }
             // Classification gate: only classify kinds that are valid NoteTypes.
             // project_fact and preference are not in NoteType and are always passed through.

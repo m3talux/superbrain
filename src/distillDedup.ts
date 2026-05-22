@@ -64,6 +64,27 @@ function itemText(it: DistilledItem): string {
   return parts.join("\n").trim() || it.title;
 }
 
+export interface VaultDedupMatch {
+  match?: string;
+  score?: number;
+}
+
+export async function dedupAgainstVault(
+  item: { title: string; body: string; project?: string; type?: string },
+  searchFn: (
+    query: string,
+    opts?: { k?: number; type?: string; project?: string }
+  ) => Promise<Array<{ path: string; score: number }>>,
+  threshold = DEFAULT_THRESHOLD,
+): Promise<VaultDedupMatch> {
+  const query = `${item.title}\n${item.body}`;
+  const results = await searchFn(query, { k: 1, type: item.type, project: item.project });
+  if (!results.length) return {};
+  const top = results[0];
+  if (top.score >= threshold) return { match: top.path, score: top.score };
+  return {};
+}
+
 function cosine(a: Float32Array, b: Float32Array): number {
   let dot = 0;
   let na = 0;

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { dedupAgainstSession } from "../src/distillDedup.js";
+import { dedupAgainstSession, dedupAgainstVault } from "../src/distillDedup.js";
 import { DistilledItem } from "../src/router.js";
 
 // Mock embed to return deterministic vectors.
@@ -65,5 +65,41 @@ describe("dedupAgainstSession", () => {
     ];
     const out = await dedupAgainstSession(items, 1.01); // unreachable threshold
     expect(out.kept.length).toBe(2);
+  });
+});
+
+describe("dedupAgainstVault", () => {
+  it("returns match when score >= threshold", async () => {
+    const searchFn = vi.fn(async () => [{ path: "decisions/foo.md", score: 0.9 }]);
+    const r = await dedupAgainstVault({ title: "Use BM25", body: "body", type: "decision", project: "superbrain" }, searchFn);
+    expect(r.match).toBe("decisions/foo.md");
+    expect(r.score).toBe(0.9);
+  });
+
+  it("returns empty when score < threshold", async () => {
+    const searchFn = vi.fn(async () => [{ path: "decisions/foo.md", score: 0.6 }]);
+    const r = await dedupAgainstVault({ title: "x", body: "y", type: "decision", project: "superbrain" }, searchFn);
+    expect(r.match).toBeUndefined();
+  });
+
+  it("returns empty when no results", async () => {
+    const searchFn = vi.fn(async () => []);
+    const r = await dedupAgainstVault({ title: "x", body: "y", type: "decision", project: "superbrain" }, searchFn);
+    expect(r.match).toBeUndefined();
+  });
+
+  it("passes type and project filters to searchFn", async () => {
+    const searchFn = vi.fn(async () => []);
+    await dedupAgainstVault({ title: "x", body: "y", type: "decision", project: "superbrain" }, searchFn);
+    expect(searchFn).toHaveBeenCalledWith(
+      expect.stringContaining("x"),
+      expect.objectContaining({ k: 1, type: "decision", project: "superbrain" })
+    );
+  });
+
+  it("respects custom threshold", async () => {
+    const searchFn = vi.fn(async () => [{ path: "decisions/foo.md", score: 0.86 }]);
+    const r = await dedupAgainstVault({ title: "x", body: "y", type: "decision" }, searchFn, 0.95);
+    expect(r.match).toBeUndefined();
   });
 });
