@@ -19,11 +19,10 @@ export function route(item) {
     switch (item.kind) {
         case "decision": {
             const structured = joinSections([
-                section("Context", item.context),
                 section("Decision", item.decision),
-                section("Rationale", item.rationale),
+                section("Why", item.why || item.rationale),
+                section("Alternatives considered", item.alternatives),
                 section("Consequences", item.consequences),
-                section("Implementation", item.implementation),
             ]);
             const inner = structured || (item.body || "").trim();
             return {

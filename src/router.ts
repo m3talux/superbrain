@@ -15,16 +15,17 @@ export interface DistilledItem {
   rule?: string;
 
   // Structured sections used for substantive notes:
-  context?: string;        // decision/gotcha — what was happening
+  context?: string;        // decision/gotcha — what was happening (legacy)
   decision?: string;       // decision — what was decided
-  rationale?: string;      // decision — why this over alternatives
+  rationale?: string;      // decision — why this over alternatives (legacy)
+  why?: string;            // decision/lesson — constraint/reasoning
+  alternatives?: string;   // decision — discarded options and reasons
   consequences?: string;   // decision — trade-offs, what this enables/precludes
-  implementation?: string; // decision — concrete next steps or changes made
+  implementation?: string; // decision — concrete next steps or changes made (legacy)
   symptom?: string;        // gotcha — observable failure
   rootCause?: string;      // gotcha — technical explanation
   fix?: string;            // gotcha — what resolves it
   prevention?: string;     // gotcha — how to avoid hitting it again
-  why?: string;            // lesson — reasoning + incident
   whenApplies?: string;    // lesson — when to invoke the rule
 
   // Freeform fallback. Used for captures and as a back-compat slot when the
@@ -62,11 +63,10 @@ export function route(item: DistilledItem): RouteResult {
   switch (item.kind) {
     case "decision": {
       const structured = joinSections([
-        section("Context", item.context),
         section("Decision", item.decision),
-        section("Rationale", item.rationale),
+        section("Why", item.why || item.rationale),
+        section("Alternatives considered", item.alternatives),
         section("Consequences", item.consequences),
-        section("Implementation", item.implementation),
       ]);
       const inner = structured || (item.body || "").trim();
       return {

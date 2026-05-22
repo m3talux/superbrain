@@ -71,11 +71,11 @@ Each kind has a concrete threshold. If a session does not meet the threshold for
 
 When you DO emit, fill the structured fields below. Substance over brevity: a real decision note is paragraphs, not a sentence.
 
-decision: { kind, title (imperative, ≤80 chars), date, context (1–2 paragraphs: what was happening, what choice arose), decision (1–2 sentences: what was chosen), rationale (1–2 paragraphs: why this over alternatives), consequences (1 paragraph: trade-offs, what this enables or precludes), implementation? (concrete next steps or changes made), project? (slug if scoped), links (related-note slugs) }
+decision: { kind, title (imperative, ≤80 chars), date, decision (1–2 sentences: the chosen path, imperative tense), why (bullets: the constraint or evidence that forced the choice), alternatives (one or more "- **Name** — rejection reason" bullets), consequences (1 paragraph: what this enables, forecloses, or requires watching for), project? (slug if scoped), links (related-note slugs) }
 
 gotcha: { kind, title (short symptom name), date, project (slug — required), symptom (the observable failure), rootCause (technical explanation), fix (what resolves it, with file refs if possible), prevention (how to avoid hitting it again), links }
 
-lesson: { kind, title (short imperative rule name), date, rule (the durable, generalizable principle, one crisp sentence), why (the reasoning + the incident that produced it, 1–2 paragraphs), whenApplies (when to invoke this rule in the future), links }
+lesson: { kind, title (short imperative rule name), date, rule (the durable, generalizable principle, one crisp sentence — REQUIRED), why (the reasoning + the incident that produced it, 1–2 paragraphs — REQUIRED; ALWAYS use this structured field, never a freeform body), whenApplies (when to invoke this rule in the future — REQUIRED), links }
 
 project_fact: { kind, title (short fact statement), date, project (slug — required), body (one sentence of context + the fact itself; ≤3 sentences), links }
 
@@ -92,7 +92,7 @@ You are given the current preferences doc at the end of this prompt. When a less
 # Few-shot — what a substantive decision and lesson look like
 
 EXAMPLE decision (structured fields filled, paragraphs, links):
-{"kind":"decision","title":"Pin distiller model to Sonnet 4.6","date":"2026-05-19","context":"The legacy scribe ran detached \`claude -p\` spawns at the user's session model, often Opus. Distillation runs many times per day and burned the user's daily Opus quota in hours, surfacing as silent capture failures mid-day.","decision":"Hardcode the distiller and rollup spawns to use --model claude-sonnet-4-6 unconditionally; no env override.","rationale":"Sonnet 4.6 produces judgment of comparable quality to Opus for summarization at roughly 1/5 the cost. Removing the env override prevents users from accidentally re-introducing the quota burn — the surface area was a footgun, not a feature.","consequences":"Users who want higher quality must set ANTHROPIC_API_KEY to bypass subscription quota. No model selection is exposed beyond that escape hatch.","implementation":"src/distillRun.ts:distillModel() returns the literal 'claude-sonnet-4-6'. tests/distillModel.test.ts locks the no-env behavior in.","links":["projects/superbrain"]}
+{"kind":"decision","title":"Pin distiller model to Sonnet 4.6","date":"2026-05-19","decision":"Hardcode the distiller and rollup spawns to use --model claude-sonnet-4-6 unconditionally; no env override.","why":"- Sonnet 4.6 produces judgment of comparable quality to Opus for summarization at roughly 1/5 the cost.\n- The legacy scribe ran detached claude -p spawns at the user's session model (often Opus), burning the daily Opus quota in hours and causing silent capture failures mid-day.\n- Removing the env override prevents users from accidentally re-introducing the quota burn — the surface area was a footgun, not a feature.","alternatives":"- **Session model passthrough** — rejected because it burned Opus quota silently within hours.\n- **Env-override flag** — rejected because users would accidentally re-enable the expensive path.","consequences":"Users who want higher quality must set ANTHROPIC_API_KEY to bypass subscription quota. No model selection is exposed beyond that escape hatch.","links":["projects/superbrain"]}
 
 EXAMPLE lesson (structured fields, traced to an incident, with whenApplies):
 {"kind":"lesson","title":"Verify the live data dir before claiming a plugin is broken","date":"2026-05-20","rule":"For Claude Code plugins, resolve the actual CLAUDE_PLUGIN_DATA path at hook execution time before inspecting on-disk state — never trust the fallback path in the source code.","why":"On 2026-05-20 a full multi-step misdiagnosis was produced (broken matchers, async hook failure, missing distillation) because the investigator inspected the source's fallback ~/.superbrain/ instead of the actual ~/.claude/plugins/data/superbrain-m3talux/ where Claude Code routes hook writes. Everything was healthy at the real path.","whenApplies":"Any time a Claude Code plugin appears to not be writing data, before declaring it broken.","links":["projects/superbrain"]}
@@ -260,6 +260,19 @@ export async function runDistill() {
         for (const it of items) {
             it.links = resolveLinks(it.links || [], vaultPath());
             const r = route(it);
+            // append/replace bodies are fragments — template validation is not applicable.
+            if (r.mode !== "create") {
+                writeNote(r.relPath, { frontmatter: r.frontmatter, body: r.body, mode: r.mode });
+                appendLog(it.title || it.kind, r.relPath);
+                try {
+                    await indexNote(r.relPath);
+                }
+                catch (e) {
+                    writeFailure(`index failed: ${e?.message || e}`);
+                }
+                (routedByDate[it.date] ||= []).push(r.relPath);
+                continue;
+            }
             // Classification gate: only classify kinds that are valid NoteTypes.
             // project_fact and preference are not in NoteType and are always passed through.
             const classifiableKinds = new Set(["decision", "lesson", "capture", "project", "daily", "person"]);
