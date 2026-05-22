@@ -3,6 +3,7 @@ import path from "node:path";
 import { vaultPath } from "./paths.js";
 import { serializeNote, parseNote, validateFrontmatter } from "./frontmatter.js";
 import { atomicWrite, readWithChecksum } from "./atomicWrite.js";
+import { appendDatedSectionWithArchive, initializeProjectNote } from "./projectWriter.js";
 
 const ALLOWED_EXT = new Set([".md"]);
 const EXCLUDED = ["/.obsidian/", "/.git/", "/node_modules/", "/.trash/"];
@@ -47,6 +48,74 @@ export function writeNote(rel: string, args: WriteArgs): WriteResult {
   }
 
   const existing = readWithChecksum(abs);
+
+  // Project notes (projects/<slug>.md) get structured dated subsections under
+  // "## Recent activity" with auto-archiving when the file exceeds 20 KB.
+  const relNorm = rel.replace(/\\/g, "/");
+  if (relNorm.startsWith("projects/") && !relNorm.startsWith("projects/_archive/")) {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const date = (args.frontmatter.created as string | undefined) || stamp;
+    try {
+      // Determine current body (content portion only, no frontmatter)
+      let currentBody: string;
+      let baseFm: Record<string, any>;
+      if (existing) {
+        const parsed = parseNote(existing.content);
+        // Dedup: skip if the normalized new body already appears in the file.
+        const newNorm = normBody(args.body);
+        if (newNorm.length >= 40 && normBody(parsed.content).includes(newNorm)) {
+          return { ok: true, path: abs, reason: "duplicate-skipped" };
+        }
+        currentBody = parsed.content;
+        baseFm = parsed.data;
+      } else {
+        const slug = path.basename(abs, ".md");
+        currentBody = initializeProjectNote(slug, args.frontmatter);
+        baseFm = {};
+      }
+      // Backfill ## Recent activity if the note pre-dates this feature
+      if (
+        !currentBody.includes("\n## Recent activity\n") &&
+        !currentBody.endsWith("## Recent activity") &&
+        !currentBody.startsWith("## Recent activity\n")
+      ) {
+        currentBody = currentBody.replace(/\s+$/, "") + "\n\n## Recent activity\n";
+      }
+      const r = appendDatedSectionWithArchive(currentBody, date, args.body);
+      const mergedFm = { ...baseFm, ...args.frontmatter, updated: stamp };
+      atomicWrite(abs, serializeNote(mergedFm, r.body));
+      // Persist archived sections to projects/_archive/<slug>-<year>-Q<n>.md
+      for (const a of r.archived) {
+        const year = a.date.slice(0, 4);
+        const month = parseInt(a.date.slice(5, 7), 10);
+        const q = Math.ceil(month / 3);
+        const slug = path.basename(abs, ".md");
+        const archivePath = path.join(
+          path.resolve(vaultPath()),
+          "projects",
+          "_archive",
+          `${slug}-${year}-Q${q}.md`,
+        );
+        fs.mkdirSync(path.dirname(archivePath), { recursive: true });
+        const archiveBlock = `\n### ${a.date}\n\n${a.content}\n`;
+        fs.appendFileSync(archivePath, archiveBlock);
+      }
+      return { ok: true, path: abs };
+    } catch (_e) {
+      // Fail open: fall back to legacy plain append so the distiller never crashes
+      if (!existing) {
+        atomicWrite(abs, serializeNote(args.frontmatter, args.body));
+        return { ok: true, path: abs };
+      }
+      const stamp2 = new Date().toISOString().slice(0, 16).replace("T", " ");
+      const parsed = parseNote(existing.content);
+      const mergedFm = { ...parsed.data, ...args.frontmatter, updated: stamp2.slice(0, 10) };
+      const appended = `${parsed.content.replace(/\s+$/, "")}\n\n## ${stamp2}\n\n${args.body}\n`;
+      atomicWrite(abs, serializeNote(mergedFm, appended));
+      return { ok: true, path: abs };
+    }
+  }
+
   if (!existing) {
     atomicWrite(abs, serializeNote(args.frontmatter, args.body));
     return { ok: true, path: abs };

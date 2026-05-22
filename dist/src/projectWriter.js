@@ -64,6 +64,14 @@ function findOldestSubsection(body) {
     const content = block.slice(headingEnd).replace(/^\s+|\s+$/g, "");
     return { date: oldest.date, content, start: oldest.start, end: oldest.end };
 }
+/**
+ * Build a minimal project note body when the file does not yet exist.
+ * Always includes "## Recent activity" so appendDatedSection can find it.
+ */
+export function initializeProjectNote(slug, frontmatter) {
+    const title = frontmatter.title || slug;
+    return `# ${title}\n\n## Recent activity\n`;
+}
 function escapeRegex(s) {
     return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
