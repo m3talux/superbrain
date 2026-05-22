@@ -8,6 +8,10 @@ behavior may change without notice.
 
 ## [Unreleased]
 
+## 0.5.1 — Auto-migration UX
+
+Upgrading from <0.5 now auto-detects legacy vault state. Frontmatter backfill runs automatically (detached, ~30 s, idempotent). A one-time notice in SessionStart inject context surfaces a `sb-doctor migrate-all` command that orchestrates the four migration scripts behind a single y/N prompt with dry-run preview. Sentinel at `~/.superbrain/migration-prompted-<version>.txt` ensures the notice appears once per upgraded version.
+
 ## [0.5.0] — Vault quality and scale
 
 **Disk:** transcript snapshots no longer accumulate — `bin/sb-checkpoint.ts` overwrites one `<sid>.jsonl` per session, and successful distills GC their snapshot. `auto-sync.sh` adds a weekly transcript/.trash sweep + monthly vault gc. New `sb-doctor disk` command for inspection.

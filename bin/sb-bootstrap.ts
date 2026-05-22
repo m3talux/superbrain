@@ -1,8 +1,10 @@
 #!/usr/bin/env node
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
+import path from "node:path";
 import { acquireLock, releaseLock } from "../src/lockfile.js";
 import { bootstrapDone, markBootstrapDone, depsPresent } from "../src/bootstrap.js";
 import { writeFailure } from "../src/sentinel.js";
+import { dataDir, vaultPath } from "../src/paths.js";
 
 const PLATFORM_HINTS: Record<string, string> = {
   win32: "On Windows, better-sqlite3 may need Visual Studio Build Tools + Python 3. Install via https://github.com/nodejs/node-gyp#on-windows, or downgrade to Node 20 LTS which has broader prebuilt coverage.",
@@ -14,7 +16,7 @@ export function platformHint(): string {
   return PLATFORM_HINTS[process.platform] || "";
 }
 
-function main() {
+async function main() {
   const root = process.env.SUPERBRAIN_PLUGIN_ROOT || process.cwd();
   // Conjoined check: skip only when BOTH the per-install sentinel exists AND
   // the better-sqlite3 native binding is actually present in this install.
@@ -60,6 +62,27 @@ function main() {
       return;
     }
     markBootstrapDone(root);
+    // After successful bootstrap, check for legacy vault state and auto-run
+    // the safe (idempotent) frontmatter backfill in a detached subprocess.
+    try {
+      const { detectLegacyState } = await import("../src/migrationDetect.js");
+      const vault = vaultPath();
+      const db = path.join(dataDir(), "index.db");
+      const state = await detectLegacyState(vault, db);
+      if (state.frontmatterMissing > 0) {
+        console.log(
+          `SuperBrain: backfilling frontmatter on ${state.frontmatterMissing} legacy notes (detached, ~30s)`
+        );
+        const child = spawn(
+          "npx",
+          ["tsx", "scripts/backfill-frontmatter.ts", vault, "--apply"],
+          { cwd: root, detached: true, stdio: "ignore" }
+        );
+        child.unref();
+      }
+    } catch (e: any) {
+      writeFailure(`bootstrap migration check failed (non-fatal): ${e?.message || e}`);
+    }
   } catch (e: any) {
     writeFailure(`bootstrap failed (unexpected error): ${e?.message || e}`);
   } finally {
