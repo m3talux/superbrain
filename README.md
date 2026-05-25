@@ -2,15 +2,15 @@
 
 # 🧠 SuperBrain
 
-**Automatic Claude Code → Obsidian second brain. Install once, lift no finger.**
+**Session memory for Claude Code — a second brain that builds itself.**
 
-Every Claude Code session — across every project, on every machine — is captured into a plain Obsidian vault with smart routing and self-healing daily/weekly/monthly rollups. No API key. No daemon. No per-project setup.
+Every Claude Code session — across every project, on every machine — is captured into a plain Obsidian markdown vault you fully own. Zero config, no LLM of its own, no cloud. SuperBrain observes the sessions you're already running and writes the journal you never have time to.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-black.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-black.svg)](package.json)
 [![CI](https://github.com/m3talux/superbrain/actions/workflows/ci.yml/badge.svg)](https://github.com/m3talux/superbrain/actions/workflows/ci.yml)
 [![Storage](https://img.shields.io/badge/storage-plain%20Obsidian%20markdown-blueviolet.svg)](#vault-structure)
-[![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux-blue.svg)](#install-troubleshooting)
+[![Works with Obsidian](https://img.shields.io/badge/works%20with-Obsidian-7c3aed.svg)](https://obsidian.md)
 
 </div>
 
@@ -20,7 +20,7 @@ Every Claude Code session — across every project, on every machine — is capt
 
 ## Why
 
-The Claude Code memory ecosystem has split in two, and neither half is what you actually want:
+Every Claude Code session ends and the reasoning vanishes. Decisions, trade-offs, the "we tried X and it didn't work" history — gone with the terminal scrollback. CLAUDE.md fixes the *rules*; SuperBrain fixes the *journal*. The Claude Code memory ecosystem has split in two, and neither half is what you actually want:
 
 - **Automatic but opaque** (claude-mem, mcp-memory-service): great zero-config capture, but it lives in a SQLite/Chroma blob you can't browse, edit, or own.
 - **Obsidian but manual** (basic-memory, claudesidian, obsidian-second-brain): a beautiful markdown vault, but *you* have to remember to run commands or hope the model decides to call a tool.
@@ -47,6 +47,8 @@ If you already have an Obsidian vault you want to bring along, see
 [Vault setup](#vault-setup) below — `/superbrain:migrate` is the preferred path.
 
 Installed at **user scope**, the plugin's hooks register for *every* project automatically — there is nothing else to do, ever.
+
+> If SuperBrain saves you context, please star ⭐ — it's the only signal we have.
 
 ## Supported platforms
 
