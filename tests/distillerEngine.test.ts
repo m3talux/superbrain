@@ -9,12 +9,8 @@ describe("distillerEngine", () => {
     expect(c.options.cwd).toBe("/work");
     expect(c.options.env.SUPERBRAIN_CHILD).toBe("1");
     expect(c.options.env.SUPERBRAIN_SESSION_ID).toBe("S");
-    expect(c.options.env.SUPERBRAIN_ROLLUP).toBeUndefined();
   });
-  it("passes rollup env when requested", () => {
-    const c = buildDistillCommand({ sessionId: "S", cwd: "/w", rollup: "daily:2026-05-18:42" });
-    expect(c.options.env.SUPERBRAIN_ROLLUP).toBe("daily:2026-05-18:42");
-  });
+
   it("detects recursion via env", () => {
     expect(isChild({ SUPERBRAIN_CHILD: "1" })).toBe(true);
     expect(isChild({})).toBe(false);

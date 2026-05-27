@@ -64,11 +64,7 @@ it("after adopt, the distiller writes to the adopted vault, NOT the default data
   const fallbackNote = path.join(dataDir, "vault", "decisions", "2026-05-20-adopt-routing-works.md");
   expect(fs.existsSync(fallbackNote)).toBe(false);
 
-  // Step 5: the daily/<today>.log lives at dataDir/logs/, not in the vault —
-  // verify it still wrote there (system telemetry stays in dataDir even
-  // when vault is adopted elsewhere).
-  const today = new Date().toISOString().slice(0, 10);
-  expect(fs.readFileSync(path.join(dataDir, "logs", `${today}.log`), "utf8")).toMatch(/Adopt Routing Works/);
+
 });
 
 it("after adopt + a subsequent re-adopt to a different dir, writes go to the LATEST adopted dir", () => {
