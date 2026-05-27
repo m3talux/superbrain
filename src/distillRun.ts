@@ -14,8 +14,7 @@ import { route, type DistilledItem } from "./router.js";
 import { writeNote } from "./vaultWriter.js";
 import { releaseLock } from "./lockfile.js";
 import { writeFailure } from "./sentinel.js";
-import { vaultPath, logFilePath, dataDir } from "./paths.js";
-import { markRollup } from "./rollupState.js";
+import { vaultPath, dataDir } from "./paths.js";
 import { indexNote } from "./indexer.js";
 import { upsertDay } from "./dailyState.js";
 import { buildDailyNote } from "./dailyNote.js";
@@ -130,73 +129,8 @@ function getEnvelope(deltaJson: string): DistilledEnvelope {
   return parseEnvelope(out);
 }
 
-function appendLog(title: string, rel: string) {
-  // Per-day .log file in dataDir/logs/. Not in the vault — it's system
-  // telemetry, not a note. One file per day caps unbounded growth and makes
-  // the daily rollup input trivially scoped to its day.
-  const now = new Date();
-  const date = now.toISOString().slice(0, 10);
-  const stamp = now.toISOString().slice(0, 16).replace("T", " ");
-  const p = logFilePath(date);
-  fs.mkdirSync(path.dirname(p), { recursive: true });
-  fs.appendFileSync(p, `[${stamp}] write | ${title} | ${rel.replace(/\.md$/, "")}\n`);
-}
 
-function getRollupItems(logContent: string, key: string): DistilledItem[] {
-  const stub = process.env.SUPERBRAIN_DISTILL_STUB;
-  if (stub) return parseEnvelope(fs.readFileSync(stub, "utf8")).items;
-  const prompt =
-    `You are SuperBrain's daily rollup synthesizer. Given this activity log for ${key}, ` +
-    'output ONLY a JSON object {"items":[{"kind":"capture","title":"Daily ' + key + '",' +
-    `"body":"<synthesis>","date":"${key}","links":[]}]}. Activity log:\n` + logContent;
-  const out = callClaude(prompt);
-  return parseEnvelope(out).items;
-}
 
-export async function runRollup(rollupEnv: string): Promise<void> {
-  // Format: daily:<key>:<hash>
-  const parts = rollupEnv.split(":");
-  // parts[0] = "daily", parts[1] = key (YYYY-MM-DD), parts[2] = hash
-  const kind = parts[0] as "daily";
-  const key = parts[1];
-  const hash = parts[2];
-
-  try {
-    const logFile = logFilePath(key);
-    let logContent = "";
-    try { logContent = fs.readFileSync(logFile, "utf8"); } catch { /* absent is fine */ }
-
-    const items = getRollupItems(logContent, key);
-    const env = parseEnvelope(process.env.SUPERBRAIN_DISTILL_STUB
-      ? fs.readFileSync(process.env.SUPERBRAIN_DISTILL_STUB, "utf8") : "{}");
-    const routed: string[] = [];
-    for (const it of items) {
-      it.links = resolveLinks(it.links || [], vaultPath());
-      const r = route(it);
-      const res = writeNote(r.relPath, { frontmatter: r.frontmatter, body: r.body, mode: r.mode });
-      if (res.ok) {
-        appendLog(it.title || it.kind, r.relPath);
-        try { await indexNote(r.relPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
-        routed.push(r.relPath);
-      }
-    }
-    try {
-      upsertDay(key, `rollup-${key}`, {
-        digestLine: env.digest || "", routedRelPaths: routed,
-        alsoDid: env.alsoDid || [], openThreads: env.openThreads || [],
-      });
-      const dn = buildDailyNote(key);
-      writeNote(dn.relPath, { frontmatter: dn.frontmatter, body: dn.body, mode: dn.mode });
-      try { await indexNote(dn.relPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
-    } catch (e: any) { writeFailure(`daily note failed: ${e?.message || e}`); }
-    // Mark rollup complete only on success
-    markRollup(kind, key, hash);
-  } catch (e: any) {
-    writeFailure(`distill rollup failed: ${e?.message || e}`);
-  } finally {
-    releaseLock("distill");
-  }
-}
 
 // Cost optimization: skip the claude -p spawn entirely when the session
 // delta has too little signal to be worth distilling. Reads the same NDJSON
@@ -259,7 +193,6 @@ export async function runDistill(): Promise<void> {
       // append/replace bodies are fragments — template validation is not applicable.
       if (r.mode !== "create") {
         writeNote(r.relPath, { frontmatter: r.frontmatter, body: r.body, mode: r.mode });
-        appendLog(it.title || it.kind, r.relPath);
         try { await indexNote(r.relPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
         (routedByDate[it.date] ||= []).push(r.relPath);
         continue;
@@ -342,7 +275,6 @@ export async function runDistill(): Promise<void> {
       }
       const res = writeNote(r.relPath, { frontmatter: r.frontmatter, body: r.body, mode: r.mode });
       if (res.ok) {
-        appendLog(it.title || it.kind, r.relPath);
         try { await indexNote(r.relPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
         (routedByDate[it.date] ||= []).push(r.relPath);
       }
