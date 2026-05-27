@@ -19,11 +19,7 @@ async function main() {
     }
     try {
         const run = await import("../src/distillRun.js");
-        const rollupEnv = process.env.SUPERBRAIN_ROLLUP;
-        if (rollupEnv)
-            await run.runRollup(rollupEnv);
-        else
-            await run.runDistill();
+        await run.runDistill();
     }
     catch (e) {
         try {
