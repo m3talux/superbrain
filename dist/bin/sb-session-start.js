@@ -4,20 +4,11 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { readAndClearFailure } from "../src/sentinel.js";
-import { needsRollup, markRollup } from "../src/rollupState.js";
 import { dataDir, vaultPath, pluginRoot } from "../src/paths.js";
-import { isChild, buildDistillCommand } from "../src/distillerEngine.js";
+import { isChild } from "../src/distillerEngine.js";
 import { depsPresent, runBootstrap } from "../src/bootstrap.js";
 import { recordedVaultPath } from "../src/vaultMarker.js";
 import { isUnknownProject, looksLikeCodeProject } from "../src/discoverer.js";
-// Stable per-day gate value. The rollup's own writes cannot change this string,
-// so needsRollup returns false for an already-processed key → converges.
-const ROLLUP_HASH = "v1";
-function yesterday() {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return d.toISOString().slice(0, 10);
-}
 function readStdin() { try {
     return fs.readFileSync(0, "utf8");
 }
@@ -39,29 +30,6 @@ async function main() {
         const parts = [];
         if (fail)
             parts.push(`⚠️ SuperBrain: last capture failed — ${fail.trim()} (fixed automatically next checkpoint; set ANTHROPIC_API_KEY if it persists).`);
-        // Idempotent daily catch-up (capped to yesterday only for Phase 1).
-        const key = yesterday();
-        if (needsRollup("daily", key, ROLLUP_HASH)) {
-            if (process.env.SUPERBRAIN_FAKE_DISTILLER === "1") {
-                fs.mkdirSync(dataDir(), { recursive: true });
-                fs.writeFileSync(path.join(dataDir(), "rollup-invoked"), key);
-                markRollup("daily", key, ROLLUP_HASH);
-            }
-            else {
-                try {
-                    // Ensure the vault directory exists so spawn's cwd is valid.
-                    fs.mkdirSync(vaultPath(), { recursive: true });
-                    // Spawn the real writer detached; it calls markRollup on success (conditional).
-                    const spec = buildDistillCommand({ sessionId: `rollup-${key}`, cwd: vaultPath(), rollup: `daily:${key}:${ROLLUP_HASH}` });
-                    const c = spawn(spec.cmd, spec.args, spec.options);
-                    c.unref();
-                }
-                catch { /* non-fatal */ }
-                // Do NOT call markRollup here — the spawned child marks it on success.
-                // This preserves self-heal: if the child fails, needsRollup will be true next time.
-            }
-            parts.push(`SuperBrain: generating daily rollup for ${key}.`);
-        }
         const root = pluginRoot();
         if (!depsPresent(root)) {
             runBootstrap(root);

@@ -35,7 +35,4 @@ it("surfaces a prior failure once via additionalContext", () => {
   expect(out2).not.toMatch(/boom/);
 });
 
-it("triggers a (faked) daily rollup when none compiled", () => {
-  run();
-  expect(fs.existsSync(path.join(TMP_DATA, "rollup-invoked"))).toBe(true);
-});
+

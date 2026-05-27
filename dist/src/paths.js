@@ -42,9 +42,4 @@ function sessionsDir() { return path.join(dataDir(), "sessions"); }
 export function sessionNdjsonPath(id) { return path.join(sessionsDir(), `${id}.ndjson`); }
 export function cursorPath(id) { return path.join(sessionsDir(), `${id}.cursor`); }
 export function sentinelPath() { return path.join(dataDir(), "last-failure.txt"); }
-export function rollupStatePath() { return path.join(dataDir(), "rollup-state.json"); }
 export function lockDir(name) { return path.join(dataDir(), "locks", `${name}.lock`); }
-// Per-day write log used by the daily rollup synthesizer. Lives in dataDir,
-// not the vault — it's system telemetry, not a user-facing note. One file per
-// day caps size and makes the rollup input trivially scoped.
-export function logFilePath(date) { return path.join(dataDir(), "logs", `${date}.log`); }

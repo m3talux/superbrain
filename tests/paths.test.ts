@@ -26,7 +26,7 @@ describe("paths", () => {
     expect(P.sessionNdjsonPath("abc")).toBe(path.join(TMP_DATA, "sessions/abc.ndjson"));
     expect(P.cursorPath("abc")).toBe(path.join(TMP_DATA, "sessions/abc.cursor"));
     expect(P.sentinelPath()).toBe(path.join(TMP_DATA, "last-failure.txt"));
-    expect(P.rollupStatePath()).toBe(path.join(TMP_DATA, "rollup-state.json"));
+
     expect(P.lockDir("distill")).toBe(path.join(TMP_DATA, "locks/distill.lock"));
   });
   it("falls back to ~/.superbrain and ~/vault", () => {

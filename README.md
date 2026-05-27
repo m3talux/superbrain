@@ -25,7 +25,7 @@ Every Claude Code session ends and the reasoning vanishes. Decisions, trade-offs
 - **Automatic but opaque** (claude-mem, mcp-memory-service): great zero-config capture, but it lives in a SQLite/Chroma blob you can't browse, edit, or own.
 - **Obsidian but manual** (basic-memory, claudesidian, obsidian-second-brain): a beautiful markdown vault, but *you* have to remember to run commands or hope the model decides to call a tool.
 
-**No mature tool does all of:** globally installed → automatic capture → into a plain Obsidian vault → with time-based rollups → that you fully own and can `git`-sync. SuperBrain is that missing bridge.
+**No mature tool does all of:** globally installed → automatic capture → into a plain Obsidian vault → with incremental daily notes → that you fully own and can `git`-sync. SuperBrain is that missing bridge.
 
 This isn't vibes: ~23 prior-art projects and the current Claude Code platform were surveyed, and every architectural decision was challenged before a line was written.
 
@@ -72,17 +72,15 @@ flowchart LR
   C -->|detached, lock-serialized| D[sb-distill<br/>claude -p]
   D --> E[Router]
   E --> F[(Obsidian vault<br/>notes only)]
-  E --> L[(~/.superbrain/logs/<br/>per-day .log files)]
+  D -.->|incremental rebuild| I[Daily note for today]
+  I --> F
   C -.->|byte cursor| B
-  G[SessionStart] -->|idempotent catch-up| H[Daily / weekly / monthly rollup]
-  H --> F
-  L --> H
 ```
 
 1. **Observe** — `PostToolUse` / `UserPromptSubmit` hooks append a compact event line to a per-session NDJSON log. **No LLM** on this path, so it can never rate-limit, stall, or disrupt your turn.
 2. **Pin salience** — a deterministic scorer drops a structured marker into the log at the moments that matter (a commit, a file-churn spike, a context switch), so the later summary is anchored to *what happened* instead of re-derived from noise.
 3. **Distill at checkpoints** — at `PreCompact`, `SessionEnd`, or a pending-gated `Stop`, one detached, lock-serialized `claude -p` reads the delta since a byte-offset cursor, classifies it, and writes routed notes via an in-process vault writer.
-4. **Roll up** — on session start, missing daily/weekly/monthly summaries are caught up idempotently. Miss a day, sleep the laptop, skip a week — it self-heals on the next session.
+4. **Update the day's journal** — each distill incrementally rebuilds today's `daily/<date>.md` from the per-session state (digest line + routed-note links + threads). Deterministic concat, no extra LLM call.
 
 ## Features
 
@@ -93,9 +91,9 @@ flowchart LR
 - ✅ Automatic capture that does **not** degrade on multi-day sessions
 - ✅ Plain Obsidian markdown — wikilinks, frontmatter, fully `git`-portable, zero lock-in
 - ✅ Smart router: decisions / project facts / people / gotchas / triage capture
-- ✅ Self-healing daily/weekly/monthly rollup catch-up — no cron, no daemon
+- ✅ Incremental daily notes — rebuilt deterministically from per-session state on every distill, no extra LLM call, no cron, no daemon
 - ✅ Append-or-create, **never** blind-overwrites a note you edited in Obsidian; soft-delete to `.trash/`
-- ✅ Idempotent & resumable (byte cursor + per-day `~/.superbrain/logs/<date>.log` files); silent failures surface once on next session
+- ✅ Idempotent & resumable (byte cursor + per-session NDJSON event log); silent failures surface once on next session
 - ✅ One-command migration off a legacy custom scribe (archives, never deletes)
 
 **Search & recall**
@@ -144,7 +142,7 @@ Safety rails: inject never creates new project notes (use `/superbrain:discover`
 ├── decisions/     atomic, date-prefixed ADR-style notes
 ├── daily/         auto-written daily activity
 ├── lessons/       durable, generalizable rules learned from your pushback
-├── capture/       raw inbound, triaged by rollups
+├── capture/       raw inbound; triage tag for `/superbrain:inject` items
 ├── meta/          preferences.md — deduplicated profile auto-injected at SessionStart
 ├── maps/          auto-generated Maps-of-Content   (planned)
 └── index.md       catalog — the primary navigation surface
@@ -154,14 +152,12 @@ System telemetry (NOT in the vault — lives next to it in `~/.superbrain/`):
 
 ```
 ~/.superbrain/
-├── logs/<date>.log    per-day append-only write log; powers the daily rollup
 ├── sessions/          per-session NDJSON event streams + cursors
 ├── transcripts/       full session transcripts (when captured)
-├── index.db           hybrid search index (FTS5 + sqlite-vec)
-└── rollup-state.json  hash-gated rollup convergence state
+└── index.db           hybrid search index (FTS5 + sqlite-vec)
 ```
 
-Generated files are namespaced so the rollup regenerator never touches notes you authored.
+Generated files are namespaced (`daily/`, `index.md`) so the auto-rebuilders never touch notes you authored.
 
 ## Vault setup
 
@@ -175,7 +171,7 @@ SuperBrain's vault lives at `~/.superbrain/vault` — fixed, predictable, no env
 /superbrain:migrate --dry-run        # preview without writing
 ```
 
-`/superbrain:migrate` reads your existing Obsidian vault (the source is **never modified**) and copies its content into `~/.superbrain/vault`, fitting it into SuperBrain's structure (`projects/`, `decisions/`, `people/`, `daily/`, etc.). From then on, SuperBrain owns and extends a vault it fully understands — its router, rollups, and index all behave predictably. **This is the recommended path** for almost every user.
+`/superbrain:migrate` reads your existing Obsidian vault (the source is **never modified**) and copies its content into `~/.superbrain/vault`, fitting it into SuperBrain's structure (`projects/`, `decisions/`, `people/`, `daily/`, etc.). From then on, SuperBrain owns and extends a vault it fully understands — its router, daily notes, and index all behave predictably. **This is the recommended path** for almost every user.
 
 ### Adopt (advanced — only when migration isn't an option)
 
@@ -185,7 +181,7 @@ SuperBrain's vault lives at `~/.superbrain/vault` — fixed, predictable, no env
 
 `/superbrain:adopt` does **not** copy anything; it records your existing path as the vault location and starts writing into it directly. Use this only when you have a heavily established Obsidian setup whose structure you do not want to change — broken into folders, plugins, layouts, or conventions SuperBrain isn't designed around.
 
-The trade-off: SuperBrain will work *on top of* whatever's already there rather than *alongside* a structure it owns. The router may write into folders that don't match your existing convention; rollups will live alongside your hand-authored notes; the search-index reconciler will still self-heal but has more drift to manage. Migration sidesteps all of that.
+The trade-off: SuperBrain will work *on top of* whatever's already there rather than *alongside* a structure it owns. The router may write into folders that don't match your existing convention; auto-generated daily notes will live alongside your hand-authored notes; the search-index reconciler will still self-heal but has more drift to manage. Migration sidesteps all of that.
 
 When in doubt: **migrate, don't adopt.**
 
@@ -196,7 +192,7 @@ required env vars. The single optional one:
 
 | Variable | Purpose |
 |---|---|
-| `ANTHROPIC_API_KEY` | Optional escape hatch — distillation uses the Anthropic API instead of your Claude Code subscription. Useful if you want the distill/rollup spawns to bypass subscription quota. |
+| `ANTHROPIC_API_KEY` | Optional escape hatch — distillation uses the Anthropic API instead of your Claude Code subscription. Useful if you want the distill spawns to bypass subscription quota. |
 
 > **Heads-up (2026-06-15):** background `claude -p` / Agent-SDK usage on subscription plans draws from a separate capped monthly credit after this date. If captures stop, SuperBrain surfaces a one-time notice on session start — set `ANTHROPIC_API_KEY` to switch to the API path.
 
@@ -234,7 +230,7 @@ of the following on top with no special configuration:
 
 Whichever you choose, treat it as **backup / sync owned by you**, not by the
 plugin. Running the same vault from two machines concurrently can still produce
-git conflicts in regenerated files (`index.md`, rollups) — Obsidian
+git conflicts in regenerated files (`index.md`, today's `daily/`) — Obsidian
 Git's conflict UX or a single-writer-at-a-time habit avoids that. SuperBrain's
 job is to stay idempotent and drift-tolerant so any of these Just Work; it is
 not to own your remote.
@@ -258,7 +254,7 @@ Enforced, tested invariants — not aspirations:
 - **Never disrupt the session.** Every hook exits 0 no matter what; `PreCompact` never blocks compaction; a crashing hook is impossible by construction.
 - **Never lose data.** Append-or-create only; a note you edited in Obsidian is never clobbered; deletes go to `.trash/`.
 - **Never silently die.** Failures land in a sentinel surfaced once on the next `SessionStart`.
-- **Idempotent & self-healing.** Byte cursor + grep-parseable log + hash-gated rollups; a missed or killed run is recovered next session.
+- **Idempotent & self-healing.** Byte cursor + per-session NDJSON event log; a missed or killed run is recovered next session.
 - **No daemon, no scheduler, no API key.** One detached process per checkpoint — nothing to supervise, nothing to leak.
 
 ## Development

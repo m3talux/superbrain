@@ -45,7 +45,6 @@ it("real checkpoint path (no fake seam) writes a vault note and releases the loc
   const found = fs.existsSync(TMP_VAULT) && fs.readdirSync(TMP_VAULT, { recursive: true } as any)
     .some((f: any) => String(f).endsWith(".md"));
   expect(found).toBe(true);
-  const today = new Date().toISOString().slice(0, 10);
-  expect(fs.readFileSync(path.join(TMP_DATA, `logs/${today}.log`), "utf8")).toMatch(/Use X/);
+
   expect(fs.existsSync(path.join(TMP_DATA, "locks/distill.lock"))).toBe(false);
 });
