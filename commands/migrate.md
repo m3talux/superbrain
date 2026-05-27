@@ -136,5 +136,5 @@ This slash command runs **in your active session**, at whatever Claude model you
 not on a pinned model. For a vault with hundreds of notes, categorization quality matters but
 Opus is expensive. Before invoking on a big vault, consider switching your session to Sonnet
 (`/model claude-sonnet-4-6`) — similar judgment quality at ~1/5 the cost. Switch back after.
-(The plugin's own detached distill/rollup spawns are hardcoded to Sonnet 4.6;
+(The plugin's own detached distill spawns are hardcoded to Sonnet 4.6;
 this concern only applies to the in-session migrate command.)
