@@ -255,7 +255,7 @@ export async function runDistill(): Promise<void> {
     }
     const env = getEnvelope(JSON.stringify(events));
     const sessionProj = resolveSessionProject(events);
-    const PROJECT_SCOPED_KINDS = new Set<string>(["project_fact", "gotcha", "decision"]);
+    const PROJECT_SCOPED_KINDS = new Set<string>(["project_fact", "gotcha", "decision", "capture"]);
     const items = env.items;
     const routedByDate: Record<string, string[]> = {};
     for (const it of items) {

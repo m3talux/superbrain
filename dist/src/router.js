@@ -128,7 +128,7 @@ export function route(item) {
                 }
                 return {
                     relPath: `capture/${item.date}-${slug(item.title)}.md`,
-                    frontmatter: { type: "capture", status: "active", tags: ["triage"], ...base },
+                    frontmatter: { type: "capture", status: "active", tags: ["triage"], ...(item.project ? { project: slug(item.project) } : {}), ...base },
                     body: withLinks(captureBody, item.links),
                     mode: "create",
                 };
