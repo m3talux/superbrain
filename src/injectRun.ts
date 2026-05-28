@@ -108,13 +108,14 @@ async function writeOne(
   return routed.relPath;
 }
 
-async function updateDaily(date: string, sid: string, routedRel: string[]): Promise<void> {
+async function updateDaily(date: string, sid: string, routedRel: string[], project?: string): Promise<void> {
   try {
     upsertDay(date, sid, {
       digestLine: "",
       routedRelPaths: routedRel,
       alsoDid: [],
       openThreads: [],
+      ...(project !== undefined ? { project } : {}),
     });
     const dn = buildDailyNote(date);
     writeNote(dn.relPath, { frontmatter: dn.frontmatter, body: dn.body, mode: dn.mode });
@@ -217,11 +218,12 @@ export async function runInject(raw: string, opts: InjectOpts = {}): Promise<Inj
 
   try {
     const mode = detectMode(sane.text, opts);
+    const injectProject = opts.project ? slug(opts.project) : undefined;
     if (mode === "verbatim") {
       const item = buildVerbatimItem(sane.text, opts);
       const rel = await writeOne(item, "verbatim");
       if (!rel) return { ok: false, mode, notes: [], message: "vault write failed" };
-      await updateDaily(item.date, `inject-${Date.now()}`, [rel]);
+      await updateDaily(item.date, `inject-${Date.now()}`, [rel], injectProject);
       appendInjectLog("verbatim", 1, sane.text);
       return { ok: true, mode, notes: [rel] };
     }
@@ -243,7 +245,7 @@ export async function runInject(raw: string, opts: InjectOpts = {}): Promise<Inj
       const item = buildVerbatimItem(sane.text, opts);
       const rel = await writeOne(item, "verbatim");
       if (!rel) return { ok: false, mode: "distill", notes: [], message: "vault write failed" };
-      await updateDaily(item.date, `inject-${Date.now()}`, [rel]);
+      await updateDaily(item.date, `inject-${Date.now()}`, [rel], injectProject);
       appendInjectLog("verbatim", 1, sane.text);
       return { ok: true, mode: "distill", notes: [rel], fallback: true };
     }
@@ -253,7 +255,7 @@ export async function runInject(raw: string, opts: InjectOpts = {}): Promise<Inj
       const rel = await writeOne(item, "distill");
       if (rel) written.push(rel);
     }
-    await updateDaily(todayIso(), `inject-${Date.now()}`, written);
+    await updateDaily(todayIso(), `inject-${Date.now()}`, written, injectProject);
     appendInjectLog("distill", written.length, sane.text);
     return { ok: written.length > 0, mode: "distill", notes: written };
   } finally {
