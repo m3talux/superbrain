@@ -35,7 +35,7 @@ export async function appendDigest(parts: string[], h: any): Promise<void> {
       const recentSlugs: string[] = [];
 
       // Scan the last 7 calendar days newest-first for this project's activity.
-      for (let i = 1; i <= 7; i++) {
+      for (let i = 0; i <= 7; i++) {
         const d = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
         const day = readDay(d);
         for (const entry of Object.values(day)) {
