@@ -5,6 +5,18 @@ import * as sqliteVec from "sqlite-vec";
 import { dataDir } from "./paths.js";
 import { EMBED_DIM } from "./embed.js";
 import { ensureEdgesTable } from "./edges.js";
+function toScalarString(v) {
+    if (typeof v === "string")
+        return v;
+    if (Array.isArray(v)) {
+        const flat = v.flat(Infinity);
+        const first = flat.find((x) => typeof x === "string");
+        return typeof first === "string" ? first : null;
+    }
+    if (v instanceof Date)
+        return v.toISOString().slice(0, 10);
+    return null;
+}
 export function rrf(lists, k, c = 60) {
     return rrfWithScores(lists, k, c).map((e) => e.id);
 }
@@ -58,7 +70,7 @@ export function openIndex() {
             insFts.run(id, (c.headingPath ? c.headingPath + " " : "") + c.text);
             insVec.run(BigInt(id), JSON.stringify(Array.from(embs[i])));
         });
-        insNote.run(relPath, mtime, hash, project ?? null, created ?? null);
+        insNote.run(relPath, mtime, hash, toScalarString(project ?? null), toScalarString(created ?? null));
     });
     const hydrate = (ids) => ids.map((id) => {
         const r = db.prepare("SELECT rel_path,heading_path,anchor,text FROM chunks WHERE id=?").get(id);

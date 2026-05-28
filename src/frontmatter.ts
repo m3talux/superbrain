@@ -2,8 +2,6 @@ import matter from "gray-matter";
 
 const VALID_TYPES = ["project", "person", "decision", "capture", "daily", "map", "summary", "lesson", "preference"];
 const VALID_STATUS = ["active", "paused", "done", "archived"];
-// Types whose route always supplies project: — only these are enforced
-const PROJECT_REQUIRED = new Set(["project"]);
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function normalizeDates(data: Record<string, any>): Record<string, any> {

@@ -291,6 +291,7 @@ export async function runDistill(): Promise<void> {
       const classifiableKinds = new Set<string>(["decision", "lesson", "capture", "project", "daily", "person"]);
       let writeBody = r.body;
       let writeRelPath = r.relPath;
+      let writeFrontmatter = r.frontmatter;
       if (classifiableKinds.has(it.kind)) {
         try {
           // Merge item.project into frontmatter for classify: some router cases
@@ -301,7 +302,6 @@ export async function runDistill(): Promise<void> {
           const candidateDoc = serializeNote(classifyFm, r.body);
           const cr = classify({ proposedType: it.kind as NoteType, title: it.title, body: candidateDoc });
           if (!cr.accepted) {
-            // Diagnostic: record the rejection reason so operators can see what was coerced.
             recordRejection(vaultPath(), {
               type: it.kind,
               reason: `coerced (was: ${cr.reason ?? "rejected by classifier"})`,
@@ -309,25 +309,29 @@ export async function runDistill(): Promise<void> {
               title: it.title,
               excerpt: candidateDoc.slice(0, 500),
             });
-            // Coerce-don't-drop: a second brain must never silently lose durable knowledge.
+            // Coerce-don't-drop: re-route to the (possibly suggested) kind so the
+            // frontmatter, path, and body agree, then coerce the body to pass.
             const targetKind = cr.suggestedType ?? (it.kind as NoteType);
-            if (targetKind === "capture" || it.kind === "capture") {
-              const coerced = coerceCapture(it, r.body);
-              const coercedTitle = shortTitle(it.title, it.body || "");
-              writeRelPath = `capture/${it.date}-${(coercedTitle).toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "untitled"}.md`;
-              writeBody = coerced;
-            } else if (targetKind === "lesson" || it.kind === "lesson") {
-              writeBody = coerceLesson(it, r.body);
+            if (targetKind === "capture") {
+              const reItem: DistilledItem = { ...it, kind: "capture", title: shortTitle(it.title, it.body || "") };
+              const r2 = route(reItem);
+              writeFrontmatter = r2.frontmatter;
+              writeRelPath = r2.relPath;
+              writeBody = coerceCapture(reItem, r.body);
+            } else if (targetKind === "lesson") {
+              const reItem: DistilledItem = { ...it, kind: "lesson" };
+              const r2 = route(reItem);
+              writeFrontmatter = r2.frontmatter;
+              writeRelPath = r2.relPath;
+              writeBody = coerceLesson(reItem, r.body);
             }
-            // For other rejected kinds without a suggested reroute, fall through with
-            // the original body — the rejection was logged and the note is written as-is.
           }
         } catch (e: any) {
           // Classifier or recordRejection threw — fail open: log and continue with the write.
           writeFailure(`classify failed for '${it.title}': ${e?.message || e}`);
         }
       }
-      const res = writeNote(writeRelPath, { frontmatter: r.frontmatter, body: writeBody, mode: r.mode });
+      const res = writeNote(writeRelPath, { frontmatter: writeFrontmatter, body: writeBody, mode: r.mode });
       if (res.ok) {
         try { await indexNote(writeRelPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
         (routedByDate[it.date] ||= []).push(writeRelPath);

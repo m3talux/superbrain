@@ -76,6 +76,12 @@ it("classifier-rerouted item is coerced and written to the suggested kind; rejec
   const captureFiles = fs.readdirSync(captureDir).filter((f) => f.endsWith(".md"));
   expect(captureFiles.length).toBeGreaterThan(0);
 
+  // The rerouted note must carry capture frontmatter, not the original decision type.
+  const captureContent = fs.readFileSync(path.join(captureDir, captureFiles[0]), "utf8");
+  expect(captureContent).toMatch(/^type: capture$/m);
+  expect(captureContent).not.toMatch(/^type: decision$/m);
+  expect(fs.existsSync(path.join(TMP_VAULT, "decisions"))).toBe(false);
+
   // 2. The reject file must exist and contain a diagnostic coercion entry.
   const rejectsFile = path.join(TMP_VAULT, "meta", "distill-rejects.md");
   expect(fs.existsSync(rejectsFile)).toBe(true);

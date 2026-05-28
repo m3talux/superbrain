@@ -25,6 +25,44 @@ import { serializeNote } from "./frontmatter.js";
 import { dedupAgainstVault } from "./distillDedup.js";
 import { openIndex } from "./searchIndex.js";
 import { embed } from "./embed.js";
+function shortTitle(raw, fallbackBody) {
+    const src = (raw || fallbackBody).trim();
+    const words = src.split(/\s+/).filter(Boolean);
+    const taken = words.slice(0, 8).join(" ").replace(/\.+$/, "");
+    return taken || "Captured note";
+}
+function countBodyWords(body) {
+    return body
+        .replace(/^---[\s\S]*?\n---\n?/m, "")
+        .replace(/^#+ .*$/gm, "")
+        .split(/\s+/)
+        .filter(Boolean).length;
+}
+function trimToWordCeiling(text, ceiling) {
+    const words = text.split(/\s+/).filter(Boolean);
+    if (words.length <= ceiling)
+        return text;
+    return words.slice(0, ceiling).join(" ");
+}
+export function coerceCapture(item, routedBody) {
+    const title = shortTitle(item.title, item.body || "");
+    const rawBody = (item.body || routedBody || "").trim();
+    const words = rawBody.split(/\s+/).filter(Boolean);
+    const maxWhat = 180;
+    const whatContent = words.length > maxWhat
+        ? words.slice(0, maxWhat).join(" ") + " …"
+        : rawBody;
+    const lastSentence = rawBody.split(/[.!?](?:\s|$)/).filter(Boolean).pop()?.trim() || rawBody.slice(0, 100);
+    const whyContent = lastSentence.replace(/\.+$/, "").slice(0, 120);
+    return `# ${title}\n\n## What\n\n${whatContent}\n\n## Why it matters\n\n${whyContent}\n`;
+}
+export function coerceLesson(item, routedBody) {
+    const title = (item.title || "Lesson").trim();
+    const ruleText = (item.rule || "").trim() || trimToWordCeiling((item.body || routedBody || "").trim(), 30);
+    const whyText = (item.why || item.body || routedBody || "").trim() || "See session context.";
+    const whenText = (item.whenApplies || "").trim() || "In relevant future situations.";
+    return `# ${title}\n\n## Rule\n\n${ruleText}\n\n## Why\n\n${whyText}\n\n## When this applies\n\n${whenText}\n`;
+}
 export function parseEnvelope(raw) {
     let v;
     try {
@@ -85,7 +123,7 @@ person: { kind, title (short), date, person (slug — required), body (role/cont
 
 preference: { kind, title: "Preferences", date, body (the FULL reconciled user-preferences doc — plain markdown, organized by '## Category' headings such as Code style / Architecture / Tools / Communication, NEVER containing SuperBrain distiller behavior) }
 
-capture: { kind, title, date, body, links }
+capture: { kind, title (≤8 words, no trailing period — scannable noun phrase, not a sentence), date, what (one paragraph: the fact, tool, or event worth keeping), whyItMatters (1–2 sentences: why it is worth keeping), links }
 
 # Preferences reconciliation
 
@@ -249,8 +287,10 @@ export async function runDistill() {
             // Classification gate: only classify kinds that are valid NoteTypes.
             // project_fact and preference are not in NoteType and are always passed through.
             const classifiableKinds = new Set(["decision", "lesson", "capture", "project", "daily", "person"]);
+            let writeBody = r.body;
+            let writeRelPath = r.relPath;
+            let writeFrontmatter = r.frontmatter;
             if (classifiableKinds.has(it.kind)) {
-                let skipWrite = false;
                 try {
                     // Merge item.project into frontmatter for classify: some router cases
                     // (lesson, person) omit project even when the distiller provided one.
@@ -262,30 +302,44 @@ export async function runDistill() {
                     if (!cr.accepted) {
                         recordRejection(vaultPath(), {
                             type: it.kind,
-                            reason: cr.reason ?? "rejected by classifier",
+                            reason: `coerced (was: ${cr.reason ?? "rejected by classifier"})`,
                             sessionId: sid,
                             title: it.title,
                             excerpt: candidateDoc.slice(0, 500),
                         });
-                        skipWrite = true;
+                        // Coerce-don't-drop: re-route to the (possibly suggested) kind so the
+                        // frontmatter, path, and body agree, then coerce the body to pass.
+                        const targetKind = cr.suggestedType ?? it.kind;
+                        if (targetKind === "capture") {
+                            const reItem = { ...it, kind: "capture", title: shortTitle(it.title, it.body || "") };
+                            const r2 = route(reItem);
+                            writeFrontmatter = r2.frontmatter;
+                            writeRelPath = r2.relPath;
+                            writeBody = coerceCapture(reItem, r.body);
+                        }
+                        else if (targetKind === "lesson") {
+                            const reItem = { ...it, kind: "lesson" };
+                            const r2 = route(reItem);
+                            writeFrontmatter = r2.frontmatter;
+                            writeRelPath = r2.relPath;
+                            writeBody = coerceLesson(reItem, r.body);
+                        }
                     }
                 }
                 catch (e) {
                     // Classifier or recordRejection threw — fail open: log and continue with the write.
                     writeFailure(`classify failed for '${it.title}': ${e?.message || e}`);
                 }
-                if (skipWrite)
-                    continue;
             }
-            const res = writeNote(r.relPath, { frontmatter: r.frontmatter, body: r.body, mode: r.mode });
+            const res = writeNote(writeRelPath, { frontmatter: writeFrontmatter, body: writeBody, mode: r.mode });
             if (res.ok) {
                 try {
-                    await indexNote(r.relPath);
+                    await indexNote(writeRelPath);
                 }
                 catch (e) {
                     writeFailure(`index failed: ${e?.message || e}`);
                 }
-                (routedByDate[it.date] ||= []).push(r.relPath);
+                (routedByDate[it.date] ||= []).push(writeRelPath);
             }
         }
         // Daily journal: record this session's contribution + regenerate the note(s).
