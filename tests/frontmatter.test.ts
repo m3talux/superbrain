@@ -28,16 +28,29 @@ describe("frontmatter", () => {
     expect(out).not.toMatch(/created: "2026-05-22"/);
   });
 
-  it("throws when writing without type", () => {
-    expect(() => serializeNote({ created: "2026-05-22", project: "superbrain" }, "body")).toThrow(/required: type/);
+  it("does not throw when writing without type", () => {
+    const out = serializeNote({ created: "2026-05-22", project: "superbrain" }, "body");
+    expect(out).toContain("project: superbrain");
   });
 
-  it("throws when writing type=project without project field", () => {
-    expect(() => serializeNote({ type: "project", created: "2026-05-22", status: "active" }, "body")).toThrow(/required: project/);
-    // Daily exempt (and other types without project: in their template):
+  it("does not throw when writing type=project without project field", () => {
+    expect(() => serializeNote({ type: "project", created: "2026-05-22", status: "active" }, "body")).not.toThrow();
     expect(() => serializeNote({ type: "daily", date: "2026-05-22" }, "body")).not.toThrow();
     expect(() => serializeNote({ type: "decision", created: "2026-05-22", status: "active" }, "body")).not.toThrow();
     expect(() => serializeNote({ type: "preference", created: "2026-05-22" }, "body")).not.toThrow();
+  });
+
+  it("parseNote normalizes wikilink project ([['projects/weddy']]) to string", () => {
+    const raw = "---\ntype: project\nstatus: active\nproject:\n  - - projects/weddy\n---\n\nbody";
+    const { data } = parseNote(raw);
+    expect(data.project).toBe("projects/weddy");
+  });
+
+  it("serializeNote on note missing type does not throw and returns markdown", () => {
+    const out = serializeNote({ status: "active" }, "some body");
+    expect(typeof out).toBe("string");
+    expect(out).toContain("status: active");
+    expect(out).toContain("some body");
   });
 
   it("normalizes a quoted date when reading", () => {
