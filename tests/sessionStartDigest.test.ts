@@ -80,6 +80,107 @@ describe("appendDigest — project-aware seed", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Session brief tests
+// ---------------------------------------------------------------------------
+
+describe("appendDigest — project-scoped session brief", () => {
+  let projectDir: string;
+  let readDayMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    projectDir = makeFixtureProject("my-widget");
+    process.env.SUPERBRAIN_TEST_BYPASS_BLOCKLIST = "1";
+
+    const { readDay } = await import("../src/dailyState.js");
+    readDayMock = readDay as ReturnType<typeof vi.fn>;
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    fs.rmSync(projectDir, { recursive: true, force: true });
+    delete process.env.SUPERBRAIN_TEST_BYPASS_BLOCKLIST;
+  });
+
+  it("prepends a brief containing the last-session digestLine when project is known", async () => {
+    const { appendDigest } = await import("../src/sessionDigest.js");
+    const slug = path.basename(projectDir).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+
+    // today returns nothing; yesterday has a matching entry with a digestLine
+    readDayMock.mockImplementation((date: string) => {
+      const today = new Date().toISOString().slice(0, 10);
+      if (date === today) return {};
+      return {
+        "s1": { digestLine: "Shipped the widget auth flow", routedRelPaths: ["projects/my-widget/auth.md"], alsoDid: [], openThreads: [], project: slug },
+      };
+    });
+
+    const parts: string[] = [];
+    await appendDigest(parts, { cwd: projectDir });
+
+    const brief = parts[0];
+    expect(brief).toBeDefined();
+    expect(brief).toContain("widget auth flow");
+    expect(brief).toMatch(/SuperBrain/);
+    // Brief must be first
+    expect(parts.indexOf(brief)).toBe(0);
+  });
+
+  it("includes recent routed note slugs in the brief when available", async () => {
+    const { appendDigest } = await import("../src/sessionDigest.js");
+    const slug = path.basename(projectDir).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+
+    readDayMock.mockImplementation((date: string) => {
+      const today = new Date().toISOString().slice(0, 10);
+      if (date === today) return {};
+      return {
+        "s1": {
+          digestLine: "Refactored widget pipeline",
+          routedRelPaths: ["projects/my-widget/pipeline.md", "projects/my-widget/types.md"],
+          alsoDid: [], openThreads: [], project: slug,
+        },
+      };
+    });
+
+    const parts: string[] = [];
+    await appendDigest(parts, { cwd: projectDir });
+
+    const brief = parts[0];
+    expect(brief).toBeDefined();
+    expect(brief).toContain("pipeline");
+  });
+
+  it("emits no brief when cwd is not a known project", async () => {
+    const { appendDigest } = await import("../src/sessionDigest.js");
+    delete process.env.SUPERBRAIN_TEST_BYPASS_BLOCKLIST;
+
+    readDayMock.mockReturnValue({});
+
+    const parts: string[] = [];
+    await appendDigest(parts, { cwd: os.homedir() });
+
+    const brief = parts.find(p => p.startsWith("SuperBrain —") && p.includes("Last session:"));
+    expect(brief).toBeUndefined();
+  });
+
+  it("emits no brief when no prior digestLine is found for this project", async () => {
+    const { appendDigest } = await import("../src/sessionDigest.js");
+    const slug = path.basename(projectDir).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+
+    // All days have entries but none have a digestLine for this project
+    readDayMock.mockImplementation((_date: string) => ({
+      "s1": { digestLine: "", routedRelPaths: [], alsoDid: [], openThreads: [], project: slug },
+      "s2": { digestLine: "Other project work", routedRelPaths: [], alsoDid: [], openThreads: [], project: "completely-different" },
+    }));
+
+    const parts: string[] = [];
+    await appendDigest(parts, { cwd: projectDir });
+
+    const brief = parts.find(p => p.includes("Last session:"));
+    expect(brief).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Open-threads scoping tests
 // ---------------------------------------------------------------------------
 

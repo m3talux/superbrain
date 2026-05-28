@@ -234,6 +234,140 @@ function logDistillSkip(sid: string, reason: string): void {
   } catch { /* best-effort */ }
 }
 
+export interface DistillEventsResult {
+  notesWritten: number;
+}
+
+export async function distillFromEvents(sid: string, events: any[]): Promise<DistillEventsResult> {
+  const env = getEnvelope(JSON.stringify(events));
+  const sessionProj = resolveSessionProject(events);
+  const PROJECT_SCOPED_KINDS = new Set<string>(["project_fact", "gotcha", "decision", "capture"]);
+  const items = env.items;
+  const routedByDate: Record<string, string[]> = {};
+  let notesWritten = 0;
+  for (const it of items) {
+    if (!it.project && PROJECT_SCOPED_KINDS.has(it.kind) && sessionProj.dominant) {
+      it.project = sessionProj.dominant;
+    } else if (it.project) {
+      it.project = slug(it.project);
+    }
+    it.links = resolveLinks(it.links || [], vaultPath());
+    const r = route(it);
+    if (r.mode !== "create") {
+      const res0 = writeNote(r.relPath, { frontmatter: r.frontmatter, body: r.body, mode: r.mode });
+      if (res0.ok && res0.reason !== "duplicate-skipped") {
+        try { await indexNote(r.relPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
+        (routedByDate[it.date] ||= []).push(r.relPath);
+        notesWritten++;
+      }
+      continue;
+    }
+    {
+      let vaultDedupSkip = false;
+      try {
+        const vaultSearchFn = async (
+          query: string,
+          _opts?: { k?: number; type?: string; project?: string },
+        ): Promise<Array<{ path: string; score: number }>> => {
+          let ix;
+          try {
+            ix = openIndex();
+            const [qv] = await embed([query]);
+            const hits = ix.vectorKNN(qv, 1);
+            if (!hits.length) return [];
+            const [hv] = await embed([hits[0].text]);
+            let dot = 0, na = 0, nb = 0;
+            const n = Math.min(qv.length, hv.length);
+            for (let i = 0; i < n; i++) { dot += qv[i] * hv[i]; na += qv[i] ** 2; nb += hv[i] ** 2; }
+            const sim = (na && nb) ? dot / (Math.sqrt(na) * Math.sqrt(nb)) : 0;
+            return [{ path: hits[0].relPath, score: sim }];
+          } catch { return []; }
+          finally { ix?.close(); }
+        };
+        const vaultMatch = await dedupAgainstVault(
+          { title: it.title, body: r.body, project: it.project, type: r.frontmatter.type as string | undefined },
+          vaultSearchFn,
+        );
+        if (vaultMatch.match) {
+          recordRejection(vaultPath(), {
+            type: r.frontmatter.type as string ?? it.kind,
+            reason: `dedup vs ${vaultMatch.match} (score ${vaultMatch.score?.toFixed(2)})`,
+            sessionId: sid,
+            title: it.title,
+            excerpt: r.body.slice(0, 500),
+          });
+          vaultDedupSkip = true;
+        }
+      } catch (e: any) {
+        writeFailure(`vault dedup error: ${e?.message || e}`);
+      }
+      if (vaultDedupSkip) continue;
+    }
+    const classifiableKinds = new Set<string>(["decision", "lesson", "capture", "project", "daily", "person"]);
+    let writeBody = r.body;
+    let writeRelPath = r.relPath;
+    let writeFrontmatter = r.frontmatter;
+    if (classifiableKinds.has(it.kind)) {
+      try {
+        const classifyFm = it.project
+          ? { ...r.frontmatter, project: it.project }
+          : r.frontmatter;
+        const candidateDoc = serializeNote(classifyFm, r.body);
+        const cr = classify({ proposedType: it.kind as NoteType, title: it.title, body: candidateDoc });
+        if (!cr.accepted) {
+          recordRejection(vaultPath(), {
+            type: it.kind,
+            reason: `coerced (was: ${cr.reason ?? "rejected by classifier"})`,
+            sessionId: sid,
+            title: it.title,
+            excerpt: candidateDoc.slice(0, 500),
+          });
+          const targetKind = cr.suggestedType ?? (it.kind as NoteType);
+          if (targetKind === "capture") {
+            const reItem: DistilledItem = { ...it, kind: "capture", title: shortTitle(it.title, it.body || "") };
+            const r2 = route(reItem);
+            writeFrontmatter = r2.frontmatter;
+            writeRelPath = r2.relPath;
+            writeBody = coerceCapture(reItem, r.body);
+          } else if (targetKind === "lesson") {
+            const reItem: DistilledItem = { ...it, kind: "lesson" };
+            const r2 = route(reItem);
+            writeFrontmatter = r2.frontmatter;
+            writeRelPath = r2.relPath;
+            writeBody = coerceLesson(reItem, r.body);
+          }
+        }
+      } catch (e: any) {
+        writeFailure(`classify failed for '${it.title}': ${e?.message || e}`);
+      }
+    }
+    const res = writeNote(writeRelPath, { frontmatter: writeFrontmatter, body: writeBody, mode: r.mode });
+    if (res.ok && res.reason !== "duplicate-skipped") {
+      try { await indexNote(writeRelPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
+      (routedByDate[it.date] ||= []).push(writeRelPath);
+      notesWritten++;
+    }
+  }
+  try {
+    const dates = Object.keys(routedByDate);
+    const today = new Date().toISOString().slice(0, 10);
+    for (const d of dates.length ? dates : [today]) {
+      upsertDay(d, sid, {
+        digestLine: env.digest || "",
+        routedRelPaths: routedByDate[d] || [],
+        alsoDid: env.alsoDid,
+        openThreads: env.openThreads,
+        ...(sessionProj.dominant !== undefined ? { project: sessionProj.dominant } : {}),
+        ...(sessionProj.all.length > 1 ? { projects: sessionProj.all } : {}),
+      });
+      const dn = buildDailyNote(d);
+      writeNote(dn.relPath, { frontmatter: dn.frontmatter, body: dn.body, mode: dn.mode });
+      try { await indexNote(dn.relPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
+    }
+  } catch (e: any) { writeFailure(`daily note failed: ${e?.message || e}`); }
+  return { notesWritten };
+}
+
 export async function runDistill(): Promise<void> {
   const sid = process.env.SUPERBRAIN_SESSION_ID
     || (() => { try { return JSON.parse(fs.readFileSync(0, "utf8")).session_id; } catch { return "unknown"; } })();
@@ -253,142 +387,7 @@ export async function runDistill(): Promise<void> {
         return;
       }
     }
-    const env = getEnvelope(JSON.stringify(events));
-    const sessionProj = resolveSessionProject(events);
-    const PROJECT_SCOPED_KINDS = new Set<string>(["project_fact", "gotcha", "decision", "capture"]);
-    const items = env.items;
-    const routedByDate: Record<string, string[]> = {};
-    for (const it of items) {
-      if (!it.project && PROJECT_SCOPED_KINDS.has(it.kind) && sessionProj.dominant) {
-        it.project = sessionProj.dominant;
-      } else if (it.project) {
-        it.project = slug(it.project);
-      }
-      it.links = resolveLinks(it.links || [], vaultPath());
-      const r = route(it);
-      // append/replace bodies are fragments — template validation is not applicable.
-      if (r.mode !== "create") {
-        writeNote(r.relPath, { frontmatter: r.frontmatter, body: r.body, mode: r.mode });
-        try { await indexNote(r.relPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
-        (routedByDate[it.date] ||= []).push(r.relPath);
-        continue;
-      }
-      // Vault-dedup gate: skip write if vault already contains a near-duplicate.
-      // Inline adapter: embeds the query, runs vectorKNN against the index, and
-      // computes cosine similarity from the returned chunk text embedding.
-      // type/project filters are passed through for future support but are currently
-      // best-effort (vectorKNN has no per-field filter).
-      {
-        let vaultDedupSkip = false;
-        try {
-          const vaultSearchFn = async (
-            query: string,
-            _opts?: { k?: number; type?: string; project?: string },
-          ): Promise<Array<{ path: string; score: number }>> => {
-            let ix;
-            try {
-              ix = openIndex();
-              const [qv] = await embed([query]);
-              const hits = ix.vectorKNN(qv, 1);
-              if (!hits.length) return [];
-              // Compute cosine between query vector and re-embed the top hit's text.
-              const [hv] = await embed([hits[0].text]);
-              let dot = 0, na = 0, nb = 0;
-              const n = Math.min(qv.length, hv.length);
-              for (let i = 0; i < n; i++) { dot += qv[i] * hv[i]; na += qv[i] ** 2; nb += hv[i] ** 2; }
-              const sim = (na && nb) ? dot / (Math.sqrt(na) * Math.sqrt(nb)) : 0;
-              return [{ path: hits[0].relPath, score: sim }];
-            } catch { return []; }
-            finally { ix?.close(); }
-          };
-          const vaultMatch = await dedupAgainstVault(
-            { title: it.title, body: r.body, project: it.project, type: r.frontmatter.type as string | undefined },
-            vaultSearchFn,
-          );
-          if (vaultMatch.match) {
-            recordRejection(vaultPath(), {
-              type: r.frontmatter.type as string ?? it.kind,
-              reason: `dedup vs ${vaultMatch.match} (score ${vaultMatch.score?.toFixed(2)})`,
-              sessionId: sid,
-              title: it.title,
-              excerpt: r.body.slice(0, 500),
-            });
-            vaultDedupSkip = true;
-          }
-        } catch (e: any) {
-          writeFailure(`vault dedup error: ${e?.message || e}`);
-        }
-        if (vaultDedupSkip) continue;
-      }
-      // Classification gate: only classify kinds that are valid NoteTypes.
-      // project_fact and preference are not in NoteType and are always passed through.
-      const classifiableKinds = new Set<string>(["decision", "lesson", "capture", "project", "daily", "person"]);
-      let writeBody = r.body;
-      let writeRelPath = r.relPath;
-      let writeFrontmatter = r.frontmatter;
-      if (classifiableKinds.has(it.kind)) {
-        try {
-          // Merge item.project into frontmatter for classify: some router cases
-          // (lesson, person) omit project even when the distiller provided one.
-          const classifyFm = it.project
-            ? { ...r.frontmatter, project: it.project }
-            : r.frontmatter;
-          const candidateDoc = serializeNote(classifyFm, r.body);
-          const cr = classify({ proposedType: it.kind as NoteType, title: it.title, body: candidateDoc });
-          if (!cr.accepted) {
-            recordRejection(vaultPath(), {
-              type: it.kind,
-              reason: `coerced (was: ${cr.reason ?? "rejected by classifier"})`,
-              sessionId: sid,
-              title: it.title,
-              excerpt: candidateDoc.slice(0, 500),
-            });
-            // Coerce-don't-drop: re-route to the (possibly suggested) kind so the
-            // frontmatter, path, and body agree, then coerce the body to pass.
-            const targetKind = cr.suggestedType ?? (it.kind as NoteType);
-            if (targetKind === "capture") {
-              const reItem: DistilledItem = { ...it, kind: "capture", title: shortTitle(it.title, it.body || "") };
-              const r2 = route(reItem);
-              writeFrontmatter = r2.frontmatter;
-              writeRelPath = r2.relPath;
-              writeBody = coerceCapture(reItem, r.body);
-            } else if (targetKind === "lesson") {
-              const reItem: DistilledItem = { ...it, kind: "lesson" };
-              const r2 = route(reItem);
-              writeFrontmatter = r2.frontmatter;
-              writeRelPath = r2.relPath;
-              writeBody = coerceLesson(reItem, r.body);
-            }
-          }
-        } catch (e: any) {
-          // Classifier or recordRejection threw — fail open: log and continue with the write.
-          writeFailure(`classify failed for '${it.title}': ${e?.message || e}`);
-        }
-      }
-      const res = writeNote(writeRelPath, { frontmatter: writeFrontmatter, body: writeBody, mode: r.mode });
-      if (res.ok) {
-        try { await indexNote(writeRelPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
-        (routedByDate[it.date] ||= []).push(writeRelPath);
-      }
-    }
-    // Daily journal: record this session's contribution + regenerate the note(s).
-    try {
-      const dates = Object.keys(routedByDate);
-      const today = new Date().toISOString().slice(0, 10);
-      for (const d of dates.length ? dates : [today]) {
-        upsertDay(d, sid, {
-          digestLine: env.digest || "",
-          routedRelPaths: routedByDate[d] || [],
-          alsoDid: env.alsoDid,
-          openThreads: env.openThreads,
-          ...(sessionProj.dominant !== undefined ? { project: sessionProj.dominant } : {}),
-          ...(sessionProj.all.length > 1 ? { projects: sessionProj.all } : {}),
-        });
-        const dn = buildDailyNote(d);
-        writeNote(dn.relPath, { frontmatter: dn.frontmatter, body: dn.body, mode: dn.mode });
-        try { await indexNote(dn.relPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
-      }
-    } catch (e: any) { writeFailure(`daily note failed: ${e?.message || e}`); }
+    await distillFromEvents(sid, events);
     writeCursor(sid, newOffset);
     // GC the transcript snapshot now that distillation succeeded. Best-effort:
     // a missing snapshot is fine (checkpoint may not have run), and a deletion
