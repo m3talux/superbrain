@@ -17,18 +17,38 @@ vi.mock("../src/recall.js", () => ({
 vi.mock("../src/preferences.js", () => ({ compileInjectionBlock: vi.fn().mockReturnValue("") }));
 vi.mock("../src/dailyState.js", () => ({ readDay: vi.fn().mockReturnValue({}) }));
 
+// ---------------------------------------------------------------------------
+// Helpers: create a temp fixture project dir with a package.json so
+// classifyPath returns "single". SUPERBRAIN_TEST_BYPASS_BLOCKLIST=1 ensures
+// /tmp paths are not blocked. Tests are thus independent of checkout location.
+// ---------------------------------------------------------------------------
+
+function makeFixtureProject(name: string): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `sb-test-proj-${name}-`));
+  fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name }), "utf8");
+  return dir;
+}
+
 describe("appendDigest — project-aware seed", () => {
-  afterEach(() => vi.clearAllMocks());
+  let fixtureProjectDir: string;
+
+  beforeEach(() => {
+    fixtureProjectDir = makeFixtureProject("my-app");
+    process.env.SUPERBRAIN_TEST_BYPASS_BLOCKLIST = "1";
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    fs.rmSync(fixtureProjectDir, { recursive: true, force: true });
+    delete process.env.SUPERBRAIN_TEST_BYPASS_BLOCKLIST;
+  });
 
   it("passes projectSlug option when cwd matches a known project", async () => {
     const { hybridRecall } = await import("../src/recall.js");
     const { appendDigest } = await import("../src/sessionDigest.js");
 
-    // Use the repo's own directory — it has package.json so classifyPath returns "single"
-    // and basenameSlug("SuperBrain") === "superbrain".
-    const repoDir = path.resolve(__dirname, "..");
     const parts: string[] = [];
-    await appendDigest(parts, { cwd: repoDir });
+    await appendDigest(parts, { cwd: fixtureProjectDir });
 
     expect(hybridRecall).toHaveBeenCalledOnce();
     const [query, _k, opts] = (hybridRecall as ReturnType<typeof vi.fn>).mock.calls[0];
@@ -44,7 +64,8 @@ describe("appendDigest — project-aware seed", () => {
     const { hybridRecall } = await import("../src/recall.js");
     const { appendDigest } = await import("../src/sessionDigest.js");
 
-    // Use HOME — classifyPath returns "blocked", so no slug.
+    // Use HOME — classifyPath returns "blocked" (bypass flag is off here).
+    delete process.env.SUPERBRAIN_TEST_BYPASS_BLOCKLIST;
     const parts: string[] = [];
     await appendDigest(parts, { cwd: os.homedir() });
 
@@ -58,18 +79,118 @@ describe("appendDigest — project-aware seed", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Open-threads scoping tests
+// ---------------------------------------------------------------------------
+
+describe("appendDigest — open-threads scoping", () => {
+  let projectADir: string;
+  let projectBDir: string;
+  let readDayMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    projectADir = makeFixtureProject("project-alpha");
+    projectBDir = makeFixtureProject("project-beta");
+    process.env.SUPERBRAIN_TEST_BYPASS_BLOCKLIST = "1";
+
+    // Grab the mocked readDay so each test can set its return value.
+    const { readDay } = await import("../src/dailyState.js");
+    readDayMock = readDay as ReturnType<typeof vi.fn>;
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    fs.rmSync(projectADir, { recursive: true, force: true });
+    fs.rmSync(projectBDir, { recursive: true, force: true });
+    delete process.env.SUPERBRAIN_TEST_BYPASS_BLOCKLIST;
+  });
+
+  it("includes threads from the current project and unscoped entries", async () => {
+    const { appendDigest } = await import("../src/sessionDigest.js");
+    const alphaSlug = path.basename(projectADir).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+
+    readDayMock.mockReturnValue({
+      "s1": { digestLine: "", routedRelPaths: [], alsoDid: [], openThreads: ["thread-alpha-1"], project: alphaSlug },
+      "s2": { digestLine: "", routedRelPaths: [], alsoDid: [], openThreads: ["thread-unscoped"], /* no project */ },
+      "s3": { digestLine: "", routedRelPaths: [], alsoDid: [], openThreads: ["thread-beta-1"], project: "project-beta" },
+    });
+
+    const parts: string[] = [];
+    await appendDigest(parts, { cwd: projectADir });
+
+    const openThreadsPart = parts.find(p => p.startsWith("SuperBrain — open threads today:"));
+    expect(openThreadsPart).toBeDefined();
+    expect(openThreadsPart).toContain("thread-alpha-1");
+    expect(openThreadsPart).toContain("thread-unscoped");
+    expect(openThreadsPart).not.toContain("thread-beta-1");
+  });
+
+  it("excludes threads from a different concrete project", async () => {
+    const { appendDigest } = await import("../src/sessionDigest.js");
+
+    readDayMock.mockReturnValue({
+      "s1": { digestLine: "", routedRelPaths: [], alsoDid: [], openThreads: ["thread-beta-only"], project: "project-beta" },
+    });
+
+    const parts: string[] = [];
+    await appendDigest(parts, { cwd: projectADir });
+
+    const openThreadsPart = parts.find(p => p.startsWith("SuperBrain — open threads today:"));
+    expect(openThreadsPart).toBeUndefined();
+  });
+
+  it("emits no open-threads block when cwd has no project (blocked/skip)", async () => {
+    const { appendDigest } = await import("../src/sessionDigest.js");
+    delete process.env.SUPERBRAIN_TEST_BYPASS_BLOCKLIST;
+
+    readDayMock.mockReturnValue({
+      "s1": { digestLine: "", routedRelPaths: [], alsoDid: [], openThreads: ["some-thread"], project: "some-project" },
+    });
+
+    const parts: string[] = [];
+    // HOME is blocked
+    await appendDigest(parts, { cwd: os.homedir() });
+
+    const openThreadsPart = parts.find(p => p.startsWith("SuperBrain — open threads today:"));
+    expect(openThreadsPart).toBeUndefined();
+  });
+
+  it("includes only unscoped threads when no entry matches current project", async () => {
+    const { appendDigest } = await import("../src/sessionDigest.js");
+
+    readDayMock.mockReturnValue({
+      "s1": { digestLine: "", routedRelPaths: [], alsoDid: [], openThreads: ["thread-unscoped-2"] },
+      "s2": { digestLine: "", routedRelPaths: [], alsoDid: [], openThreads: ["thread-other"], project: "completely-different" },
+    });
+
+    const parts: string[] = [];
+    await appendDigest(parts, { cwd: projectADir });
+
+    const openThreadsPart = parts.find(p => p.startsWith("SuperBrain — open threads today:"));
+    expect(openThreadsPart).toBeDefined();
+    expect(openThreadsPart).toContain("thread-unscoped-2");
+    expect(openThreadsPart).not.toContain("thread-other");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Integration test: SessionStart hook emits additionalContext
+// ---------------------------------------------------------------------------
+
 let TMP_DATA: string;
 let TMP_VAULT: string;
+let FIXTURE_PROJECT: string;
 
 beforeEach(() => {
   TMP_DATA = fs.mkdtempSync(path.join(os.tmpdir(), "sb-ssd-data-"));
   TMP_VAULT = fs.mkdtempSync(path.join(os.tmpdir(), "sb-ssd-vault-"));
+  FIXTURE_PROJECT = makeFixtureProject("superbrain-fixture");
   process.env.SUPERBRAIN_EMBED_STUB = "1";
   process.env.SUPERBRAIN_DATA_DIR = TMP_DATA;
   const ix = openIndex();
   // Fixture text includes "superbrain" so BM25 matches when the seed is the project
-  // slug (basenameSlug("SuperBrain") === "superbrain"). hybridRecall is BM25-gated in
-  // P2.0 — zero lexical hits → returns [] immediately.
+  // slug (basenameSlug("superbrain-fixture") === "superbrain-fixture"). hybridRecall
+  // is BM25-gated in P2.0 — zero lexical hits → returns [] immediately.
   ix.upsertNote("projects/super-brain.md", 1, "h",
     [{ headingPath: "Status", anchor: "status", text: "superbrain phase 1 shipped; phase 2 adds hybrid search" }],
     [Float32Array.from(Array(384).fill(0.6))]);
@@ -79,16 +200,20 @@ beforeEach(() => {
 afterEach(() => {
   fs.rmSync(TMP_DATA, { recursive: true, force: true });
   fs.rmSync(TMP_VAULT, { recursive: true, force: true });
+  fs.rmSync(FIXTURE_PROJECT, { recursive: true, force: true });
 });
 
 it("SessionStart emits a hybrid recall digest in additionalContext", () => {
-  // Pass the repo root as cwd — classifyPath detects it as a single project with
-  // slug "superbrain", which BM25-matches the fixture note text.
-  const repoDir = path.resolve(__dirname, "..");
   const out = execFileSync("npx", ["tsx", "bin/sb-session-start.ts"], {
-    input: JSON.stringify({ session_id: "S", hook_event_name: "SessionStart", source: "startup", cwd: repoDir }),
-    env: { ...process.env, SUPERBRAIN_DATA_DIR: TMP_DATA, SUPERBRAIN_VAULT_DIR: TMP_VAULT,
-           SUPERBRAIN_FAKE_DISTILLER: "1", SUPERBRAIN_EMBED_STUB: "1" },
+    input: JSON.stringify({ session_id: "S", hook_event_name: "SessionStart", source: "startup", cwd: FIXTURE_PROJECT }),
+    env: {
+      ...process.env,
+      SUPERBRAIN_DATA_DIR: TMP_DATA,
+      SUPERBRAIN_VAULT_DIR: TMP_VAULT,
+      SUPERBRAIN_FAKE_DISTILLER: "1",
+      SUPERBRAIN_EMBED_STUB: "1",
+      SUPERBRAIN_TEST_BYPASS_BLOCKLIST: "1",
+    },
     encoding: "utf8",
   });
   expect(out).toMatch(/additionalContext/);

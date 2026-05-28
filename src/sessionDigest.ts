@@ -16,23 +16,30 @@ export async function appendDigest(parts: string[], h: any): Promise<void> {
   let preferencesText = "";
   let openThreadsText = "";
 
+  // Resolve the current project once; reused by both recall and open-threads.
+  const cwd: string = h.cwd || "";
+  let currentProjectSlug: string | undefined;
+  let currentProjectKnown = false; // true only when cwd maps to a concrete project
+  if (cwd) {
+    const classification = classifyPath(cwd);
+    if (classification.kind === "single" || classification.kind === "umbrella") {
+      currentProjectSlug = basenameSlug(classification.projectDir);
+      currentProjectKnown = true;
+    }
+  }
+
   // Hybrid recall digest: project-slug filtered when cwd resolves to a known project.
   try {
-    const cwd: string = h.cwd || "";
     let query: string;
     let recallOpts: { projectSlug?: string } | undefined;
 
-    if (cwd) {
-      const classification = classifyPath(cwd);
-      if (classification.kind === "single" || classification.kind === "umbrella") {
-        const slug = basenameSlug(classification.projectDir);
-        query = slug;
-        recallOpts = { projectSlug: slug };
-      } else {
-        // blocked or skip — fall back to bare basename, no project filter
-        query = path.basename(cwd);
-        recallOpts = undefined;
-      }
+    if (currentProjectKnown && currentProjectSlug) {
+      query = currentProjectSlug;
+      recallOpts = { projectSlug: currentProjectSlug };
+    } else if (cwd) {
+      // blocked or skip — fall back to bare basename, no project filter
+      query = path.basename(cwd);
+      recallOpts = undefined;
     } else {
       query = "";
       recallOpts = undefined;
@@ -63,8 +70,16 @@ export async function appendDigest(parts: string[], h: any): Promise<void> {
     const today = new Date().toISOString().slice(0, 10);
     const day = readDay(today);
     const threads: string[] = [];
-    for (const s of Object.keys(day))
-      for (const t of day[s].openThreads) if (t && !threads.includes(t)) threads.push(t);
+    if (currentProjectKnown && currentProjectSlug) {
+      for (const s of Object.keys(day)) {
+        const entry = day[s];
+        const entryProject = entry.project;
+        // Include: same project, or unscoped (no project field). Exclude: different concrete project.
+        if (entryProject !== undefined && entryProject !== currentProjectSlug) continue;
+        for (const t of entry.openThreads) if (t && !threads.includes(t)) threads.push(t);
+      }
+    }
+    // If cwd has no project (blocked/skip), threads stays empty — no cross-project noise.
     if (threads.length) {
       const threadLines = threads.map((t) => `- ${t}`);
       const body = fitToBudget(threadLines, INJECT_LIMITS.openThreads);

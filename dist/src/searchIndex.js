@@ -87,8 +87,10 @@ export function openIndex() {
             return hydrate(rows.map((r) => r.rowid));
         },
         vectorKNN: (v, k) => {
-            const rows = db.prepare("SELECT chunk_id FROM vec_chunks WHERE embedding MATCH ? ORDER BY distance LIMIT ?").all(JSON.stringify(Array.from(v)), k);
-            return hydrate(rows.map((r) => Number(r.chunk_id)));
+            const rows = db.prepare("SELECT chunk_id, distance FROM vec_chunks WHERE embedding MATCH ? ORDER BY distance LIMIT ?").all(JSON.stringify(Array.from(v)), k);
+            const hits = hydrate(rows.map((r) => Number(r.chunk_id)));
+            hits.forEach((h, i) => { h.distance = rows[i]?.distance; });
+            return hits;
         },
         getProjectsForPaths: (relPaths) => {
             if (relPaths.length === 0)
