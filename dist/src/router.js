@@ -113,12 +113,26 @@ export function route(item) {
                     mode: "append",
                 };
             }
-            return {
-                relPath: `capture/${item.date}-${slug(item.title)}.md`,
-                frontmatter: { type: "capture", status: "active", tags: ["triage"], ...base },
-                body: withLinks(`# ${item.title}\n\n${(item.body || "").trim()}`, item.links),
-                mode: "create",
-            };
+            {
+                const hasStructured = !!((item.what || "").trim() || (item.whyItMatters || "").trim());
+                let captureBody;
+                if (hasStructured) {
+                    captureBody = joinSections([
+                        `# ${item.title}`,
+                        section("What", item.what),
+                        section("Why it matters", item.whyItMatters),
+                    ]);
+                }
+                else {
+                    captureBody = `# ${item.title}\n\n${(item.body || "").trim()}`;
+                }
+                return {
+                    relPath: `capture/${item.date}-${slug(item.title)}.md`,
+                    frontmatter: { type: "capture", status: "active", tags: ["triage"], ...base },
+                    body: withLinks(captureBody, item.links),
+                    mode: "create",
+                };
+            }
         }
     }
 }

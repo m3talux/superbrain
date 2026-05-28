@@ -8,13 +8,24 @@ import { ensureEdgesTable } from "./edges.js";
 
 export interface Hit { relPath: string; headingPath: string; anchor: string; text: string; }
 
+function toScalarString(v: unknown): string | null {
+  if (typeof v === "string") return v;
+  if (Array.isArray(v)) {
+    const flat = (v as unknown[]).flat(Infinity);
+    const first = flat.find((x) => typeof x === "string");
+    return typeof first === "string" ? first : null;
+  }
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  return null;
+}
+
 export interface Index {
   db: Database.Database;
   upsertNote(relPath: string, mtime: number, hash: string,
              chunks: { headingPath: string; anchor: string; text: string }[],
              embeddings: Float32Array[],
-             project?: string,
-             created?: string): void;
+             project?: unknown,
+             created?: unknown): void;
   deleteNote(relPath: string): void;
   bm25(query: string, k: number): Hit[];
   vectorKNN(v: Float32Array, k: number): Hit[];
@@ -78,14 +89,14 @@ export function openIndex(): Index {
 
   const upsert = db.transaction((relPath: string, mtime: number, hash: string,
       chunks: { headingPath: string; anchor: string; text: string }[], embs: Float32Array[],
-      project?: string, created?: string) => {
+      project?: unknown, created?: unknown) => {
     delByPath(relPath);
     chunks.forEach((c, i) => {
       const id = Number(insChunk.run(relPath, c.headingPath, c.anchor, c.text).lastInsertRowid);
       insFts.run(id, (c.headingPath ? c.headingPath + " " : "") + c.text);
       insVec.run(BigInt(id), JSON.stringify(Array.from(embs[i])));
     });
-    insNote.run(relPath, mtime, hash, project ?? null, created ?? null);
+    insNote.run(relPath, mtime, hash, toScalarString(project ?? null), toScalarString(created ?? null));
   });
 
   const hydrate = (ids: number[]): Hit[] => ids.map((id) => {
@@ -95,7 +106,7 @@ export function openIndex(): Index {
 
   return {
     db,
-    upsertNote: (rp, mt, h, c, e, project, created) => upsert(rp, mt, h, c, e, project, created),
+    upsertNote: (rp: string, mt: number, h: string, c: { headingPath: string; anchor: string; text: string }[], e: Float32Array[], project?: unknown, created?: unknown) => upsert(rp, mt, h, c, e, project, created),
     deleteNote: (rp) => delByPath(rp),
     bm25: (q, k) => {
       const terms = q.replace(/[^\w\s]/g, " ").trim().split(/\s+/).filter(Boolean);

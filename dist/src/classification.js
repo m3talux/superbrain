@@ -1,7 +1,7 @@
 import { validateNote } from "./templates.js";
 const REROUTE_TO_CAPTURE = new Set(["shipped", "released", "deployed", "merged"]);
 const REROUTE_TO_LESSON = new Set(["learned", "always", "never"]);
-const PROJECT_REQUIRED = ["decision", "lesson", "capture", "person", "project"];
+const PROJECT_REQUIRED = ["project"];
 export function classify(c) {
     // 1. Title-prefix reroute (decisions only)
     const firstWord = c.title.trim().split(/\s+/)[0]?.toLowerCase() ?? "";

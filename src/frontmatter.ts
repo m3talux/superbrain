@@ -2,8 +2,6 @@ import matter from "gray-matter";
 
 const VALID_TYPES = ["project", "person", "decision", "capture", "daily", "map", "summary", "lesson", "preference"];
 const VALID_STATUS = ["active", "paused", "done", "archived"];
-// Types whose route always supplies project: — only these are enforced
-const PROJECT_REQUIRED = new Set(["project"]);
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function normalizeDates(data: Record<string, any>): Record<string, any> {
@@ -18,13 +16,31 @@ function normalizeDates(data: Record<string, any>): Record<string, any> {
   return out;
 }
 
+function toScalarString(v: unknown): string | null {
+  if (typeof v === "string") return v;
+  if (Array.isArray(v)) {
+    const flat = v.flat(Infinity);
+    const first = flat.find((x) => typeof x === "string");
+    return typeof first === "string" ? first : null;
+  }
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  return null;
+}
+
 export function parseNote(raw: string): { data: Record<string, any>; content: string } {
   const g = matter(raw);
-  return { data: normalizeDates(g.data || {}), content: g.content || "" };
+  const data = normalizeDates(g.data || {});
+  if ("project" in data && typeof data.project !== "string") {
+    const coerced = toScalarString(data.project);
+    if (coerced !== null) {
+      data.project = coerced;
+    } else {
+      delete data.project;
+    }
+  }
+  return { data, content: g.content || "" };
 }
 export function serializeNote(data: Record<string, any>, content: string): string {
-  if (!data.type) throw new Error("required: type");
-  if (PROJECT_REQUIRED.has(data.type) && !data.project) throw new Error("required: project");
   let yaml = matter.stringify(content.endsWith("\n") ? content : content + "\n", data);
   // Strip quotes around date-shaped values for known date keys
   yaml = yaml.replace(

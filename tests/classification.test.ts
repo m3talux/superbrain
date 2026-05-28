@@ -100,11 +100,10 @@ describe("classification", () => {
     expect(r.reason).toMatch(/word count/);
   });
 
-  it("rejects when frontmatter is missing project for non-daily types", () => {
+  it("accepts a decision without project frontmatter (project-less decisions are valid)", () => {
     const body = validDecisionBody.replace(/project: superbrain\n/, "");
     const r = classify({ proposedType: "decision", title: "x", body });
-    expect(r.accepted).toBe(false);
-    expect(r.reason).toMatch(/required: project/);
+    expect(r.accepted).toBe(true);
   });
 
   it("does not require project for type daily", () => {
@@ -140,11 +139,10 @@ superbrain: true
     expect(r.accepted).toBe(true);
   });
 
-  it("rejects a lesson missing project frontmatter", () => {
+  it("accepts a lesson without project frontmatter (cross-project by design)", () => {
     const body = validLessonBody.replace(/project: superbrain\n/, "");
     const r = classify({ proposedType: "lesson", title: "Some lesson", body });
-    expect(r.accepted).toBe(false);
-    expect(r.reason).toMatch(/required: project/);
+    expect(r.accepted).toBe(true);
   });
 
   it("accepts a valid capture", () => {
@@ -170,5 +168,48 @@ superbrain: true
     const r = classify({ proposedType: "decision", title: "Released v0.5 to marketplace", body: validDecisionBody });
     expect(r.accepted).toBe(false);
     expect(r.suggestedType).toBe("capture");
+  });
+
+  it("accepts a lesson with no project frontmatter field (cross-project by design)", () => {
+    const body = `---
+type: lesson
+created: 2026-05-22
+status: active
+superbrain: true
+---
+
+# Always check the live data dir before diagnosing
+
+## Rule
+Resolve the actual data path before inspecting on-disk state.
+
+## Why
+On 2026-05-20 a full misdiagnosis was produced because the source fallback was inspected instead of the live path.
+
+## When this applies
+Any time a plugin appears to not be writing data.
+`;
+    const r = classify({ proposedType: "lesson", title: "Always check the live data dir before diagnosing", body });
+    expect(r.accepted).toBe(true);
+  });
+
+  it("accepts a capture with no project frontmatter field", () => {
+    const body = `---
+type: capture
+created: 2026-05-22
+status: active
+superbrain: true
+---
+
+# Hybrid BM25 vector approach
+
+## What
+A hybrid retrieval system combining BM25 and vector search.
+
+## Why it matters
+Better recall than either alone.
+`;
+    const r = classify({ proposedType: "capture", title: "Hybrid BM25 vector approach", body });
+    expect(r.accepted).toBe(true);
   });
 });
