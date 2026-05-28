@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
-import { indexNote, reconcile } from "../src/indexer";
+import { indexNote, reconcile, reindexAll, forcedReindexIfNeeded } from "../src/indexer";
 import { openIndex } from "../src/searchIndex";
 
 let TMP_DATA: string;
@@ -74,6 +74,32 @@ describe("indexer", () => {
     expect(rows.some((r) => r.kind === "daily" && r.to_path === "daily/2024-01-15.md")).toBe(true);
   });
 
+  it("reindexAll updates stale index project without content change", async () => {
+    // Simulate a note already in the index with project=undefined (stale, e.g. pre-attribution)
+    // while its on-disk frontmatter declares project: foo.
+    const f = path.join(TMP_VAULT, "decisions/e.md");
+    fs.writeFileSync(f, "---\ntype: decision\nproject: foo\n---\n## E\nsome content");
+    // First reconcile — gets indexed with project=foo correctly.
+    await reconcile();
+    // Directly overwrite the project column to NULL to simulate a stale index row
+    // (as would exist for users who indexed before cwd attribution was added).
+    const db = new Database(path.join(TMP_DATA, "index.db"));
+    db.prepare("UPDATE notes SET project=NULL WHERE rel_path=?").run("decisions/e.md");
+    db.close();
+    // Normal reconcile leaves it alone because the hash hasn't changed.
+    await reconcile();
+    const ixBefore = openIndex();
+    const projectsBefore = ixBefore.getProjectsForPaths(["decisions/e.md"]);
+    ixBefore.close();
+    expect(projectsBefore.get("decisions/e.md")).toBeUndefined();
+    // Forced reindex must repair the stale project column.
+    await reindexAll();
+    const ixAfter = openIndex();
+    const projectsAfter = ixAfter.getProjectsForPaths(["decisions/e.md"]);
+    ixAfter.close();
+    expect(projectsAfter.get("decisions/e.md")).toBe("foo");
+  });
+
   it("removes stale edges when a note is re-indexed", async () => {
     const f = path.join(TMP_VAULT, "decisions/d.md");
     fs.writeFileSync(f, "---\ntype: decision\nproject: alpha\ncreated: 2024-01-15\n---\n## D\nfirst");
@@ -90,5 +116,36 @@ describe("indexer", () => {
     db.close();
     expect(rows.some((r) => r.kind === "project" && r.to_path === "projects/beta.md")).toBe(true);
     expect(rows.every((r) => r.to_path !== "projects/alpha.md")).toBe(true);
+  });
+
+  it("forcedReindexIfNeeded runs once for a version then is a no-op on second call", async () => {
+    const f = path.join(TMP_VAULT, "decisions/f.md");
+    fs.writeFileSync(f, "---\ntype: decision\nproject: bar\n---\n## F\ncontent for sentinel test");
+    await reconcile();
+    // Corrupt the project column to simulate a stale index.
+    const db1 = new Database(path.join(TMP_DATA, "index.db"));
+    db1.prepare("UPDATE notes SET project=NULL WHERE rel_path=?").run("decisions/f.md");
+    db1.close();
+    // First call for version "0.0.1-test" triggers forced reindex and writes sentinel.
+    const sentinel1 = await forcedReindexIfNeeded("0.0.1-test", TMP_DATA);
+    expect(sentinel1).toBe(true);
+    const sentinelPath = path.join(TMP_DATA, "reindexed-0.0.1-test.txt");
+    expect(fs.existsSync(sentinelPath)).toBe(true);
+    // The project column must now be repaired.
+    const ixAfter = openIndex();
+    const projects = ixAfter.getProjectsForPaths(["decisions/f.md"]);
+    ixAfter.close();
+    expect(projects.get("decisions/f.md")).toBe("bar");
+    // Second call for the same version is a no-op (sentinel present).
+    // Corrupt again to confirm reindex does NOT run.
+    const db2 = new Database(path.join(TMP_DATA, "index.db"));
+    db2.prepare("UPDATE notes SET project=NULL WHERE rel_path=?").run("decisions/f.md");
+    db2.close();
+    const sentinel2 = await forcedReindexIfNeeded("0.0.1-test", TMP_DATA);
+    expect(sentinel2).toBe(false);
+    const ixNoChange = openIndex();
+    const projectsNoChange = ixNoChange.getProjectsForPaths(["decisions/f.md"]);
+    ixNoChange.close();
+    expect(projectsNoChange.get("decisions/f.md")).toBeUndefined();
   });
 });
