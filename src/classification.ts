@@ -15,7 +15,7 @@ export interface ClassificationResult {
 const REROUTE_TO_CAPTURE = new Set(["shipped", "released", "deployed", "merged"]);
 const REROUTE_TO_LESSON = new Set(["learned", "always", "never"]);
 
-const PROJECT_REQUIRED: NoteType[] = ["decision", "lesson", "capture", "person", "project"];
+const PROJECT_REQUIRED: NoteType[] = ["project"];
 
 export function classify(c: Candidate): ClassificationResult {
   // 1. Title-prefix reroute (decisions only)

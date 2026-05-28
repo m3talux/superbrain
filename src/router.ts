@@ -28,6 +28,11 @@ export interface DistilledItem {
   prevention?: string;     // gotcha — how to avoid hitting it again
   whenApplies?: string;    // lesson — when to invoke the rule
 
+  // Structured capture sections (preferred). When present, router renders
+  // ## What / ## Why it matters directly. Falls back to freeform `body`.
+  what?: string;          // capture — the observed fact or item
+  whyItMatters?: string;  // capture — why it is worth keeping
+
   // Freeform fallback. Used for captures and as a back-compat slot when the
   // model returns the old single-blob shape.
   body?: string;
@@ -156,12 +161,25 @@ export function route(item: DistilledItem): RouteResult {
           mode: "append",
         };
       }
-      return {
-        relPath: `capture/${item.date}-${slug(item.title)}.md`,
-        frontmatter: { type: "capture", status: "active", tags: ["triage"], ...base },
-        body: withLinks(`# ${item.title}\n\n${(item.body || "").trim()}`, item.links),
-        mode: "create",
-      };
+      {
+        const hasStructured = !!((item.what || "").trim() || (item.whyItMatters || "").trim());
+        let captureBody: string;
+        if (hasStructured) {
+          captureBody = joinSections([
+            `# ${item.title}`,
+            section("What", item.what),
+            section("Why it matters", item.whyItMatters),
+          ]);
+        } else {
+          captureBody = `# ${item.title}\n\n${(item.body || "").trim()}`;
+        }
+        return {
+          relPath: `capture/${item.date}-${slug(item.title)}.md`,
+          frontmatter: { type: "capture", status: "active", tags: ["triage"], ...base },
+          body: withLinks(captureBody, item.links),
+          mode: "create",
+        };
+      }
     }
   }
 }
