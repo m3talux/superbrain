@@ -7,6 +7,8 @@ export interface DaySessionEntry {
   routedRelPaths: string[];
   alsoDid: string[];
   openThreads: string[];
+  project?: string;
+  projects?: string[];
 }
 export type DayState = Record<string, DaySessionEntry>;
 

@@ -28,6 +28,33 @@ import { serializeNote } from "./frontmatter.js";
 import { dedupAgainstVault } from "./distillDedup.js";
 import { openIndex } from "./searchIndex.js";
 import { embed } from "./embed.js";
+import { classifyPath, basenameSlug } from "./projectDetect.js";
+import { slug } from "./router.js";
+
+export interface SessionProjectResult {
+  dominant: string | undefined;
+  all: string[];
+}
+
+export function resolveSessionProject(events: any[]): SessionProjectResult {
+  const countBySlug: Map<string, number> = new Map();
+  for (const e of events) {
+    const cwd = e?.cwd;
+    if (!cwd || typeof cwd !== "string") continue;
+    const c = classifyPath(cwd);
+    if (c.kind === "blocked" || c.kind === "skip") continue;
+    const projectSlug = basenameSlug(c.projectDir);
+    countBySlug.set(projectSlug, (countBySlug.get(projectSlug) ?? 0) + 1);
+  }
+  const all = Array.from(countBySlug.keys());
+  if (all.length === 0) return { dominant: undefined, all: [] };
+  let dominant = all[0];
+  let maxCount = countBySlug.get(dominant) ?? 0;
+  for (const [s, count] of countBySlug) {
+    if (count > maxCount) { dominant = s; maxCount = count; }
+  }
+  return { dominant, all };
+}
 
 function shortTitle(raw: string, fallbackBody: string): string {
   const src = (raw || fallbackBody).trim();
@@ -227,9 +254,16 @@ export async function runDistill(): Promise<void> {
       }
     }
     const env = getEnvelope(JSON.stringify(events));
+    const sessionProj = resolveSessionProject(events);
+    const PROJECT_SCOPED_KINDS = new Set<string>(["project_fact", "gotcha", "decision"]);
     const items = env.items;
     const routedByDate: Record<string, string[]> = {};
     for (const it of items) {
+      if (!it.project && PROJECT_SCOPED_KINDS.has(it.kind) && sessionProj.dominant) {
+        it.project = sessionProj.dominant;
+      } else if (it.project) {
+        it.project = slug(it.project);
+      }
       it.links = resolveLinks(it.links || [], vaultPath());
       const r = route(it);
       // append/replace bodies are fragments — template validation is not applicable.
@@ -347,6 +381,8 @@ export async function runDistill(): Promise<void> {
           routedRelPaths: routedByDate[d] || [],
           alsoDid: env.alsoDid,
           openThreads: env.openThreads,
+          ...(sessionProj.dominant !== undefined ? { project: sessionProj.dominant } : {}),
+          ...(sessionProj.all.length > 1 ? { projects: sessionProj.all } : {}),
         });
         const dn = buildDailyNote(d);
         writeNote(dn.relPath, { frontmatter: dn.frontmatter, body: dn.body, mode: dn.mode });
