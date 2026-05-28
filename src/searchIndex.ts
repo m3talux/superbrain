@@ -6,7 +6,7 @@ import { dataDir } from "./paths.js";
 import { EMBED_DIM } from "./embed.js";
 import { ensureEdgesTable } from "./edges.js";
 
-export interface Hit { relPath: string; headingPath: string; anchor: string; text: string; }
+export interface Hit { relPath: string; headingPath: string; anchor: string; text: string; distance?: number; }
 
 function toScalarString(v: unknown): string | null {
   if (typeof v === "string") return v;
@@ -118,9 +118,11 @@ export function openIndex(): Index {
     },
     vectorKNN: (v, k) => {
       const rows = db.prepare(
-        "SELECT chunk_id FROM vec_chunks WHERE embedding MATCH ? ORDER BY distance LIMIT ?"
-      ).all(JSON.stringify(Array.from(v)), k) as { chunk_id: number }[];
-      return hydrate(rows.map((r) => Number(r.chunk_id)));
+        "SELECT chunk_id, distance FROM vec_chunks WHERE embedding MATCH ? ORDER BY distance LIMIT ?"
+      ).all(JSON.stringify(Array.from(v)), k) as { chunk_id: number; distance: number }[];
+      const hits = hydrate(rows.map((r) => Number(r.chunk_id)));
+      hits.forEach((h, i) => { h.distance = rows[i]?.distance; });
+      return hits;
     },
     getProjectsForPaths: (relPaths: string[]): Map<string, string> => {
       if (relPaths.length === 0) return new Map();
