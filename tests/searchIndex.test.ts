@@ -63,6 +63,21 @@ describe("searchIndex", () => {
     expect(r[0].text).toBe("alpha");
     ix.close();
   });
+  it("upsertNote with array project does not throw and indexes the note", () => {
+    const ix = openIndex();
+    expect(() =>
+      ix.upsertNote("projects/z.md", 1, "h1",
+        [{ headingPath: "", anchor: "", text: "wikilink project test" }],
+        [vec(0.5)],
+        ["projects/weddy"] as any,
+        "2026-05-28")
+    ).not.toThrow();
+    expect(ix.getNoteMeta("projects/z.md")).not.toBeNull();
+    const bm = ix.bm25("wikilink project test", 5);
+    expect(bm[0].relPath).toBe("projects/z.md");
+    ix.close();
+  });
+
   it("re-upsert/delete purges FTS heading terms (no stale contentless rows)", () => {
     const ix = openIndex();
     ix.upsertNote("p/h.md", 1, "h1",
