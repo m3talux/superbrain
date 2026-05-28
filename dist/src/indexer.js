@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { vaultPath } from "./paths.js";
+import { vaultPath, dataDir } from "./paths.js";
 import { chunkNote } from "./chunker.js";
 import { embed } from "./embed.js";
 import { openIndex } from "./searchIndex.js";
@@ -50,6 +50,35 @@ export async function indexNote(relPath) {
     finally {
         ix.close();
     }
+}
+export async function reindexAll() {
+    const root = vaultPath();
+    const ix = openIndex();
+    let reindexed = 0;
+    try {
+        if (!fs.existsSync(root))
+            return { reindexed };
+        const present = [];
+        walk(root, root, present);
+        for (const rel of present) {
+            await indexInto(ix, rel);
+            reindexed++;
+        }
+        return { reindexed };
+    }
+    finally {
+        ix.close();
+    }
+}
+export async function forcedReindexIfNeeded(version, dir) {
+    const base = dir ?? dataDir();
+    const sentinelFile = path.join(base, `reindexed-${version}.txt`);
+    if (fs.existsSync(sentinelFile))
+        return false;
+    await reindexAll();
+    fs.mkdirSync(base, { recursive: true });
+    fs.writeFileSync(sentinelFile, new Date().toISOString() + "\n", "utf8");
+    return true;
 }
 export async function reconcile() {
     const root = vaultPath();
