@@ -1,4 +1,5 @@
 export const INJECT_LIMITS = {
+  brief: 150,
   recall: 500,
   preferences: 500,
   openThreads: 200,

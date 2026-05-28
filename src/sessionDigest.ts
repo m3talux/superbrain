@@ -28,6 +28,40 @@ export async function appendDigest(parts: string[], h: any): Promise<void> {
     }
   }
 
+  // Project-scoped session brief: leads additionalContext when we know the project.
+  try {
+    if (currentProjectKnown && currentProjectSlug) {
+      let lastDigestLine = "";
+      const recentSlugs: string[] = [];
+
+      // Scan the last 7 calendar days newest-first for this project's activity.
+      for (let i = 1; i <= 7; i++) {
+        const d = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
+        const day = readDay(d);
+        for (const entry of Object.values(day)) {
+          if (entry.project !== currentProjectSlug) continue;
+          if (!lastDigestLine && entry.digestLine) lastDigestLine = entry.digestLine;
+          for (const r of entry.routedRelPaths) {
+            const slug = path.basename(r, ".md");
+            if (!recentSlugs.includes(slug) && recentSlugs.length < 3) recentSlugs.push(slug);
+          }
+        }
+        if (lastDigestLine && recentSlugs.length >= 3) break;
+      }
+
+      if (lastDigestLine) {
+        const lines = [
+          `Tell the user in one sentence that SuperBrain has loaded context for this project.`,
+          `SuperBrain — ${currentProjectSlug}`,
+          `Last session: ${lastDigestLine}`,
+        ];
+        if (recentSlugs.length) lines.push(`Recent: ${recentSlugs.join(", ")}`);
+        const body = fitToBudget(lines, INJECT_LIMITS.brief);
+        if (body) parts.unshift(body);
+      }
+    }
+  } catch { /* brief is best-effort */ }
+
   // Hybrid recall digest: project-slug filtered when cwd resolves to a known project.
   try {
     let query: string;
