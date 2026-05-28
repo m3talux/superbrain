@@ -68,25 +68,20 @@ describe("project-scoped recall", () => {
     ix.close();
   }
 
-  it("boosts same-project notes when projectSlug option is set", async () => {
+  it("same-project notes appear and cross-project notes are excluded", async () => {
     seedProjectNotes();
     const results = await hybridRecall("hybrid fusion topic", 5, { projectSlug: "superbrain" });
-    const sbIdx = results.findIndex((r) => r.relPath === "decisions/sb1.md");
-    const weIdx = results.findIndex((r) => r.relPath === "decisions/we1.md");
-    expect(sbIdx).toBeGreaterThanOrEqual(0);
-    expect(weIdx).toBeGreaterThanOrEqual(0);
-    expect(sbIdx).toBeLessThan(weIdx);
+    const relPaths = results.map((r) => r.relPath);
+    expect(relPaths).toContain("decisions/sb1.md");
+    expect(relPaths).not.toContain("decisions/we1.md");
   });
 
-  it("global-project notes receive the 2x boost alongside same-project notes", async () => {
+  it("global-project notes appear when projectSlug is set; cross-project notes are excluded", async () => {
     seedProjectNotes();
     const results = await hybridRecall("hybrid fusion topic", 5, { projectSlug: "superbrain" });
-    const globIdx = results.findIndex((r) => r.relPath === "decisions/glob.md");
-    const weIdx = results.findIndex((r) => r.relPath === "decisions/we1.md");
-    expect(globIdx).toBeGreaterThanOrEqual(0);
-    expect(weIdx).toBeGreaterThanOrEqual(0);
-    // global is boosted, weddy is not — global must outrank weddy
-    expect(globIdx).toBeLessThan(weIdx);
+    const relPaths = results.map((r) => r.relPath);
+    expect(relPaths).toContain("decisions/glob.md");
+    expect(relPaths).not.toContain("decisions/we1.md");
   });
 
   it("without projectSlug option, scoring is unchanged (no boost applied)", async () => {
@@ -100,6 +95,72 @@ describe("project-scoped recall", () => {
     seedProjectNotes();
     const results = await hybridRecall("hybrid fusion topic", 5, { projectSlug: "unknown-project" });
     expect(results.length).toBeGreaterThan(0);
+  });
+});
+
+describe("project-scoped recall — hard exclusion", () => {
+  const STUB = Float32Array.from(Array(384).fill(0.5));
+
+  function seedMultiProject() {
+    const ix = openIndex();
+    ix.upsertNote(
+      "proj/a1.md", 1, "ha1",
+      [{ headingPath: "", anchor: "root", text: "hybrid recall topic alpha project" }],
+      [STUB], "proj-a",
+    );
+    ix.upsertNote(
+      "proj/b1.md", 1, "hb1",
+      [{ headingPath: "", anchor: "root", text: "hybrid recall topic alpha project" }],
+      [STUB], "proj-b",
+    );
+    ix.upsertNote(
+      "proj/glob.md", 1, "hgl",
+      [{ headingPath: "", anchor: "root", text: "hybrid recall topic alpha project" }],
+      [STUB], "global",
+    );
+    ix.upsertNote(
+      "proj/none.md", 1, "hno",
+      [{ headingPath: "", anchor: "root", text: "hybrid recall topic alpha project" }],
+      [STUB],
+    );
+    ix.close();
+  }
+
+  it("excludes notes from a different concrete project when projectSlug is set", async () => {
+    seedMultiProject();
+    const results = await hybridRecall("hybrid recall topic alpha", 10, { projectSlug: "proj-a" });
+    const relPaths = results.map((r) => r.relPath);
+    expect(relPaths).not.toContain("proj/b1.md");
+    expect(relPaths).toContain("proj/a1.md");
+  });
+
+  it("allows global-tagged notes through the project filter", async () => {
+    seedMultiProject();
+    const results = await hybridRecall("hybrid recall topic alpha", 10, { projectSlug: "proj-a" });
+    const relPaths = results.map((r) => r.relPath);
+    expect(relPaths).toContain("proj/glob.md");
+  });
+
+  it("allows project-less notes through the project filter", async () => {
+    seedMultiProject();
+    const results = await hybridRecall("hybrid recall topic alpha", 10, { projectSlug: "proj-a" });
+    const relPaths = results.map((r) => r.relPath);
+    expect(relPaths).toContain("proj/none.md");
+  });
+
+  it("no cross-project leakage when projectSlug is set (both bm25 and vector arms)", async () => {
+    seedMultiProject();
+    const results = await hybridRecall("hybrid recall topic alpha", 10, { projectSlug: "proj-a" });
+    const leaked = results.filter((r) => r.relPath === "proj/b1.md");
+    expect(leaked).toHaveLength(0);
+  });
+
+  it("does not filter when projectSlug is undefined", async () => {
+    seedMultiProject();
+    const results = await hybridRecall("hybrid recall topic alpha", 10);
+    const relPaths = results.map((r) => r.relPath);
+    expect(relPaths).toContain("proj/b1.md");
+    expect(relPaths).toContain("proj/a1.md");
   });
 });
 
