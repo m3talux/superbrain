@@ -40,11 +40,18 @@ it("real checkpoint path (no fake seam) writes a vault note and releases the loc
       SUPERBRAIN_DATA_DIR: TMP_DATA, SUPERBRAIN_VAULT_DIR: TMP_VAULT },
     encoding: "utf8",
   });
-  // checkpoint spawns the detached writer; give it a moment
-  execFileSync("bash", ["-c", "sleep 2"]);
-  const found = fs.existsSync(TMP_VAULT) && fs.readdirSync(TMP_VAULT, { recursive: true } as any)
-    .some((f: any) => String(f).endsWith(".md"));
+  // checkpoint spawns the detached distiller; poll for completion rather than a
+  // fixed sleep — a cold embedding-model load can take several seconds on CI.
+  const deadline = Date.now() + 20000;
+  let found = false;
+  let lockReleased = false;
+  while (Date.now() < deadline) {
+    found = fs.existsSync(TMP_VAULT) && fs.readdirSync(TMP_VAULT, { recursive: true } as any)
+      .some((f: any) => String(f).endsWith(".md"));
+    lockReleased = !fs.existsSync(path.join(TMP_DATA, "locks/distill.lock"));
+    if (found && lockReleased) break;
+    execFileSync("bash", ["-c", "sleep 0.5"]);
+  }
   expect(found).toBe(true);
-
-  expect(fs.existsSync(path.join(TMP_DATA, "locks/distill.lock"))).toBe(false);
-});
+  expect(lockReleased).toBe(true);
+}, 25000);
