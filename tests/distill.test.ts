@@ -43,15 +43,15 @@ it("distills delta into routed notes, daily .log file, advances cursor, releases
   expect(fs.existsSync(path.join(TMP_DATA, "locks/distill.lock"))).toBe(false);
 });
 
-it("classifier-rejected item lands in rejects file and is not written to vault", () => {
+it("classifier-rerouted item is coerced and written to the suggested kind; rejects file has diagnostic entry", () => {
   fs.mkdirSync(path.join(TMP_DATA, "sessions"), { recursive: true });
   fs.writeFileSync(
     path.join(TMP_DATA, "sessions/R.ndjson"),
     JSON.stringify({ type: "tool", tool: "Write", file: "a.ts", cwd: "/p", ts: "t" }) + "\n",
   );
   const stub = path.join(TMP_DATA, "stub.json");
-  // "Shipped phase 1" starts with "Shipped" — classify() rejects decisions
-  // whose title prefix belongs in capture, without touching the write path.
+  // "Shipped phase 1" starts with "Shipped" — classify() reroutes decisions
+  // with this prefix to capture. The item must be coerced and written to capture/.
   fs.writeFileSync(stub, JSON.stringify([
     { kind: "decision", title: "Shipped phase 1", body: "we shipped it", date: "2026-05-22", links: [] },
   ]));
@@ -70,13 +70,16 @@ it("classifier-rejected item lands in rejects file and is not written to vault",
     encoding: "utf8",
   });
 
-  // 1. The note must NOT have been written to the vault.
-  expect(fs.existsSync(path.join(TMP_VAULT, "decisions"))).toBe(false);
+  // 1. The note must have been coerced into capture/ (never silently dropped).
+  const captureDir = path.join(TMP_VAULT, "capture");
+  expect(fs.existsSync(captureDir)).toBe(true);
+  const captureFiles = fs.readdirSync(captureDir).filter((f) => f.endsWith(".md"));
+  expect(captureFiles.length).toBeGreaterThan(0);
 
-  // 2. The reject file must exist and contain the classifier reason.
+  // 2. The reject file must exist and contain a diagnostic coercion entry.
   const rejectsFile = path.join(TMP_VAULT, "meta", "distill-rejects.md");
   expect(fs.existsSync(rejectsFile)).toBe(true);
-  expect(fs.readFileSync(rejectsFile, "utf8")).toMatch(/shipped/i);
+  expect(fs.readFileSync(rejectsFile, "utf8")).toMatch(/coerced/i);
 
   // 3. The cursor must have advanced (run did not abort).
   expect(Number(fs.readFileSync(path.join(TMP_DATA, "sessions/R.cursor"), "utf8"))).toBeGreaterThan(0);
