@@ -58,6 +58,8 @@ describe("appendDigest — project-aware seed", () => {
     // Must pass projectSlug option
     expect(opts).toBeDefined();
     expect(opts.projectSlug).toBeTruthy();
+    // Must request bm25Only so the SessionStart hook never loads the embedding model
+    expect(opts.bm25Only).toBe(true);
   });
 
   it("falls back to cwd basename with no projectSlug when path is blocked", async () => {

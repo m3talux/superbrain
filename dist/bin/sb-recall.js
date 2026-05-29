@@ -40,7 +40,7 @@ async function main() {
             }
         }
         const { hybridRecall } = await import("../src/recall.js"); // deferred: only after deps check
-        const hits = await hybridRecall(prompt, 5, { projectSlug, excludeSlugs });
+        const hits = await hybridRecall(prompt, 5, { projectSlug, excludeSlugs, bm25Only: true });
         if (hits.length) {
             // Record newly injected paths so subsequent UserPromptSubmit calls also exclude them.
             if (sid) {
