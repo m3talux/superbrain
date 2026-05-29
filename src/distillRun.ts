@@ -327,18 +327,18 @@ export async function distillFromEvents(sid: string, events: any[]): Promise<Dis
             excerpt: candidateDoc.slice(0, 500),
           });
           const targetKind = cr.suggestedType ?? (it.kind as NoteType);
-          if (targetKind === "capture") {
-            const reItem: DistilledItem = { ...it, kind: "capture", title: shortTitle(it.title, it.body || "") };
-            const r2 = route(reItem);
-            writeFrontmatter = r2.frontmatter;
-            writeRelPath = r2.relPath;
-            writeBody = coerceCapture(reItem, r.body);
-          } else if (targetKind === "lesson") {
+          if (targetKind === "lesson") {
             const reItem: DistilledItem = { ...it, kind: "lesson" };
             const r2 = route(reItem);
             writeFrontmatter = r2.frontmatter;
             writeRelPath = r2.relPath;
             writeBody = coerceLesson(reItem, r.body);
+          } else {
+            const reItem: DistilledItem = { ...it, kind: "capture", title: shortTitle(it.title, it.body || "") };
+            const r2 = route(reItem);
+            writeFrontmatter = r2.frontmatter;
+            writeRelPath = r2.relPath;
+            writeBody = coerceCapture(reItem, r.body);
           }
         }
       } catch (e: any) {
