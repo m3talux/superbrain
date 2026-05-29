@@ -314,19 +314,19 @@ export async function distillFromEvents(sid, events) {
                         excerpt: candidateDoc.slice(0, 500),
                     });
                     const targetKind = cr.suggestedType ?? it.kind;
-                    if (targetKind === "capture") {
-                        const reItem = { ...it, kind: "capture", title: shortTitle(it.title, it.body || "") };
-                        const r2 = route(reItem);
-                        writeFrontmatter = r2.frontmatter;
-                        writeRelPath = r2.relPath;
-                        writeBody = coerceCapture(reItem, r.body);
-                    }
-                    else if (targetKind === "lesson") {
+                    if (targetKind === "lesson") {
                         const reItem = { ...it, kind: "lesson" };
                         const r2 = route(reItem);
                         writeFrontmatter = r2.frontmatter;
                         writeRelPath = r2.relPath;
                         writeBody = coerceLesson(reItem, r.body);
+                    }
+                    else {
+                        const reItem = { ...it, kind: "capture", title: shortTitle(it.title, it.body || "") };
+                        const r2 = route(reItem);
+                        writeFrontmatter = r2.frontmatter;
+                        writeRelPath = r2.relPath;
+                        writeBody = coerceCapture(reItem, r.body);
                     }
                 }
             }
