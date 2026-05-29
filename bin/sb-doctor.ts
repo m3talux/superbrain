@@ -88,6 +88,9 @@ const MIGRATION_STEPS: MigrationStep[] = [
   { name: "retro-collapse-duplicates",   script: "scripts/retro-collapse-duplicates.ts" },
   { name: "migrate-vault",               script: "scripts/migrate-vault.ts" },
   { name: "retro-prune-preferences",     script: "scripts/retro-prune-preferences.ts" },
+  { name: "reattribute-from-history",    script: "scripts/reattribute-from-history.ts" },
+  { name: "cleanup-daily-mirrors",       script: "scripts/cleanup-daily-mirrors.ts" },
+  { name: "recover-lessons",             script: "scripts/recover-lessons.ts" },
 ];
 
 function pluginRoot(): string {
@@ -132,7 +135,7 @@ async function migrateAll(): Promise<void> {
 
   // Prompt for confirmation
   const answer = await new Promise<string>((resolve) => {
-    process.stdout.write("Apply all 4 steps? [y/N]: ");
+    process.stdout.write(`Apply all ${MIGRATION_STEPS.length} steps? [y/N]: `);
     let buf = "";
     let resolved = false;
     function onData(chunk: Buffer | string) {

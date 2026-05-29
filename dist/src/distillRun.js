@@ -168,6 +168,10 @@ EXAMPLE lesson (structured fields, traced to an incident, with whenApplies):
 
 {"items": [ <items as above> ], "digest"?: "<=1 sentence of the session's arc", "openThreads"?: ["unfinished/deferred work"], "alsoDid"?: ["notable work that did not become a knowledge item"]}
 
+# Multi-repo sessions
+
+When the events span more than one repo (multiple distinct cwd values), set each item's "project" to the repo its work belongs to — the events carry cwd so the correct repo is usually clear. Do not leave "project" unset when the repo is identifiable from the events. A wrong label is worse than a null one, so if the item's repo is genuinely ambiguous, omit "project" rather than guessing.
+
 # Events
 
 `;
@@ -221,7 +225,7 @@ export async function distillFromEvents(sid, events) {
     const routedByDate = {};
     let notesWritten = 0;
     for (const it of items) {
-        if (!it.project && PROJECT_SCOPED_KINDS.has(it.kind) && sessionProj.dominant) {
+        if (!it.project && PROJECT_SCOPED_KINDS.has(it.kind) && sessionProj.all.length === 1 && sessionProj.dominant) {
             it.project = sessionProj.dominant;
         }
         else if (it.project) {
