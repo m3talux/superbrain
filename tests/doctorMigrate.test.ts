@@ -4,7 +4,7 @@ import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
 
-const doctorBin = path.resolve("dist/bin/sb-doctor.js");
+const doctorSrc = path.resolve("bin/sb-doctor.ts");
 
 // Fake vault with some notes so migrate-all has a vault path that exists.
 function makeFakeVault(): string {
@@ -21,7 +21,7 @@ describe("sb-doctor migrate-all", () => {
   it("shows dry-run output and exits 0 when user types N", () => {
     const vault = makeFakeVault();
     try {
-      const r = spawnSync("node", [doctorBin, "migrate-all"], {
+      const r = spawnSync("npx", ["tsx", doctorSrc, "migrate-all"], {
         input: "N\n",
         encoding: "utf8",
         env: {
@@ -34,11 +34,11 @@ describe("sb-doctor migrate-all", () => {
       expect(r.status).toBe(0);
       expect(r.stdout).toMatch(/SuperBrain migrate-all/);
       expect(r.stdout).toMatch(/Vault:/);
-      expect(r.stdout).toMatch(/Step 1\/4: backfill-frontmatter/);
-      expect(r.stdout).toMatch(/Step 2\/4: retro-collapse-duplicates/);
-      expect(r.stdout).toMatch(/Step 3\/4: migrate-vault/);
-      expect(r.stdout).toMatch(/Step 4\/4: retro-prune-preferences/);
-      expect(r.stdout).toMatch(/Apply all 4 steps\? \[y\/N\]/);
+      expect(r.stdout).toMatch(/Step 1\/7: backfill-frontmatter/);
+      expect(r.stdout).toMatch(/Step 2\/7: retro-collapse-duplicates/);
+      expect(r.stdout).toMatch(/Step 3\/7: migrate-vault/);
+      expect(r.stdout).toMatch(/Step 4\/7: retro-prune-preferences/);
+      expect(r.stdout).toMatch(/Apply all 7 steps\? \[y\/N\]/);
       expect(r.stdout).toMatch(/Aborted/);
     } finally {
       fs.rmSync(vault, { recursive: true, force: true });
@@ -48,7 +48,7 @@ describe("sb-doctor migrate-all", () => {
   it("applies all steps and exits 0 when user types y (fake mode)", () => {
     const vault = makeFakeVault();
     try {
-      const r = spawnSync("node", [doctorBin, "migrate-all"], {
+      const r = spawnSync("npx", ["tsx", doctorSrc, "migrate-all"], {
         input: "y\n",
         encoding: "utf8",
         env: {
@@ -60,7 +60,7 @@ describe("sb-doctor migrate-all", () => {
       });
       expect(r.status).toBe(0);
       expect(r.stdout).toMatch(/Applying/);
-      expect(r.stdout).toMatch(/Step 1\/4: backfill-frontmatter --apply/);
+      expect(r.stdout).toMatch(/Step 1\/7: backfill-frontmatter --apply/);
       expect(r.stdout).toMatch(/\[fake\] applied/);
       expect(r.stdout).toMatch(/migrate-all complete/);
     } finally {
@@ -71,7 +71,7 @@ describe("sb-doctor migrate-all", () => {
   it("exits 0 when user presses enter (defaults to N)", () => {
     const vault = makeFakeVault();
     try {
-      const r = spawnSync("node", [doctorBin, "migrate-all"], {
+      const r = spawnSync("npx", ["tsx", doctorSrc, "migrate-all"], {
         input: "\n",
         encoding: "utf8",
         env: {
@@ -89,7 +89,7 @@ describe("sb-doctor migrate-all", () => {
   });
 
   it("help updated to include migrate-all", () => {
-    const r = spawnSync("node", [doctorBin, "--help"], { encoding: "utf8" });
+    const r = spawnSync("npx", ["tsx", doctorSrc, "--help"], { encoding: "utf8" });
     expect(r.stdout).toMatch(/migrate-all/);
   });
 });

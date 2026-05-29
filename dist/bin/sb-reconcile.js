@@ -21,6 +21,9 @@ async function main() {
     const version = process.env.npm_package_version || resolveVersion();
     const { reconcile, forcedReindexIfNeeded } = await import("../src/indexer.js");
     await forcedReindexIfNeeded(version).catch((e) => writeFailure(`forced reindex failed: ${e?.message || e}`));
+    const { runCheapUpgradeSteps } = await import("../src/autoUpgrade.js");
+    const { dataDir } = await import("../src/paths.js");
+    await runCheapUpgradeSteps(dataDir(), version).catch((e) => writeFailure(`auto-upgrade failed: ${e?.message || e}`));
     await reconcile().catch((e) => writeFailure(`reconcile failed: ${e?.message || e}`));
     process.exit(0);
 }

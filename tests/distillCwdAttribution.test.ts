@@ -164,6 +164,132 @@ describe("cwd-authoritative project attribution", () => {
     expect(entry.project).toBeUndefined();
   });
 
+  it("multi-cwd session: item with no explicit project is NOT tagged with the dominant slug", () => {
+    const repoDirA = fs.mkdtempSync(path.join(os.tmpdir(), "sb-repo-dom-"));
+    const repoDirB = fs.mkdtempSync(path.join(os.tmpdir(), "sb-repo-min-"));
+    try {
+      fs.writeFileSync(path.join(repoDirA, "package.json"), JSON.stringify({ name: "repo-dominant" }));
+      fs.writeFileSync(path.join(repoDirB, "package.json"), JSON.stringify({ name: "repo-minority" }));
+
+      const slugA = path.basename(repoDirA).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+
+      makeSessionNdjson("MM", [
+        { type: "tool", tool: "Write", file: "a.ts", cwd: repoDirA, ts: "t1" },
+        { type: "tool", tool: "Write", file: "a2.ts", cwd: repoDirA, ts: "t2" },
+        { type: "tool", tool: "Write", file: "a3.ts", cwd: repoDirA, ts: "t3" },
+        { type: "tool", tool: "Write", file: "b.ts", cwd: repoDirB, ts: "t4" },
+      ]);
+
+      const stubPath = makeStub({
+        items: [
+          {
+            kind: "project_fact",
+            title: "No-project fact in multi-cwd session",
+            date: "2026-05-28",
+            body: "A fact with no explicit project field.",
+            links: [],
+          },
+        ],
+        digest: "multi-repo work",
+        openThreads: [],
+        alsoDid: [],
+      });
+
+      runDistill(stubPath, "MM");
+
+      const projectAFile = path.join(TMP_VAULT, "projects", `${slugA}.md`);
+      expect(fs.existsSync(projectAFile)).toBe(false);
+    } finally {
+      fs.rmSync(repoDirA, { recursive: true, force: true });
+      fs.rmSync(repoDirB, { recursive: true, force: true });
+    }
+  });
+
+  it("single-cwd session: item with no explicit project is tagged with the dominant slug", () => {
+    const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), "sb-repo-sing-"));
+    try {
+      fs.writeFileSync(path.join(repoDir, "package.json"), JSON.stringify({ name: "single-repo" }));
+
+      const slugSingle = path.basename(repoDir).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+
+      makeSessionNdjson("SS", [
+        { type: "tool", tool: "Write", file: "a.ts", cwd: repoDir, ts: "t1" },
+        { type: "tool", tool: "Write", file: "b.ts", cwd: repoDir, ts: "t2" },
+        { type: "prompt", prompt: "work in single repo", cwd: repoDir, ts: "t3" },
+      ]);
+
+      const stubPath = makeStub({
+        items: [
+          {
+            kind: "project_fact",
+            title: "Single-repo fact",
+            date: "2026-05-28",
+            body: "A fact with no explicit project field in a single-repo session.",
+            links: [],
+          },
+        ],
+        digest: "single-repo work",
+        openThreads: [],
+        alsoDid: [],
+      });
+
+      runDistill(stubPath, "SS");
+
+      const projectFile = path.join(TMP_VAULT, "projects", `${slugSingle}.md`);
+      expect(fs.existsSync(projectFile)).toBe(true);
+      const content = fs.readFileSync(projectFile, "utf8");
+      expect(content).toContain("Single-repo fact");
+    } finally {
+      fs.rmSync(repoDir, { recursive: true, force: true });
+    }
+  });
+
+  it("multi-cwd session: explicit per-item project wins over no-dominant fallback", () => {
+    const repoDirA = fs.mkdtempSync(path.join(os.tmpdir(), "sb-repo-xa-"));
+    const repoDirB = fs.mkdtempSync(path.join(os.tmpdir(), "sb-repo-xb-"));
+    try {
+      fs.writeFileSync(path.join(repoDirA, "package.json"), JSON.stringify({ name: "repo-xa" }));
+      fs.writeFileSync(path.join(repoDirB, "package.json"), JSON.stringify({ name: "repo-xb" }));
+
+      const slugA = path.basename(repoDirA).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+
+      makeSessionNdjson("MX", [
+        { type: "tool", tool: "Write", file: "a.ts", cwd: repoDirA, ts: "t1" },
+        { type: "tool", tool: "Write", file: "a2.ts", cwd: repoDirA, ts: "t2" },
+        { type: "tool", tool: "Write", file: "b.ts", cwd: repoDirB, ts: "t3" },
+      ]);
+
+      const stubPath = makeStub({
+        items: [
+          {
+            kind: "project_fact",
+            title: "Explicitly labeled fact",
+            date: "2026-05-28",
+            project: "explicit-multi-project",
+            body: "A fact with explicit project in a multi-cwd session.",
+            links: [],
+          },
+        ],
+        digest: "multi-repo with explicit item",
+        openThreads: [],
+        alsoDid: [],
+      });
+
+      runDistill(stubPath, "MX");
+
+      const explicitFile = path.join(TMP_VAULT, "projects", "explicit-multi-project.md");
+      expect(fs.existsSync(explicitFile)).toBe(true);
+      const content = fs.readFileSync(explicitFile, "utf8");
+      expect(content).toContain("Explicitly labeled fact");
+
+      const projectAFile = path.join(TMP_VAULT, "projects", `${slugA}.md`);
+      expect(fs.existsSync(projectAFile)).toBe(false);
+    } finally {
+      fs.rmSync(repoDirA, { recursive: true, force: true });
+      fs.rmSync(repoDirB, { recursive: true, force: true });
+    }
+  });
+
   it("multi-cwd session: B-scoped items are not tagged as A; explicit per-item project wins", () => {
     const repoDirA = fs.mkdtempSync(path.join(os.tmpdir(), "sb-repo-aa-"));
     const repoDirB = fs.mkdtempSync(path.join(os.tmpdir(), "sb-repo-bb-"));

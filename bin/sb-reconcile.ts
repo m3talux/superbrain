@@ -24,6 +24,11 @@ async function main() {
   await forcedReindexIfNeeded(version).catch(
     (e: any) => writeFailure(`forced reindex failed: ${e?.message || e}`)
   );
+  const { runCheapUpgradeSteps } = await import("../src/autoUpgrade.js");
+  const { dataDir } = await import("../src/paths.js");
+  await runCheapUpgradeSteps(dataDir(), version).catch(
+    (e: any) => writeFailure(`auto-upgrade failed: ${e?.message || e}`)
+  );
   await reconcile().catch((e: any) => writeFailure(`reconcile failed: ${e?.message || e}`));
   process.exit(0);
 }
