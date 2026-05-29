@@ -8,6 +8,24 @@ behavior may change without notice.
 
 ## [Unreleased]
 
+## 0.7.0: cross-project isolation, lossless capture, and the session brief
+
+**Cross-project isolation.** Recall is now scoped to the project you are working in. The session-start brief, the per-prompt BM25 pointers, and inject-time recall all filter to the current repo, so one project's notes never surface in another. This closes the cross-project contamination reported in #42.
+
+**Lossless capture.** The distiller no longer silently discards lessons or captures. An item the classifier cannot place is coerced to the closest valid kind (a lesson, or otherwise a triaged `capture`) with the matching frontmatter type, and logged to `meta/distill-rejects.md`, rather than dropped or written malformed into a structured folder. A project-required item with no resolvable project lands in an explicit `unknown` bucket instead of vanishing.
+
+**User-visible session brief.** Session start now surfaces a short, project-scoped recap of recent activity (recent notes and open threads) for the repo you just opened, so SuperBrain's state is visible rather than silent. It is budget-capped and degrades to nothing when there is no history.
+
+**Working-directory project attribution.** Project is derived authoritatively from the working directory. In a session that spans multiple repos, an item with no explicit project is no longer mis-tagged to the session's dominant project. Daily state is tracked per project.
+
+**Frontmatter hardening.** A non-scalar `project` value (a YAML list, or a wikilink object) is coerced to a plain string at both parse and index time, and the serializer no longer throws on an unexpected shape. The search index is force-rebuilt once after upgrade so it reflects the corrected frontmatter.
+
+**Self-healing upgrade and recovery tools.** On the first session after upgrading, SuperBrain runs the cheap, non-LLM repair steps automatically: it re-derives the project for mis-attributed notes from recorded session history, and removes duplicated daily mirrors. `sb-doctor migrate-all` now orchestrates seven steps behind a single prompt with a dry-run preview, including the new `reattribute-from-history`, `cleanup-daily-mirrors`, and `recover-lessons` (which re-mines past sessions for lessons dropped by the pre-0.7 capture bug).
+
+## 0.6.0: daily-rollup simplification
+
+Removed the redundant daily-rollup synthesizer. The daily note is rebuilt deterministically from per-session state on each distill, with no separate LLM rollup pass.
+
 ## 0.5.1 — Auto-migration UX
 
 Upgrading from <0.5 now auto-detects legacy vault state. Frontmatter backfill runs automatically (detached, ~30 s, idempotent). A one-time notice in SessionStart inject context surfaces a `sb-doctor migrate-all` command that orchestrates the four migration scripts behind a single y/N prompt with dry-run preview. Sentinel at `~/.superbrain/migration-prompted-<version>.txt` ensures the notice appears once per upgraded version.
