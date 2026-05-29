@@ -13,6 +13,7 @@ import { buildInjectPrompt } from "./injectPrompt.js";
 import { acquireLock, releaseLock } from "./lockfile.js";
 import { resolveLinks } from "./wikilink.js";
 import { claudeP } from "./claudeCli.js";
+import { classifyPath, basenameSlug } from "./projectDetect.js";
 const MAX_INPUT_BYTES = 32 * 1024;
 export function sanityCheck(raw) {
     const stripped = raw.replace(/\0/g, "");
@@ -122,9 +123,16 @@ function callClaudeInject(prompt) {
         return fs.readFileSync(stub, "utf8");
     return claudeP(prompt);
 }
-async function gatherRecall(text) {
+async function gatherRecall(text, cwd) {
     try {
-        return await hybridRecall(text, 5);
+        let projectSlug;
+        if (cwd) {
+            const classification = classifyPath(cwd);
+            if (classification.kind === "single" || classification.kind === "umbrella") {
+                projectSlug = basenameSlug(classification.projectDir);
+            }
+        }
+        return await hybridRecall(text, 5, projectSlug ? { projectSlug } : undefined);
     }
     catch {
         return [];
@@ -205,7 +213,7 @@ export async function runInject(raw, opts = {}) {
             return { ok: true, mode, notes: [rel] };
         }
         // distill mode
-        const recallHits = await gatherRecall(sane.text);
+        const recallHits = await gatherRecall(sane.text, opts.cwd);
         const projectSlugs = listProjectSlugs();
         const prompt = buildInjectPrompt(sane.text, recallHits, projectSlugs);
         let envelope;

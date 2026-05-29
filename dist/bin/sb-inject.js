@@ -76,7 +76,7 @@ async function main() {
     }
     try {
         const mod = await import("../src/injectRun.js");
-        const result = await mod.runInject(text, opts);
+        const result = await mod.runInject(text, { ...opts, cwd: process.cwd() });
         if (!result.ok) {
             process.stderr.write(`inject: ${result.message || "failed"}\n`);
             process.exit(2);

@@ -24,7 +24,7 @@ afterEach(() => {
 it("every hook entrypoint loads + exits 0 with NO node_modules; SessionStart bootstraps", () => {
   const env = { ...process.env, CLAUDE_PLUGIN_ROOT: CLONE, SUPERBRAIN_DATA_DIR: TMP_DATA,
     SUPERBRAIN_BOOTSTRAP_FAKE: "1", SUPERBRAIN_FAKE_DISTILLER: "1" };
-  for (const b of ["sb-observe", "sb-checkpoint", "sb-recall", "sb-distill"]) {
+  for (const b of ["sb-observe", "sb-checkpoint", "sb-recall", "sb-distill", "sb-reconcile"]) {
     const r = execFileSync(process.execPath, [path.join(CLONE, "dist/bin", `${b}.js`)], {
       input: JSON.stringify({ session_id: "S", prompt: "x", hook_event_name: "Stop" }),
       env, encoding: "utf8" }); // must not throw

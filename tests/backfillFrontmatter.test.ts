@@ -86,27 +86,24 @@ describe("inferProject", () => {
     expect(inferProject("meta/preferences.md", "", knownProjects)).toBeNull();
   });
 
-  it("decisions/ with body mentioning a known project → that project", () => {
-    const body = "We decided to use TypeScript for theweproject frontend.";
-    expect(inferProject("decisions/2026-05-20-foo.md", body, knownProjects)).toBe("theweproject");
+  it("decisions/ → global (not derived from body)", () => {
+    const bodyWithSlug = "We decided to use TypeScript for theweproject frontend.";
+    expect(inferProject("decisions/2026-05-20-foo.md", bodyWithSlug, knownProjects)).toBe("global");
   });
 
-  it("decisions/ with body mentioning project in different case → that project", () => {
-    const body = "Related to Superbrain indexing pipeline.";
-    expect(inferProject("decisions/2026-05-20-foo.md", body, knownProjects)).toBe("superbrain");
+  it("lessons/ → global regardless of body content", () => {
+    const bodyWithSlug = "Related to Superbrain indexing pipeline.";
+    expect(inferProject("lessons/some-lesson.md", bodyWithSlug, knownProjects)).toBe("global");
   });
 
-  it("decisions/ with no body match → global", () => {
-    expect(inferProject("decisions/2026-05-20-foo.md", "generic content here", knownProjects)).toBe("global");
+  it("capture/ body mentioning a slug → global (no body scan)", () => {
+    const bodyWithSlug = "Working on lean-ctx today, got some ideas.";
+    expect(inferProject("capture/idea.md", bodyWithSlug, knownProjects)).toBe("global");
   });
 
-  it("lessons/ with no body match → global", () => {
-    expect(inferProject("lessons/some-lesson.md", "some content", knownProjects)).toBe("global");
-  });
-
-  it("capture/ with body matching a known project → that project", () => {
-    const body = "Working on lean-ctx today, got some ideas.";
-    expect(inferProject("capture/idea.md", body, knownProjects)).toBe("lean-ctx");
+  it("capture/ body containing inject marker mentioning a project → global, not that project", () => {
+    const bodyWithMarker = "<!-- superbrain:inject project=superbrain -->\nsome content about lean-ctx";
+    expect(inferProject("capture/idea.md", bodyWithMarker, knownProjects)).toBe("global");
   });
 
   it("empty knownProjects → global", () => {
@@ -258,13 +255,24 @@ describe("planBackfill", () => {
     }
   });
 
-  it("infers project from body mention for capture/ note", () => {
+  it("capture/ body mentioning a known project slug → project is global, not the slug", () => {
     writeNote("projects/superbrain.md", `---\ntype: project\nproject: superbrain\n---\n\n`);
     writeNote("capture/idea.md", `---\n---\n\nIdeas for Superbrain indexing.\n`);
     const proposals = planBackfill(tmpDir);
     const p = proposals.find(p => p.file.includes("idea.md"));
     expect(p).toBeDefined();
-    expect(p!.changes.some(c => c.field === "project" && c.value === "superbrain")).toBe(true);
+    expect(p!.changes.some(c => c.field === "project" && c.value === "global")).toBe(true);
+    expect(p!.changes.some(c => c.field === "project" && c.value === "superbrain")).toBe(false);
+  });
+
+  it("capture/ body containing inject marker → project is global, not the marker's project", () => {
+    writeNote("projects/superbrain.md", `---\ntype: project\nproject: superbrain\n---\n\n`);
+    writeNote("capture/injected.md", `---\n---\n\n<!-- superbrain:inject project=superbrain -->\nsome content\n`);
+    const proposals = planBackfill(tmpDir);
+    const p = proposals.find(p => p.file.includes("injected.md"));
+    expect(p).toBeDefined();
+    expect(p!.changes.some(c => c.field === "project" && c.value === "global")).toBe(true);
+    expect(p!.changes.some(c => c.field === "project" && c.value === "superbrain")).toBe(false);
   });
 
   it("returns no proposals for an empty vault", () => {
