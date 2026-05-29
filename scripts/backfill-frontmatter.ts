@@ -68,21 +68,19 @@ export function inferType(relPath: string): string | null {
  * Infer the project slug for a note.
  *
  * Rules:
- *   - projects/<name>.md          → <name>
- *   - projects/_archive/<name>-<YYYY>-Q<n>.md → prefix before -<YYYY>
- *   - daily/, people/, meta/      → null (no project)
- *   - others: scan body for a known project name (case-insensitive slug match)
- *   - fallback                    → "global"
+ *   - projects/<name>.md                        → <name>
+ *   - projects/_archive/<name>-<YYYY>-Q<n>.md   → prefix before -<YYYY>
+ *   - daily/, people/, meta/                    → null (no project)
+ *   - all other folders (decisions, lessons, capture, …) → "global"
  */
 export function inferProject(
   relPath: string,
-  body: string,
-  knownProjects: string[]
+  _body: string,
+  _knownProjects: string[]
 ): string | null {
   const parts = relPath.split("/");
   const topFolder = parts[0];
 
-  // No project for these folders
   if (NO_PROJECT_FOLDERS.has(topFolder)) return null;
 
   if (topFolder === "projects") {
@@ -90,25 +88,11 @@ export function inferProject(
 
     // _archive/<name>-<YYYY>-Q<n>.md  or  _archive/<name>-<YYYY>-Q<n>
     if (parts[1] === "_archive") {
-      // Strip suffix: -YYYY-Qn or -YYYY at end
       const slug = basename.replace(/-\d{4}-Q\d+$/, "").replace(/-\d{4}$/, "");
       return slug || basename;
     }
 
     return basename;
-  }
-
-  // For other folders: try to match body against known project slugs
-  if (knownProjects.length > 0) {
-    const lowerBody = body.toLowerCase();
-    for (const proj of knownProjects) {
-      // Match slug as a word boundary (handle hyphens in slug)
-      const pattern = proj.toLowerCase().replace(/-/g, "[- ]");
-      const re = new RegExp(`(?<![a-z0-9])${pattern}(?![a-z0-9])`, "i");
-      if (re.test(lowerBody)) {
-        return proj;
-      }
-    }
   }
 
   return "global";
@@ -283,13 +267,7 @@ export function planBackfill(vaultDir: string): BackfillProposal[] {
     const needsProject = !NO_PROJECT_FOLDERS.has(effectiveFolder) && effectiveType !== "daily";
 
     if (needsProject && !fm?.["project"]) {
-      // Extract body content (after frontmatter)
-      let body = "";
-      if (raw.startsWith("---")) {
-        const endIdx = raw.indexOf("\n---", 3);
-        if (endIdx !== -1) body = raw.slice(endIdx + 4);
-      }
-      const inferredProject = inferProject(relPath, body, knownProjects);
+      const inferredProject = inferProject(relPath, "", knownProjects);
       if (inferredProject !== null) {
         changes.push({ field: "project", value: inferredProject });
       }
