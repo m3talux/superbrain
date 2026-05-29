@@ -99,7 +99,8 @@ flowchart LR
 **Search & recall**
 
 - ✅ Local hybrid search — FTS5 (BM25) + sqlite-vec, fused with Reciprocal Rank Fusion
-- ✅ Tiered autonomous recall: BM25 pointers injected on **every prompt** (no model load, no daemon); full hybrid digest on session start
+- ✅ Tiered autonomous recall: BM25 pointers injected on **every prompt** (no model load, no daemon); a user-visible hybrid brief on session start
+- ✅ **Project-scoped by default**: autonomous recall and the session brief are filtered to the repo you're in, so one project's notes never surface in another (vault-wide deep search stays available via the recall skill and `superbrain_search` MCP)
 - ✅ `superbrain-recall` skill + stdio MCP server (`superbrain_search`) for model-invoked deep search
 - ✅ Incremental index on write + self-healing reconcile on session start (Obsidian-edit / git-pull drift)
 - ✅ All-local embeddings (MiniLM, fetched once & cached); automatic BM25 fallback — search is never hard-down
