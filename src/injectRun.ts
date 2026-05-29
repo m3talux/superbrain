@@ -13,11 +13,13 @@ import { buildInjectPrompt } from "./injectPrompt.js";
 import { acquireLock, releaseLock } from "./lockfile.js";
 import { resolveLinks } from "./wikilink.js";
 import { claudeP } from "./claudeCli.js";
+import { classifyPath, basenameSlug } from "./projectDetect.js";
 
 export interface InjectOpts {
   verbatim?: boolean;
   distill?: boolean;
   project?: string;
+  cwd?: string;
 }
 
 export type SanityResult =
@@ -143,8 +145,17 @@ function callClaudeInject(prompt: string): string {
   return claudeP(prompt);
 }
 
-async function gatherRecall(text: string): Promise<Pointer[]> {
-  try { return await hybridRecall(text, 5); } catch { return []; }
+async function gatherRecall(text: string, cwd?: string): Promise<Pointer[]> {
+  try {
+    let projectSlug: string | undefined;
+    if (cwd) {
+      const classification = classifyPath(cwd);
+      if (classification.kind === "single" || classification.kind === "umbrella") {
+        projectSlug = basenameSlug(classification.projectDir);
+      }
+    }
+    return await hybridRecall(text, 5, projectSlug ? { projectSlug } : undefined);
+  } catch { return []; }
 }
 
 function buildVerbatimItem(text: string, opts: InjectOpts): DistilledItem {
@@ -229,7 +240,7 @@ export async function runInject(raw: string, opts: InjectOpts = {}): Promise<Inj
     }
 
     // distill mode
-    const recallHits = await gatherRecall(sane.text);
+    const recallHits = await gatherRecall(sane.text, opts.cwd);
     const projectSlugs = listProjectSlugs();
     const prompt = buildInjectPrompt(sane.text, recallHits, projectSlugs);
     let envelope;
