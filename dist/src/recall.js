@@ -30,12 +30,17 @@ export async function hybridRecall(query, k, opts) {
         ix = openIndex();
         const bm = ix.bm25(query, k * 2);
         let vec = [];
-        try {
-            const [qv] = await embed([query]);
-            const raw = ix.vectorKNN(qv, k * 2);
-            vec = raw.filter((h) => h.distance == null || h.distance <= VECTOR_DISTANCE_CUTOFF);
+        // bm25Only skips the embedding model entirely. Short-lived hooks (SessionStart,
+        // UserPromptSubmit) must exit cleanly; loading onnxruntime there aborts the
+        // process on teardown under some Node runtimes, so they pass bm25Only.
+        if (!opts?.bm25Only) {
+            try {
+                const [qv] = await embed([query]);
+                const raw = ix.vectorKNN(qv, k * 2);
+                vec = raw.filter((h) => h.distance == null || h.distance <= VECTOR_DISTANCE_CUTOFF);
+            }
+            catch { /* degrade to bm25-only */ }
         }
-        catch { /* degrade to bm25-only */ }
         // INTENTIONAL precision gate: if BM25 has zero lexical hits we return nothing
         // rather than vector-only neighbours, preventing constant noise injection.
         if (bm.length === 0)

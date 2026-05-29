@@ -51,7 +51,7 @@ export async function appendDigest(parts: string[], h: any): Promise<void> {
 
       if (lastDigestLine) {
         const lines = [
-          `Tell the user in one sentence that SuperBrain has loaded context for this project.`,
+          `At the start of your first reply, tell the user in one sentence that SuperBrain loaded this project's recent context, citing the "Last session" summary below.`,
           `SuperBrain — ${currentProjectSlug}`,
           `Last session: ${lastDigestLine}`,
         ];
@@ -65,18 +65,18 @@ export async function appendDigest(parts: string[], h: any): Promise<void> {
   // Hybrid recall digest: project-slug filtered when cwd resolves to a known project.
   try {
     let query: string;
-    let recallOpts: { projectSlug?: string } | undefined;
+    // bm25Only: this SessionStart hook must exit cleanly; loading the embedding
+    // model here aborts the process on teardown under some Node runtimes.
+    const recallOpts: { projectSlug?: string; bm25Only: boolean } = { bm25Only: true };
 
     if (currentProjectKnown && currentProjectSlug) {
       query = currentProjectSlug;
-      recallOpts = { projectSlug: currentProjectSlug };
+      recallOpts.projectSlug = currentProjectSlug;
     } else if (cwd) {
       // blocked or skip — fall back to bare basename, no project filter
       query = path.basename(cwd);
-      recallOpts = undefined;
     } else {
       query = "";
-      recallOpts = undefined;
     }
 
     const hits = await hybridRecall(query, 5, recallOpts);

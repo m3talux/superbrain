@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { openIndex } from "../src/searchIndex";
 import { bm25Recall, hybridRecall } from "../src/recall";
+import * as embedMod from "../src/embed";
 
 let TMP: string;
 
@@ -41,6 +42,21 @@ describe("recall", () => {
     const r = await hybridRecall("sqlite-vec", 3);
     expect(r[0].relPath).toBe("decisions/2026-05-01-vec.md");
     delete process.env.SUPERBRAIN_EMBED_FORCE_FAIL;
+  });
+
+  it("hybridRecall with bm25Only never loads the embedding model and still returns results", async () => {
+    const spy = vi.spyOn(embedMod, "embed");
+    const r = await hybridRecall("sqlite-vec", 3, { bm25Only: true });
+    expect(spy).not.toHaveBeenCalled();
+    expect(r[0].relPath).toBe("decisions/2026-05-01-vec.md");
+    spy.mockRestore();
+  });
+
+  it("hybridRecall without bm25Only does invoke embed (guards the spy is wired)", async () => {
+    const spy = vi.spyOn(embedMod, "embed");
+    await hybridRecall("local vector database", 3);
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
 
