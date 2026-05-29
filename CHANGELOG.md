@@ -8,6 +8,10 @@ behavior may change without notice.
 
 ## [Unreleased]
 
+## 0.7.1: session brief reliability (Node-version-independent hooks)
+
+The session-start brief and per-prompt recall hooks no longer load the embedding model. On some Node runtimes (observed on Node 25.x) the native embedding library aborted the process on exit, so the SessionStart hook crashed and Claude Code dropped its injected context, and the brief never appeared. The short-lived hooks now use lexical (BM25) recall only and always exit cleanly; embedding-based search keeps running in the long-lived MCP server and the background distiller. Session start is also faster (no model load), and project scoping is unchanged.
+
 ## 0.7.0: cross-project isolation, lossless capture, and the session brief
 
 **Cross-project isolation.** Recall is now scoped to the project you are working in. The session-start brief, the per-prompt BM25 pointers, and inject-time recall all filter to the current repo, so one project's notes never surface in another. This closes the cross-project contamination reported in #42.
