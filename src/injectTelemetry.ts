@@ -11,7 +11,7 @@ export interface InjectRecord {
 }
 
 function logDir(): string {
-  return process.env.SUPERBRAIN_HOME || path.join(os.homedir(), ".superbrain");
+  return process.env.SUPERBRAIN_DATA_DIR || path.join(os.homedir(), ".superbrain");
 }
 
 function logPath(): string {
