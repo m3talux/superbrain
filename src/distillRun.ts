@@ -308,6 +308,14 @@ export async function distillFromEvents(sid: string, events: any[]): Promise<Dis
           if (it.kind === "preference") {
             try { emitPreferencesCore(it.body ?? ""); } catch { /* best-effort */ }
           }
+        } else if (!res0.ok) {
+          recordRejection(vaultPath(), {
+            type: r.frontmatter.type as string ?? it.kind,
+            reason: `writeNote rejected: ${res0.reason ?? "unknown"}`,
+            sessionId: sid,
+            title: it.title,
+            excerpt: r.body.slice(0, 500),
+          });
         }
         continue;
       }
@@ -395,6 +403,14 @@ export async function distillFromEvents(sid: string, events: any[]): Promise<Dis
         try { await indexNote(writeRelPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
         (routedByDate[it.date] ||= []).push(writeRelPath);
         notesWritten++;
+      } else if (!res.ok) {
+        recordRejection(vaultPath(), {
+          type: writeFrontmatter.type as string ?? it.kind,
+          reason: `writeNote rejected: ${res.reason ?? "unknown"}`,
+          sessionId: sid,
+          title: it.title,
+          excerpt: writeBody.slice(0, 500),
+        });
       }
     } catch (e: any) {
       recordRejection(vaultPath(), {
