@@ -14,7 +14,7 @@ beforeEach(() => {
   const ix = openIndex();
   ix.upsertNote("decisions/x.md", 1, "h",
     [{ headingPath: "", anchor: "", text: "adopted mcpvault then replaced it with an in-process writer" }],
-    [Float32Array.from(Array(384).fill(0.2))]);
+    [Float32Array.from(Array(256).fill(0.2))]);
   ix.close();
 });
 

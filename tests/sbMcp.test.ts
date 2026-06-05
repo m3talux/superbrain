@@ -14,7 +14,7 @@ beforeEach(() => {
   const ix = openIndex();
   ix.upsertNote("projects/p.md", 1, "h",
     [{ headingPath: "", anchor: "", text: "the daily rollup converges with a stable v1 gate" }],
-    [Float32Array.from(Array(384).fill(0.7))]);
+    [Float32Array.from(Array(256).fill(0.7))]);
   ix.close();
 });
 

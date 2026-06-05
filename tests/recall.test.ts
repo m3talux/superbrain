@@ -8,7 +8,7 @@ import * as embedMod from "../src/embed";
 
 let TMP: string;
 
-const STUB_VEC = Float32Array.from(Array(384).fill(0.5));
+const STUB_VEC = Float32Array.from(Array(256).fill(0.5));
 
 beforeEach(() => {
   TMP = fs.mkdtempSync(path.join(os.tmpdir(), "sb-recall-"));
@@ -115,7 +115,7 @@ describe("project-scoped recall", () => {
 });
 
 describe("project-scoped recall — hard exclusion", () => {
-  const STUB = Float32Array.from(Array(384).fill(0.5));
+  const STUB = Float32Array.from(Array(256).fill(0.5));
 
   function seedMultiProject() {
     const ix = openIndex();

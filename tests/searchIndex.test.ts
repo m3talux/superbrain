@@ -15,7 +15,7 @@ afterEach(() => {
   fs.rmSync(TMP, { recursive: true, force: true });
 });
 
-const vec = (n: number) => Float32Array.from(Array(384).fill(n));
+const vec = (n: number) => Float32Array.from(Array(256).fill(n));
 
 describe("searchIndex", () => {
   it("upsert → bm25 + vectorKNN; re-upsert replaces; delete removes", () => {
