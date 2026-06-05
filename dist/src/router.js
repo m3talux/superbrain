@@ -1,14 +1,27 @@
+export function asText(v) {
+    if (typeof v === "string")
+        return v;
+    if (v === null || v === undefined)
+        return "";
+    if (typeof v === "object") {
+        try {
+            return JSON.stringify(v);
+        }
+        catch {
+            return String(v);
+        }
+    }
+    return String(v);
+}
 export function slug(s) {
-    return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "untitled";
+    return asText(s).toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "untitled";
 }
 function withLinks(body, links) {
     const wl = links.filter(Boolean).map((l) => `[[${l}]]`);
     return wl.length ? `${body}\n\nRelated: ${wl.join(" ")}` : body;
 }
-// Helper: emit "## Heading\n\ncontent" only when content is non-empty. Lets the
-// router omit sections the distiller chose not to fill.
 function section(heading, content) {
-    const v = (content || "").trim();
+    const v = asText(content).trim();
     return v ? `## ${heading}\n\n${v}` : "";
 }
 function joinSections(parts) {
@@ -24,11 +37,11 @@ export function route(item) {
                 section("Alternatives considered", item.alternatives),
                 section("Consequences", item.consequences),
             ]);
-            const inner = structured || (item.body || "").trim();
+            const inner = structured || asText(item.body).trim();
             return {
                 relPath: `decisions/${item.date}-${slug(item.title)}.md`,
                 frontmatter: { type: "decision", status: "active", ...(item.project ? { project: slug(item.project) } : {}), ...base },
-                body: withLinks(`# ${item.date} — ${item.title}\n\n${inner}`, item.links),
+                body: withLinks(`# ${item.date} — ${asText(item.title)}\n\n${inner}`, item.links),
                 mode: "create",
             };
         }
@@ -36,14 +49,14 @@ export function route(item) {
             return {
                 relPath: `projects/${slug(item.project || "unknown")}.md`,
                 frontmatter: { type: "project", status: "active", project: slug(item.project || "unknown"), ...base },
-                body: withLinks(`**${item.title}** — ${(item.body || "").trim()}`, item.links),
+                body: withLinks(`**${asText(item.title)}** — ${asText(item.body).trim()}`, item.links),
                 mode: "append",
             };
         case "person":
             return {
                 relPath: `people/${slug(item.person || "unknown")}.md`,
                 frontmatter: { type: "person", status: "active", ...base },
-                body: withLinks((item.body || "").trim(), item.links),
+                body: withLinks(asText(item.body).trim(), item.links),
                 mode: "append",
             };
         case "gotcha": {
@@ -53,20 +66,16 @@ export function route(item) {
                 section("Fix", item.fix),
                 section("Prevention", item.prevention),
             ]);
-            const inner = structured || (item.body || "").trim();
+            const inner = structured || asText(item.body).trim();
             return {
                 relPath: `projects/${slug(item.project || "unknown")}.md`,
                 frontmatter: { type: "project", status: "active", project: slug(item.project || "unknown"), ...base },
-                body: withLinks(`## Gotcha — ${item.title}\n\n${inner}`, item.links),
+                body: withLinks(`## Gotcha — ${asText(item.title)}\n\n${inner}`, item.links),
                 mode: "append",
             };
         }
         case "lesson": {
-            // "Structured" means the distiller filled one of the NEW lesson sections
-            // (why / whenApplies). The legacy shape is { body, rule } — that path
-            // must keep producing `**Why:** body` + `**Rule:** rule` for back-compat
-            // with existing fixtures and any in-flight ndjson stubs.
-            const hasStructured = !!((item.why || "").trim() || (item.whenApplies || "").trim());
+            const hasStructured = !!(asText(item.why).trim() || asText(item.whenApplies).trim());
             let inner;
             if (hasStructured) {
                 inner = joinSections([
@@ -76,14 +85,15 @@ export function route(item) {
                 ]);
             }
             else {
-                const why = item.body ? `**Why:** ${item.body.trim()}` : "";
-                const ruleLine = item.rule ? `\n\n**Rule:** ${item.rule}` : "";
+                const whyBody = asText(item.body).trim();
+                const why = whyBody ? `**Why:** ${whyBody}` : "";
+                const ruleLine = item.rule ? `\n\n**Rule:** ${asText(item.rule).trim()}` : "";
                 inner = `${why}${ruleLine}`.trim();
             }
             return {
                 relPath: `lessons/${item.date}-${slug(item.title)}.md`,
                 frontmatter: { type: "lesson", status: "active", ...base },
-                body: withLinks(`# ${item.title}\n\n${inner}`, item.links),
+                body: withLinks(`# ${asText(item.title)}\n\n${inner}`, item.links),
                 mode: "create",
             };
         }
@@ -91,40 +101,38 @@ export function route(item) {
             return {
                 relPath: `meta/preferences.md`,
                 frontmatter: { type: "preference", ...base },
-                body: (item.body || "").trim(),
+                body: asText(item.body).trim(),
                 mode: "replace",
             };
         case "daily":
             return {
                 relPath: `daily/${item.date}.md`,
                 frontmatter: { type: "daily", ...base },
-                body: withLinks((item.body || "").trim(), item.links),
+                body: withLinks(asText(item.body).trim(), item.links),
                 mode: "append",
             };
         default: {
-            // Re-route capture items whose title matches `daily-YYYY-MM-DD` — these
-            // are daily notes that were mis-classified as captures.
-            const dailyTitle = (item.title || "").match(/^daily-(\d{4}-\d{2}-\d{2})$/);
+            const dailyTitle = asText(item.title).match(/^daily-(\d{4}-\d{2}-\d{2})$/);
             if (dailyTitle) {
                 return {
                     relPath: `daily/${dailyTitle[1]}.md`,
                     frontmatter: { type: "daily", ...base },
-                    body: withLinks((item.body || "").trim(), item.links),
+                    body: withLinks(asText(item.body).trim(), item.links),
                     mode: "append",
                 };
             }
             {
-                const hasStructured = !!((item.what || "").trim() || (item.whyItMatters || "").trim());
+                const hasStructured = !!(asText(item.what).trim() || asText(item.whyItMatters).trim());
                 let captureBody;
                 if (hasStructured) {
                     captureBody = joinSections([
-                        `# ${item.title}`,
+                        `# ${asText(item.title)}`,
                         section("What", item.what),
                         section("Why it matters", item.whyItMatters),
                     ]);
                 }
                 else {
-                    captureBody = `# ${item.title}\n\n${(item.body || "").trim()}`;
+                    captureBody = `# ${asText(item.title)}\n\n${asText(item.body).trim()}`;
                 }
                 return {
                     relPath: `capture/${item.date}-${slug(item.title)}.md`,
