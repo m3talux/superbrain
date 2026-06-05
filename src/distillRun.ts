@@ -29,7 +29,7 @@ import { dedupAgainstVault } from "./distillDedup.js";
 import { openIndex } from "./searchIndex.js";
 import { embed } from "./embed.js";
 import { classifyPath, basenameSlug } from "./projectDetect.js";
-import { slug } from "./router.js";
+import { slug, asText } from "./router.js";
 
 export interface SessionProjectResult {
   dominant: string | undefined;
@@ -57,7 +57,7 @@ export function resolveSessionProject(events: any[]): SessionProjectResult {
 }
 
 function shortTitle(raw: string, fallbackBody: string): string {
-  const src = (raw || fallbackBody).trim();
+  const src = (asText(raw) || asText(fallbackBody)).trim();
   const words = src.split(/\s+/).filter(Boolean);
   const taken = words.slice(0, 8).join(" ").replace(/\.+$/, "");
   return taken || "Captured note";
@@ -78,8 +78,8 @@ function trimToWordCeiling(text: string, ceiling: number): string {
 }
 
 export function coerceCapture(item: DistilledItem, routedBody: string): string {
-  const title = shortTitle(item.title, item.body || "");
-  const rawBody = (item.body || routedBody || "").trim();
+  const title = shortTitle(asText(item.title), asText(item.body));
+  const rawBody = (asText(item.body) || asText(routedBody)).trim();
   const words = rawBody.split(/\s+/).filter(Boolean);
   const maxWhat = 180;
   const whatContent = words.length > maxWhat
@@ -91,10 +91,10 @@ export function coerceCapture(item: DistilledItem, routedBody: string): string {
 }
 
 export function coerceLesson(item: DistilledItem, routedBody: string): string {
-  const title = (item.title || "Lesson").trim();
-  const ruleText = (item.rule || "").trim() || trimToWordCeiling((item.body || routedBody || "").trim(), 30);
-  const whyText = (item.why || item.body || routedBody || "").trim() || "See session context.";
-  const whenText = (item.whenApplies || "").trim() || "In relevant future situations.";
+  const title = (asText(item.title) || "Lesson").trim();
+  const ruleText = asText(item.rule).trim() || trimToWordCeiling((asText(item.body) || asText(routedBody)).trim(), 30);
+  const whyText = (asText(item.why) || asText(item.body) || asText(routedBody)).trim() || "See session context.";
+  const whenText = asText(item.whenApplies).trim() || "In relevant future situations.";
   return `# ${title}\n\n## Rule\n\n${ruleText}\n\n## Why\n\n${whyText}\n\n## When this applies\n\n${whenText}\n`;
 }
 
