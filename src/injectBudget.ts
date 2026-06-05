@@ -7,7 +7,7 @@ export const INJECT_LIMITS = {
   // B4 — 4-slot weighted brief budget
   briefProject: 400,
   briefGlobal: 100,
-  prefCore: 150,
+  prefCore: 250,
   miniBrief: 200,
 } as const;
 
