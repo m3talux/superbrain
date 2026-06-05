@@ -9,11 +9,18 @@ import { classifyPath, basenameSlug } from "./projectDetect.js";
 import { appendInjectedSlugs } from "./sessionInjected.js";
 import { logInject } from "./injectTelemetry.js";
 import { dataDir, vaultPath } from "./paths.js";
+import { probeVaultGit, heartbeatWarning } from "./vaultHeartbeat.js";
 export async function appendDigest(parts, h) {
     const sid = h.session_id || "";
     let recallText = "";
     let preferencesText = "";
     let openThreadsText = "";
+    try {
+        const warn = heartbeatWarning(probeVaultGit(vaultPath()));
+        if (warn)
+            parts.unshift(warn);
+    }
+    catch { /* heartbeat is best-effort */ }
     // Resolve the current project once; reused by both recall and open-threads.
     const cwd = h.cwd || "";
     let currentProjectSlug;
