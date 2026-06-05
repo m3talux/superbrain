@@ -126,7 +126,7 @@ refactor before macOS/Windows can be required-green).
   emitted link by (1) exact relative-path, (2) exact basename
   (preferring `projects/` → `decisions/` → ...), or (3) token-subset
   against post-date-strip filenames for 2+ token links. Resolution is
-  **case-insensitive** (so `[[Weddy]]` matches `projects/weddy.md`)
+  **case-insensitive** (so `[[Alpha-proj]]` matches `projects/alpha-proj.md`)
   and strips leading `./`, `../`, and pipe-aliases (`[[target|alias]]`)
   before matching. Unresolved links are dropped rather than rendered.
   `runDistill`, `runRollup`, and `injectRun`'s distill branch all

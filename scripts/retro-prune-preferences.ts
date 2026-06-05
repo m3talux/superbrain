@@ -132,7 +132,7 @@ export function parsePreferences(content: string): Entry[] {
  *                   There is no length cap — real preferences in this vault are long.
  *   DEMOTE-PROJECT  matches /^for <single-word-slug>:/i where the slug is a proper
  *                   noun (single CamelCase or lowercase word, not a multi-word phrase).
- *                   e.g. "For Weddy: …" → project slug "weddy"
+ *                   e.g. "For Alpha-proj: …" → project slug "alpha-proj"
  *                   but  "For CLI tools: …" → NOT a project slug → keep
  *   DEMOTE-LESSON   clear past-tense observations ("I learned…", "We got burned…",
  *                   "We discovered…") that carry no actionable directive.
