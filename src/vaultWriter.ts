@@ -4,6 +4,7 @@ import { vaultPath } from "./paths.js";
 import { serializeNote, parseNote, validateFrontmatter } from "./frontmatter.js";
 import { atomicWrite, readWithChecksum } from "./atomicWrite.js";
 import { appendDatedSectionWithArchive, initializeProjectNote } from "./projectWriter.js";
+import { writeFailure } from "./sentinel.js";
 
 const ALLOWED_EXT = new Set([".md"]);
 const EXCLUDED = ["/.obsidian/", "/.git/", "/node_modules/", "/.trash/"];
@@ -86,35 +87,51 @@ export function writeNote(rel: string, args: WriteArgs): WriteResult {
       const r = appendDatedSectionWithArchive(currentBody, date, args.body, {
         sizeCap: Math.max(8192, (Number(process.env.SUPERBRAIN_PROJECT_NOTE_CAP_BYTES) || 32 * 1024) - fmOverhead),
       });
-      atomicWrite(abs, serializeNote(mergedFm, r.body));
-      for (const a of r.archived) {
-        const year = a.date === "0000-00-00"
-          ? new Date().toISOString().slice(0, 4)
-          : a.date.slice(0, 4);
-        const month = a.date === "0000-00-00"
-          ? new Date().getMonth() + 1
-          : parseInt(a.date.slice(5, 7), 10);
-        const q = Math.ceil(month / 3);
-        const slug = path.basename(abs, ".md");
-        const archivePath = path.join(
-          path.resolve(vaultPath()),
-          "projects",
-          "_archive",
-          `${slug}-${year}-Q${q}.md`,
-        );
-        fs.mkdirSync(path.dirname(archivePath), { recursive: true });
-        if (!fs.existsSync(archivePath)) {
-          const afm = serializeNote(
-            { type: "summary", project: slug, archived_from: `projects/${slug}.md` },
-            `# ${slug} - archive ${year} Q${q}\n`,
+      // G19: write all archive sections atomically, ordered date-ascending (oldest first),
+      // BEFORE the main-note atomicWrite so a crash leaves the un-trimmed main note
+      // plus safe duplicate archive entries rather than losing evicted content.
+      if (r.archived.length > 0) {
+        const noteSlug = path.basename(abs, ".md");
+        // Sort evicted sections oldest-first so archive ordering is deterministic.
+        const sortedArchived = [...r.archived].sort((x, y) => x.date.localeCompare(y.date));
+        // Group by archive file (year-quarter) so each file is written once atomically.
+        const byArchiveFile = new Map<string, string>();
+        for (const a of sortedArchived) {
+          const year = a.date === "0000-00-00"
+            ? new Date().toISOString().slice(0, 4)
+            : a.date.slice(0, 4);
+          const month = a.date === "0000-00-00"
+            ? new Date().getMonth() + 1
+            : parseInt(a.date.slice(5, 7), 10);
+          const q = Math.ceil(month / 3);
+          const archivePath = path.join(
+            path.resolve(vaultPath()),
+            "projects",
+            "_archive",
+            `${noteSlug}-${year}-Q${q}.md`,
           );
-          fs.writeFileSync(archivePath, afm);
+          const block = `\n### ${a.date}\n\n${a.content}\n`;
+          byArchiveFile.set(archivePath, (byArchiveFile.get(archivePath) ?? "") + block);
         }
-        const archiveBlock = `\n### ${a.date}\n\n${a.content}\n`;
-        fs.appendFileSync(archivePath, archiveBlock);
+        for (const [archivePath, blocks] of byArchiveFile) {
+          fs.mkdirSync(path.dirname(archivePath), { recursive: true });
+          let existing_archive = "";
+          if (fs.existsSync(archivePath)) {
+            existing_archive = fs.readFileSync(archivePath, "utf8");
+          } else {
+            const yearLabel = path.basename(archivePath, ".md").match(/-(\d{4}-Q\d)$/)?.[1] ?? "";
+            existing_archive = serializeNote(
+              { type: "summary", project: noteSlug, archived_from: `projects/${noteSlug}.md` },
+              `# ${noteSlug} - archive ${yearLabel}\n`,
+            );
+          }
+          atomicWrite(archivePath, existing_archive + blocks);
+        }
       }
+      atomicWrite(abs, serializeNote(mergedFm, r.body));
       return { ok: true, path: abs };
-    } catch (_e) {
+    } catch (_e: any) {
+      writeFailure(`vaultWriter fail-open fallback for ${rel}: ${(_e as any)?.message ?? String(_e)}`);
       // Fail open: fall back to legacy plain append so the distiller never crashes
       if (!existing) {
         atomicWrite(abs, serializeNote(args.frontmatter, args.body));
