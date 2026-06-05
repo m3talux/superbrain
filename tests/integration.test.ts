@@ -37,7 +37,7 @@ it("real checkpoint path (no fake seam) writes a vault note and releases the loc
   execFileSync("node", [DIST_CHECKPOINT], {
     input: JSON.stringify({ session_id: "S", hook_event_name: "Stop", cwd: "/p", transcript_path: "/dev/null" }),
     env: { ...process.env, PATH: `${TMP_BIN}:${process.env.PATH}`,
-      SUPERBRAIN_DATA_DIR: TMP_DATA, SUPERBRAIN_VAULT_DIR: TMP_VAULT },
+      SUPERBRAIN_DATA_DIR: TMP_DATA, SUPERBRAIN_VAULT_DIR: TMP_VAULT, SUPERBRAIN_EMBED_STUB: "1" },
     encoding: "utf8",
   });
   // checkpoint spawns the detached distiller; poll for completion rather than a

@@ -19,29 +19,36 @@ export function modelAssetPath(asset) {
 function downloadFile(url, dest) {
     return new Promise((resolve, reject) => {
         const tmp = dest + ".part";
-        const out = fs.createWriteStream(tmp);
-        const follow = (u) => {
-            https.get(u, { headers: { "User-Agent": "superbrain/1 (node)" } }, (res) => {
+        const cleanup = () => { try {
+            fs.rmSync(tmp, { force: true });
+        }
+        catch { /* ignore */ } };
+        const follow = (u, depth) => {
+            if (depth > 5) {
+                reject(new Error(`too many redirects fetching ${url}`));
+                return;
+            }
+            const req = https.get(u, { headers: { "User-Agent": "superbrain/1 (node)" } }, (res) => {
                 if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307 || res.statusCode === 308) {
-                    out.destroy();
-                    follow(res.headers.location);
+                    res.resume();
+                    follow(res.headers.location, depth + 1);
                     return;
                 }
                 if (res.statusCode !== 200) {
-                    out.destroy();
+                    res.resume();
                     reject(new Error(`HTTP ${res.statusCode} fetching ${u}`));
                     return;
                 }
+                const out = fs.createWriteStream(tmp);
+                res.on("error", (e) => { out.destroy(); cleanup(); reject(e); });
+                out.on("error", (e) => { cleanup(); reject(e); });
+                out.on("finish", () => { out.close(); fs.renameSync(tmp, dest); resolve(); });
                 res.pipe(out);
-                out.on("finish", () => {
-                    out.close();
-                    fs.renameSync(tmp, dest);
-                    resolve();
-                });
-                out.on("error", (e) => { fs.rmSync(tmp, { force: true }); reject(e); });
-            }).on("error", (e) => { fs.rmSync(tmp, { force: true }); reject(e); });
+            });
+            req.setTimeout(60000, () => { req.destroy(new Error(`timeout fetching ${u}`)); });
+            req.on("error", (e) => { cleanup(); reject(e); });
         };
-        follow(url);
+        follow(url, 0);
     });
 }
 export async function ensureModelAssets() {
