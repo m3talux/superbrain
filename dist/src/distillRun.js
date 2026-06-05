@@ -16,7 +16,8 @@ import { vaultPath, dataDir } from "./paths.js";
 import { indexNote } from "./indexer.js";
 import { upsertDay } from "./dailyState.js";
 import { buildDailyNote } from "./dailyNote.js";
-import { preferencesPath } from "./preferences.js";
+import { preferencesPath, emitPreferencesCore } from "./preferences.js";
+import { filterToUniversal } from "./preferenceClassify.js";
 import { resolveLinks } from "./wikilink.js";
 import { gcTranscript } from "./transcriptStore.js";
 import { classify } from "./classification.js";
@@ -217,6 +218,23 @@ function logDistillSkip(sid, reason) {
     }
     catch { /* best-effort */ }
 }
+export function readKnownProjectSlugs(vault) {
+    const override = process.env.SUPERBRAIN_KNOWN_SLUGS_OVERRIDE;
+    if (override !== undefined) {
+        return new Set(override.split(",").map(s => s.trim().toLowerCase()).filter(Boolean));
+    }
+    const projectsDir = path.join(vault, "projects");
+    const slugs = new Set();
+    try {
+        for (const entry of fs.readdirSync(projectsDir)) {
+            if (entry.endsWith(".md") && !entry.startsWith("_")) {
+                slugs.add(entry.slice(0, -3).toLowerCase());
+            }
+        }
+    }
+    catch { /* projects dir absent */ }
+    return slugs;
+}
 export async function distillFromEvents(sid, events) {
     const env = getEnvelope(JSON.stringify(events));
     const sessionProj = resolveSessionProject(events);
@@ -233,6 +251,30 @@ export async function distillFromEvents(sid, events) {
                 it.project = slug(it.project);
             }
             it.links = resolveLinks(it.links || [], vaultPath());
+            if (it.kind === "preference") {
+                const knownSlugs = readKnownProjectSlugs(vaultPath());
+                const { universalBody, demoted } = filterToUniversal(it.body ?? "", knownSlugs);
+                it.body = universalBody;
+                for (const d of demoted) {
+                    if (d.projectSlug) {
+                        const projRelPath = `projects/${d.projectSlug}.md`;
+                        if (!fs.existsSync(path.join(vaultPath(), projRelPath))) {
+                            recordRejection(vaultPath(), { type: "preference", reason: `project note missing: ${projRelPath}`, sessionId: sid, title: it.title, excerpt: d.text.slice(0, 200) });
+                            continue;
+                        }
+                        writeNote(projRelPath, {
+                            frontmatter: { type: "project", status: "active", project: d.projectSlug, created: it.date, updated: it.date, superbrain: true },
+                            body: `**${d.text}**`,
+                            mode: "append",
+                        });
+                    }
+                    else {
+                        recordRejection(vaultPath(), { type: "preference", reason: "project-scoped rule with unresolvable slug", sessionId: sid, title: it.title, excerpt: d.text.slice(0, 200) });
+                    }
+                }
+                if (!universalBody.trim())
+                    continue;
+            }
             const r = route(it);
             if (r.mode !== "create") {
                 const res0 = writeNote(r.relPath, { frontmatter: r.frontmatter, body: r.body, mode: r.mode });
@@ -245,6 +287,12 @@ export async function distillFromEvents(sid, events) {
                     }
                     (routedByDate[it.date] ||= []).push(r.relPath);
                     notesWritten++;
+                    if (it.kind === "preference") {
+                        try {
+                            emitPreferencesCore(it.body ?? "");
+                        }
+                        catch { /* best-effort */ }
+                    }
                 }
                 continue;
             }
