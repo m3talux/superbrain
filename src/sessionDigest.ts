@@ -6,96 +6,96 @@ import { compileInjectionBlock } from "./preferences.js";
 import { readDay } from "./dailyState.js";
 import { fitToBudget, INJECT_LIMITS, estimateTokens, truncateToBudget } from "./injectBudget.js";
 import { resolveProjectSlug } from "./sessionProject.js";
-import { appendInjectedSlugs } from "./sessionInjected.js";
+import { appendInjectedSlugs, getInjectedSlugs } from "./sessionInjected.js";
+import { resetTurnCount } from "./turnCounter.js";
 import { logInject } from "./injectTelemetry.js";
 import { dataDir, vaultPath } from "./paths.js";
+import { readPreferencesCore } from "./injectWindow.js";
 
 export async function appendDigest(parts: string[], h: any): Promise<void> {
   const sid: string = h.session_id || "";
-  let recallText = "";
-  let preferencesText = "";
+  let recallProjectText = "";
+  let recallGlobalText = "";
+  let prefCoreText = "";
   let openThreadsText = "";
 
-  // Resolve the current project once; reused by both recall and open-threads.
+  // Reset turn counter so mini-briefs re-start counting from this session begin.
+  if (sid) {
+    try { resetTurnCount(sid); } catch { /* best-effort */ }
+  }
+
+  // Resolve the current project once; reused by recall and open-threads.
   const cwd: string = h.cwd || "";
   let currentProjectSlug: string | undefined;
-  let currentProjectKnown = false; // true only when cwd maps to a concrete project
+  let currentProjectKnown = false;
   if (cwd) {
     currentProjectSlug = resolveProjectSlug(cwd);
     currentProjectKnown = currentProjectSlug !== undefined;
   }
 
-  // Project-scoped session brief: leads additionalContext when we know the project.
+  // --- Slot A (~60%): Project anchor via hybrid recall ---
   try {
     if (currentProjectKnown && currentProjectSlug) {
-      let lastDigestLine = "";
-      const recentSlugs: string[] = [];
+      const projectHits = await hybridRecall(currentProjectSlug, 5, { projectSlug: currentProjectSlug });
+      if (projectHits.length) {
+        const lines = projectHits.map((p) => `- [[${p.relPath.replace(/\.md$/, "")}]] — ${p.excerpt}`);
+        const body = fitToBudget(lines, INJECT_LIMITS.briefProject);
+        if (body) {
+          recallProjectText = `SuperBrain — ${currentProjectSlug}:\n${body}`;
+          parts.push(recallProjectText);
+        }
+        if (sid) {
+          try { appendInjectedSlugs(sid, projectHits.map((p) => p.relPath)); } catch { /* best-effort */ }
+        }
+      }
+    }
+  } catch { /* slot A is best-effort */ }
 
-      // Scan the last 7 calendar days newest-first for this project's activity.
-      for (let i = 0; i <= 7; i++) {
-        const d = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
-        const day = readDay(d);
-        for (const entry of Object.values(day)) {
-          if (entry.project !== currentProjectSlug) continue;
-          if (!lastDigestLine && entry.digestLine) lastDigestLine = entry.digestLine;
-          for (const r of entry.routedRelPaths) {
-            const slug = path.basename(r, ".md");
-            if (!recentSlugs.includes(slug) && recentSlugs.length < 3) recentSlugs.push(slug);
+  // --- Slot B (~20%): Semantically relevant global/knowledge notes ---
+  try {
+    const globalQuery = currentProjectKnown && currentProjectSlug
+      ? currentProjectSlug
+      : cwd ? path.basename(cwd) : "";
+
+    if (globalQuery) {
+      const globalHits = await hybridRecall(globalQuery, 3);
+      if (globalHits.length) {
+        const injected = sid ? new Set(getInjectedSlugs(sid)) : new Set<string>();
+        const dedupedHits = globalHits.filter((p) => !injected.has(p.relPath));
+        if (dedupedHits.length) {
+          const lines = dedupedHits.map((p) => `- [[${p.relPath.replace(/\.md$/, "")}]] — ${p.excerpt}`);
+          const body = fitToBudget(lines, INJECT_LIMITS.briefGlobal);
+          if (body) {
+            recallGlobalText = "SuperBrain global context:\n" + body;
+            parts.push(recallGlobalText);
+          }
+          if (sid) {
+            try { appendInjectedSlugs(sid, dedupedHits.map((p) => p.relPath)); } catch { /* best-effort */ }
           }
         }
-        if (lastDigestLine && recentSlugs.length >= 3) break;
-      }
-
-      if (lastDigestLine) {
-        const lines = [
-          `At the start of your first reply, tell the user in one sentence that SuperBrain loaded this project's recent context, citing the "Last session" summary below.`,
-          `SuperBrain — ${currentProjectSlug}`,
-          `Last session: ${lastDigestLine}`,
-        ];
-        if (recentSlugs.length) lines.push(`Recent: ${recentSlugs.join(", ")}`);
-        const body = fitToBudget(lines, INJECT_LIMITS.brief);
-        if (body) parts.unshift(body);
       }
     }
-  } catch { /* brief is best-effort */ }
+  } catch { /* slot B is best-effort */ }
 
-  // Hybrid recall digest: project-slug filtered when cwd resolves to a known project.
+  // --- Slot C (fixed ~100 tok): Preference core (pinned) ---
+  // Read preferences-core.md (B3 output); gracefully fall back to compileInjectionBlock.
   try {
-    let query: string;
-    const recallOpts: { projectSlug?: string } = {};
-
-    if (currentProjectKnown && currentProjectSlug) {
-      query = currentProjectSlug;
-      recallOpts.projectSlug = currentProjectSlug;
-    } else if (cwd) {
-      // blocked or skip — fall back to bare basename, no project filter
-      query = path.basename(cwd);
+    const coreContent = readPreferencesCore();
+    if (coreContent) {
+      const capped = truncateToBudget(coreContent, INJECT_LIMITS.prefCore);
+      prefCoreText = `--- Preferences (core) ---\n${capped}\n---`;
     } else {
-      query = "";
-    }
-
-    const hits = await hybridRecall(query, 5, recallOpts);
-    if (hits.length) {
-      const lines = hits.map((p) => `- [[${p.relPath.replace(/\.md$/, "")}]] — ${p.excerpt}`);
-      const body = fitToBudget(lines, INJECT_LIMITS.recall);
-      if (body) {
-        recallText = "SuperBrain memory — relevant past notes:\n" + body;
-        parts.push(recallText);
-      }
-      // Record injected paths so UserPromptSubmit can exclude them.
-      if (sid) {
-        try { appendInjectedSlugs(sid, hits.map((p) => p.relPath)); } catch { /* best-effort */ }
+      // B3 not yet shipped: fall back to compileInjectionBlock, capped tighter
+      const fallback = compileInjectionBlock();
+      if (fallback) {
+        prefCoreText = truncateToBudget(fallback, INJECT_LIMITS.prefCore);
       }
     }
-  } catch { /* recall is best-effort */ }
+    if (prefCoreText) parts.push(prefCoreText);
+  } catch { /* preferences are best-effort */ }
 
-  // Preferences + today's open threads (best-effort, never blocks startup).
+  // --- Slot D (optional): Open threads from today's daily state ---
   try {
-    const pref = compileInjectionBlock();
-    if (pref) {
-      preferencesText = pref;
-      parts.push(preferencesText);
-    }
     const today = new Date().toISOString().slice(0, 10);
     const day = readDay(today);
     const threads: string[] = [];
@@ -103,12 +103,10 @@ export async function appendDigest(parts: string[], h: any): Promise<void> {
       for (const s of Object.keys(day)) {
         const entry = day[s];
         const entryProject = entry.project;
-        // Include: same project, or unscoped (no project field). Exclude: different concrete project.
         if (entryProject !== undefined && entryProject !== currentProjectSlug) continue;
         for (const t of entry.openThreads) if (t && !threads.includes(t)) threads.push(t);
       }
     }
-    // If cwd has no project (blocked/skip), threads stays empty — no cross-project noise.
     if (threads.length) {
       const threadLines = threads.map((t) => `- ${t}`);
       const body = fitToBudget(threadLines, INJECT_LIMITS.openThreads);
@@ -117,7 +115,7 @@ export async function appendDigest(parts: string[], h: any): Promise<void> {
         parts.push(openThreadsText);
       }
     }
-  } catch { /* personalization is best-effort */ }
+  } catch { /* open threads are best-effort */ }
 
   // Migration notice — one-time per version, version-gated via sentinel file.
   let noticesText = "";
@@ -130,7 +128,6 @@ export async function appendDigest(parts: string[], h: any): Promise<void> {
     })();
     const sentinelFile = path.join(os.homedir(), ".superbrain", `migration-prompted-${version}.txt`);
     if (!fs.existsSync(sentinelFile)) {
-      // Dynamically import detectLegacyState (heavy dep, keeps this file import-safe at startup)
       const { detectLegacyState } = await import("./migrationDetect.js");
       const vault = vaultPath();
       const db = path.join(dataDir(), "index.db");
@@ -141,7 +138,6 @@ export async function appendDigest(parts: string[], h: any): Promise<void> {
           `Run \`npx sb-doctor migrate-all\` to migrate legacy notes to the v0.5 templates (~5 min, reversible via .trash/migration-<date>/).`;
         noticesText = truncateToBudget(notice, INJECT_LIMITS.notices);
         parts.push(noticesText);
-        // Write sentinel so this notice is never shown again for this version
         fs.mkdirSync(path.dirname(sentinelFile), { recursive: true });
         fs.writeFileSync(sentinelFile, new Date().toISOString() + "\n", "utf8");
       }
@@ -154,10 +150,11 @@ export async function appendDigest(parts: string[], h: any): Promise<void> {
       hook: "SessionStart",
       sid,
       tokens: {
-        recall: estimateTokens(recallText),
-        preferences: estimateTokens(preferencesText),
+        recall: estimateTokens(recallProjectText) + estimateTokens(recallGlobalText),
+        preferences: estimateTokens(prefCoreText),
         openThreads: estimateTokens(openThreadsText),
         notices: estimateTokens(noticesText),
+        miniBrief: 0,
       },
     });
   } catch { /* best-effort */ }

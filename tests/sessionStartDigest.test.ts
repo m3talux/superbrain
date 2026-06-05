@@ -43,23 +43,38 @@ describe("appendDigest — project-aware seed", () => {
     delete process.env.SUPERBRAIN_TEST_BYPASS_BLOCKLIST;
   });
 
-  it("passes projectSlug option when cwd matches a known project", async () => {
+  it("passes projectSlug option when cwd matches a known project (slot A)", async () => {
     const { hybridRecall } = await import("../src/recall.js");
     const { appendDigest } = await import("../src/sessionDigest.js");
 
     const parts: string[] = [];
     await appendDigest(parts, { cwd: fixtureProjectDir });
 
-    expect(hybridRecall).toHaveBeenCalledOnce();
+    // B4: hybridRecall called at least once for slot A (project-scoped).
+    expect((hybridRecall as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThanOrEqual(1);
     const [query, _k, opts] = (hybridRecall as ReturnType<typeof vi.fn>).mock.calls[0];
     // Must NOT contain the old keyword soup
     expect(query).not.toMatch(/decisions/);
     expect(query).not.toMatch(/gotchas/);
-    // Must pass projectSlug option
+    // Must pass projectSlug option in slot A
     expect(opts).toBeDefined();
     expect(opts.projectSlug).toBeTruthy();
     // B2: bm25Only is removed; embed is always called for hybrid fusion.
     expect(opts.bm25Only).toBeUndefined();
+  });
+
+  it("slot B uses hybridRecall without projectSlug for global context", async () => {
+    const { hybridRecall } = await import("../src/recall.js");
+    const { appendDigest } = await import("../src/sessionDigest.js");
+
+    const parts: string[] = [];
+    await appendDigest(parts, { cwd: fixtureProjectDir });
+
+    // B4: slot B calls hybridRecall WITHOUT projectSlug (global context query).
+    const calls = (hybridRecall as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls.length).toBeGreaterThanOrEqual(2);
+    const slotBCall = calls[1];
+    expect(slotBCall[2]?.projectSlug).toBeFalsy();
   });
 
   it("falls back to cwd basename with no projectSlug when path is blocked", async () => {
@@ -71,12 +86,14 @@ describe("appendDigest — project-aware seed", () => {
     const parts: string[] = [];
     await appendDigest(parts, { cwd: os.homedir() });
 
-    expect(hybridRecall).toHaveBeenCalledOnce();
-    const [query, _k, opts] = (hybridRecall as ReturnType<typeof vi.fn>).mock.calls[0];
+    // No slot A (no project) — only slot B may fire
+    const calls = (hybridRecall as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls.length).toBeGreaterThanOrEqual(1);
+    const [query, _k, opts] = calls[0];
     // Query should be just the basename — no keyword soup
     expect(query).not.toMatch(/decisions/);
     expect(query).not.toMatch(/gotchas/);
-    // No projectSlug option
+    // No projectSlug option (slot B / fallback query)
     expect(opts?.projectSlug).toBeFalsy();
   });
 });
@@ -103,52 +120,47 @@ describe("appendDigest — project-scoped session brief", () => {
     delete process.env.SUPERBRAIN_TEST_BYPASS_BLOCKLIST;
   });
 
-  it("prepends a brief containing the last-session digestLine when project is known", async () => {
+  it("B4: slot A uses hybridRecall with projectSlug (not digestLine scan)", async () => {
+    const { hybridRecall } = await import("../src/recall.js");
     const { appendDigest } = await import("../src/sessionDigest.js");
     const slug = path.basename(projectDir).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
 
-    // today returns nothing; yesterday has a matching entry with a digestLine
-    readDayMock.mockImplementation((date: string) => {
-      const today = new Date().toISOString().slice(0, 10);
-      if (date === today) return {};
-      return {
-        "s1": { digestLine: "Shipped the widget auth flow", routedRelPaths: ["projects/my-widget/auth.md"], alsoDid: [], openThreads: [], project: slug },
-      };
-    });
+    readDayMock.mockReturnValue({});
+
+    // hybridRecall returns a hit so slot A produces output.
+    (hybridRecall as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { relPath: "projects/my-widget/auth.md", headingPath: "Auth", anchor: "auth", excerpt: "auth flow shipped" },
+    ]);
 
     const parts: string[] = [];
     await appendDigest(parts, { cwd: projectDir });
 
-    const brief = parts[0];
+    // Verify slot A called hybridRecall with projectSlug
+    const call = (hybridRecall as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(call[2]?.projectSlug).toBe(slug);
+
+    // Verify brief includes the recall hit
+    const brief = parts.find(p => p.includes("auth"));
     expect(brief).toBeDefined();
-    expect(brief).toContain("widget auth flow");
     expect(brief).toMatch(/SuperBrain/);
-    // Brief must be first
-    expect(parts.indexOf(brief)).toBe(0);
   });
 
-  it("includes recent routed note slugs in the brief when available", async () => {
+  it("B4: slot A absent when hybridRecall returns empty (no digestLine fallback)", async () => {
+    const { hybridRecall } = await import("../src/recall.js");
     const { appendDigest } = await import("../src/sessionDigest.js");
     const slug = path.basename(projectDir).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
 
-    readDayMock.mockImplementation((date: string) => {
-      const today = new Date().toISOString().slice(0, 10);
-      if (date === today) return {};
-      return {
-        "s1": {
-          digestLine: "Refactored widget pipeline",
-          routedRelPaths: ["projects/my-widget/pipeline.md", "projects/my-widget/types.md"],
-          alsoDid: [], openThreads: [], project: slug,
-        },
-      };
-    });
+    readDayMock.mockReturnValue({});
+
+    // hybridRecall returns empty — no slot A output.
+    (hybridRecall as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
     const parts: string[] = [];
     await appendDigest(parts, { cwd: projectDir });
 
-    const brief = parts[0];
-    expect(brief).toBeDefined();
-    expect(brief).toContain("pipeline");
+    // No "Last session:" line in B4 implementation
+    const hasBrief = parts.some(p => p.includes("Last session:"));
+    expect(hasBrief).toBe(false);
   });
 
   it("emits no brief when cwd is not a known project", async () => {

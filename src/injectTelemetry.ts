@@ -6,7 +6,7 @@ export interface InjectRecord {
   ts: string;
   hook: "SessionStart" | "UserPromptSubmit";
   sid: string;
-  tokens: { recall: number; preferences: number; openThreads: number; notices: number };
+  tokens: { recall: number; preferences: number; openThreads: number; notices: number; miniBrief: number };
   total: number;
 }
 
@@ -20,7 +20,8 @@ function logPath(): string {
 
 export function logInject(record: Omit<InjectRecord, "ts" | "total">): void {
   try {
-    const total = record.tokens.recall + record.tokens.preferences + record.tokens.openThreads + record.tokens.notices;
+    const t = record.tokens;
+    const total = t.recall + t.preferences + t.openThreads + t.notices + (t.miniBrief ?? 0);
     const full: InjectRecord = { ts: new Date().toISOString(), ...record, total };
     const dir = logDir();
     fs.mkdirSync(dir, { recursive: true });
@@ -50,7 +51,7 @@ export function summarize(records: InjectRecord[]): {
   const byHook: Record<string, { count: number; avg: Record<string, number>; avgTotal: number }> = {};
   for (const r of records) {
     if (!byHook[r.hook]) {
-      byHook[r.hook] = { count: 0, avg: { recall: 0, preferences: 0, openThreads: 0, notices: 0 }, avgTotal: 0 };
+      byHook[r.hook] = { count: 0, avg: { recall: 0, preferences: 0, openThreads: 0, notices: 0, miniBrief: 0 }, avgTotal: 0 };
     }
     const entry = byHook[r.hook];
     entry.count++;

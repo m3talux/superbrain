@@ -9,7 +9,8 @@ function logPath() {
 }
 export function logInject(record) {
     try {
-        const total = record.tokens.recall + record.tokens.preferences + record.tokens.openThreads + record.tokens.notices;
+        const t = record.tokens;
+        const total = t.recall + t.preferences + t.openThreads + t.notices + (t.miniBrief ?? 0);
         const full = { ts: new Date().toISOString(), ...record, total };
         const dir = logDir();
         fs.mkdirSync(dir, { recursive: true });
@@ -39,7 +40,7 @@ export function summarize(records) {
     const byHook = {};
     for (const r of records) {
         if (!byHook[r.hook]) {
-            byHook[r.hook] = { count: 0, avg: { recall: 0, preferences: 0, openThreads: 0, notices: 0 }, avgTotal: 0 };
+            byHook[r.hook] = { count: 0, avg: { recall: 0, preferences: 0, openThreads: 0, notices: 0, miniBrief: 0 }, avgTotal: 0 };
         }
         const entry = byHook[r.hook];
         entry.count++;
