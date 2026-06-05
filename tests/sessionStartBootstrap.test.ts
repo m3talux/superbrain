@@ -24,6 +24,7 @@ it("no deps: emits the rebuilding-native-deps notice, exits 0, does NOT crash", 
       SUPERBRAIN_FAKE_DISTILLER: "1", SUPERBRAIN_BOOTSTRAP_FAKE: "1" },
     encoding: "utf8",
   });
-  expect(out).toMatch(/rebuilding native dependencies/i);
+  expect(out).toMatch(/native dependencies/i);
+  expect(out).toMatch(/recall/i);
   expect(out).toMatch(/additionalContext/);
 });

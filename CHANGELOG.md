@@ -8,6 +8,10 @@ behavior may change without notice.
 
 ## [Unreleased]
 
+## 0.8.1: a reliable first-run upgrade
+
+Fixes the rough first session after upgrading to the 0.8 line. The embedding model is now fetched during the one-time native-dependency bootstrap (in the background) instead of lazily inside a short-lived hook, so semantic recall is ready by your next session rather than racing a download mid-conversation. The download itself is hardened: it follows HuggingFace's relative redirects (a relative redirect on the tokenizer previously crashed the fetch), verifies each file's size before committing it (a truncated download can no longer leave a half-written model that silently pins recall to keyword-only), cleans up stale partial downloads, and serializes concurrent fetches. The one-time setup notice now says that recall and the session brief are warming up, so a fresh install no longer silently falls back to reading the vault by hand.
+
 ## 0.8.0: semantic recall returns, a ~400MB lighter install, and always-on working memory
 
 **Semantic recall is back, on every path.** The 0.7.x hooks had fallen back to keyword-only (BM25) recall to dodge a native crash in the embedding library. That stack is gone: the ~428MB onnxruntime/transformers dependency is replaced by a vendored pure-JavaScript static embedding (a Model2Vec "potion" model), so the install is roughly 400MB smaller, has no native build step, and starts faster. Keyword and meaning-based recall are fused again everywhere, including the short-lived session-start and per-prompt hooks. The vector index moves to a compact int8 form and re-embeds itself once on upgrade.
