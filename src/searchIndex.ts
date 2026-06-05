@@ -7,6 +7,16 @@ import { EMBED_DIM, MODEL_ID } from "./embed.js";
 import { ensureEdgesTable } from "./edges.js";
 import { quantizeToInt8, serializeInt8ForSql } from "./staticEmbed/int8Quant.js";
 
+function clearReindexSentinels(dir: string): void {
+  try {
+    for (const f of fs.readdirSync(dir)) {
+      if (f.startsWith("reindexed-") && f.endsWith(".txt")) {
+        fs.rmSync(path.join(dir, f), { force: true });
+      }
+    }
+  } catch { /* dir may not exist yet */ }
+}
+
 const CHUNK_CAP = 50;
 
 export interface Hit { relPath: string; headingPath: string; anchor: string; text: string; distance?: number; }
@@ -73,6 +83,11 @@ function ensureVecTable(db: Database.Database): void {
     db.exec("DELETE FROM embed_meta WHERE key IN ('dim','model_id')");
     db.prepare("INSERT INTO embed_meta(key,value) VALUES ('dim',?)").run(String(EMBED_DIM));
     db.prepare("INSERT INTO embed_meta(key,value) VALUES ('model_id',?)").run(MODEL_ID);
+    if (vecExists) {
+      // Existing chunks lost their vectors. Invalidate version sentinels so
+      // forcedReindexIfNeeded runs reindexAll() on the next session start.
+      clearReindexSentinels(dataDir());
+    }
   }
 }
 
