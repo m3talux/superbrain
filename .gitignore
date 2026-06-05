@@ -6,5 +6,11 @@ node_modules/
 # Local Claude Code settings (per-user, never shared)
 .claude/settings.local.json
 
+# Local browser-automation snapshots (Playwright MCP), never shared
+.playwright-mcp/
+
 # Internal planning/design process artifacts — not part of the public project
 docs/superpowers/
+docs/assessments/
+docs/plans/
+docs/specs/

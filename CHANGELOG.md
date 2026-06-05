@@ -8,6 +8,22 @@ behavior may change without notice.
 
 ## [Unreleased]
 
+## 0.8.0: semantic recall returns, a ~400MB lighter install, and always-on working memory
+
+**Semantic recall is back, on every path.** The 0.7.x hooks had fallen back to keyword-only (BM25) recall to dodge a native crash in the embedding library. That stack is gone: the ~428MB onnxruntime/transformers dependency is replaced by a vendored pure-JavaScript static embedding (a Model2Vec "potion" model), so the install is roughly 400MB smaller, has no native build step, and starts faster. Keyword and meaning-based recall are fused again everywhere, including the short-lived session-start and per-prompt hooks. The vector index moves to a compact int8 form and re-embeds itself once on upgrade.
+
+**Recall behaves more like a brain: focus without isolation.** Recall is dominated by the project you are in, but a reserved background slice guarantees cross-cutting, global, and recent context is always present too, rather than hard-isolating each project. Projects are now keyed by git root (fixing slug collisions between same-named directories), and the cross-project filter fails closed with a one-time backfill so untagged notes cannot leak.
+
+**No more silently dropped notes.** A distiller crash that could zero out a whole session is fixed, and each item is isolated so one bad item cannot drop the rest. The project-note writer gets a real byte ceiling with archive-on-overflow; the previous cap never actually fired, so once a project note grew past a threshold its new facts were silently discarded. Startup index drift is also corrected.
+
+**Always-on working memory.** A richer, weighted session-start brief; per-turn injection that now rides the fused (semantic) recall with your hard preferences pinned on every turn; a periodic mini-brief; and a re-fire of the brief after context compaction.
+
+**Cleaner preferences.** Project-specific rules no longer leak into your universal preferences on every reconcile; a lean `preferences-core.md` of universal hard-rules is emitted for downstream use.
+
+**Housekeeping.** Confirmed dead code removed, append logs bounded, and old session files garbage-collected.
+
+**Upgrading:** on the first run after updating, the plugin downloads a ~30MB model once and re-embeds your vault into the new index. This is automatic and self-healing; expect a slightly longer first session.
+
 ## 0.7.1: session brief reliability (Node-version-independent hooks)
 
 The session-start brief and per-prompt recall hooks no longer load the embedding model. On some Node runtimes (observed on Node 25.x) the native embedding library aborted the process on exit, so the SessionStart hook crashed and Claude Code dropped its injected context, and the brief never appeared. The short-lived hooks now use lexical (BM25) recall only and always exit cleanly; embedding-based search keeps running in the long-lived MCP server and the background distiller. Session start is also faster (no model load), and project scoping is unchanged.
