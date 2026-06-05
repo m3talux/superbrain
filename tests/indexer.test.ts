@@ -59,6 +59,20 @@ describe("indexer", () => {
     ix.close();
   });
 
+  it("reconcile indexes a note in a non-standard subfolder (blocklist is the only exclusion)", async () => {
+    fs.mkdirSync(path.join(TMP_VAULT, "research/notebooks"), { recursive: true });
+    fs.writeFileSync(
+      path.join(TMP_VAULT, "research/notebooks/quokka.md"),
+      "---\ntype: capture\n---\n## Q\nquokkazidine is a made-up token"
+    );
+    const s = await reconcile();
+    expect(s).toMatchObject({ added: 1 });
+    const ix = openIndex();
+    expect(ix.bm25("quokkazidine", 5)[0].relPath).toBe("research/notebooks/quokka.md");
+    expect(ix.allIndexedPaths()).toContain("research/notebooks/quokka.md");
+    ix.close();
+  });
+
   it("populates vault_edges from frontmatter when indexing a note", async () => {
     fs.writeFileSync(
       path.join(TMP_VAULT, "decisions/c.md"),
