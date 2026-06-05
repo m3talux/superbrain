@@ -23,13 +23,6 @@ function isCrossProject(noteProject: string | undefined, projectSlug: string): b
   return noteProject !== "global" && noteProject !== projectSlug;
 }
 
-export async function bm25Recall(query: string, k: number): Promise<Pointer[]> {
-  let ix: Index | undefined;
-  try { ix = openIndex(); return toPointers(ix.bm25(query, k)); }
-  catch { return []; }
-  finally { ix?.close(); }
-}
-
 export async function hybridRecall(
   query: string,
   k: number,

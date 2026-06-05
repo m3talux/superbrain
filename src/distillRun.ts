@@ -22,6 +22,7 @@ import { preferencesPath, emitPreferencesCore } from "./preferences.js";
 import { filterToUniversal } from "./preferenceClassify.js";
 import { resolveLinks } from "./wikilink.js";
 import { gcTranscript } from "./transcriptStore.js";
+import { pruneSessionFiles } from "./sessionGc.js";
 import { classify } from "./classification.js";
 import { recordRejection } from "./rejectQueue.js";
 import { type NoteType } from "./templates.js";
@@ -451,6 +452,8 @@ export async function runDistill(): Promise<void> {
     // a missing snapshot is fine (checkpoint may not have run), and a deletion
     // failure must never abort an otherwise-successful distill.
     try { gcTranscript(path.join(dataDir(), "transcripts"), sid); } catch { /* best-effort */ }
+    // GC old session files. Best-effort: never abort an otherwise-successful distill.
+    try { pruneSessionFiles(dataDir()); } catch { /* best-effort */ }
   } catch (e: any) {
     writeFailure(`distill failed: ${e?.message || e}`);
   } finally {
