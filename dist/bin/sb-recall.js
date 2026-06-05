@@ -6,7 +6,7 @@ import { pluginRoot } from "../src/paths.js";
 import { getInjectedSlugs, appendInjectedSlugs } from "../src/sessionInjected.js";
 import { logInject } from "../src/injectTelemetry.js";
 import { estimateTokens } from "../src/injectBudget.js";
-import { classifyPath, basenameSlug } from "../src/projectDetect.js";
+import { resolveProjectSlug } from "../src/sessionProject.js";
 function readStdin() { try {
     return fs.readFileSync(0, "utf8");
 }
@@ -34,13 +34,10 @@ async function main() {
         const excludeSlugs = sid ? getInjectedSlugs(sid) : [];
         let projectSlug;
         if (cwd) {
-            const classification = classifyPath(cwd);
-            if (classification.kind === "single" || classification.kind === "umbrella") {
-                projectSlug = basenameSlug(classification.projectDir);
-            }
+            projectSlug = resolveProjectSlug(cwd);
         }
         const { hybridRecall } = await import("../src/recall.js"); // deferred: only after deps check
-        const hits = await hybridRecall(prompt, 5, { projectSlug, excludeSlugs, bm25Only: true });
+        const hits = await hybridRecall(prompt, 5, { projectSlug, excludeSlugs });
         if (hits.length) {
             // Record newly injected paths so subsequent UserPromptSubmit calls also exclude them.
             if (sid) {
