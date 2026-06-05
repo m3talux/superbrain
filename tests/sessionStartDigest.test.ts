@@ -16,6 +16,10 @@ vi.mock("../src/recall.js", () => ({
 // Mock compileInjectionBlock + readDay to keep appendDigest focused on recall.
 vi.mock("../src/preferences.js", () => ({ compileInjectionBlock: vi.fn().mockReturnValue("") }));
 vi.mock("../src/dailyState.js", () => ({ readDay: vi.fn().mockReturnValue({}) }));
+vi.mock("../src/vaultHeartbeat.js", async () => {
+  const actual = await vi.importActual<typeof import("../src/vaultHeartbeat.js")>("../src/vaultHeartbeat.js");
+  return { ...actual, probeVaultGit: vi.fn().mockReturnValue({ dirty: false, headAgeMs: null }) };
+});
 
 // ---------------------------------------------------------------------------
 // Helpers: create a temp fixture project dir with a package.json so
@@ -273,6 +277,39 @@ describe("appendDigest — open-threads scoping", () => {
     expect(openThreadsPart).toBeDefined();
     expect(openThreadsPart).toContain("thread-unscoped-2");
     expect(openThreadsPart).not.toContain("thread-other");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Vault staleness heartbeat tests
+// ---------------------------------------------------------------------------
+
+describe("appendDigest — vault staleness heartbeat", () => {
+  beforeEach(() => { process.env.SUPERBRAIN_TEST_BYPASS_BLOCKLIST = "1"; });
+  afterEach(() => { vi.clearAllMocks(); delete process.env.SUPERBRAIN_TEST_BYPASS_BLOCKLIST; });
+
+  it("prepends a heartbeat warning when the vault is dirty and HEAD is stale", async () => {
+    const { probeVaultGit } = await import("../src/vaultHeartbeat.js");
+    (probeVaultGit as ReturnType<typeof vi.fn>).mockReturnValue({ dirty: true, headAgeMs: 7_200_000 });
+    const { appendDigest } = await import("../src/sessionDigest.js");
+
+    const parts: string[] = [];
+    await appendDigest(parts, { cwd: os.homedir() });
+
+    expect(parts[0]).toBeDefined();
+    expect(parts[0]).toMatch(/uncommitted changes/);
+    expect(parts[0]).toMatch(/com\.alex\.vault-sync/);
+  });
+
+  it("is silent when the vault is clean", async () => {
+    const { probeVaultGit } = await import("../src/vaultHeartbeat.js");
+    (probeVaultGit as ReturnType<typeof vi.fn>).mockReturnValue({ dirty: false, headAgeMs: 7_200_000 });
+    const { appendDigest } = await import("../src/sessionDigest.js");
+
+    const parts: string[] = [];
+    await appendDigest(parts, { cwd: os.homedir() });
+
+    expect(parts.find((p) => /uncommitted changes/.test(p))).toBeUndefined();
   });
 });
 
