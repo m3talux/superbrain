@@ -25,6 +25,12 @@ async function main() {
       runBootstrap(root);
       parts.push("SuperBrain is rebuilding native dependencies for this install (one-time per plugin version). Capture resumes automatically next session.");
     } else {
+      // One-time backfill: assign project to all NULL notes before any query.
+      // Ships atomically with the fail-closed isCrossProject filter.
+      try {
+        const { runBackfillIfNeeded } = await import("../src/indexer.js");
+        await runBackfillIfNeeded();
+      } catch { /* best-effort; never block startup */ }
       const { appendDigest } = await import("../src/sessionDigest.js"); // deferred heavy import
       await appendDigest(parts, h);
     }

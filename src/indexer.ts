@@ -7,6 +7,7 @@ import { embed } from "./embed.js";
 import { openIndex } from "./searchIndex.js";
 import { parseNote } from "./frontmatter.js";
 import { deriveEdges, deleteEdgesFrom, upsertEdges } from "./edges.js";
+import { slug as routerSlug } from "./router.js";
 
 const EXCLUDED = new Set([".trash", ".obsidian", ".git", "node_modules"]);
 
@@ -62,6 +63,23 @@ export async function reindexAll(): Promise<{ reindexed: number }> {
   } finally { ix.close(); }
 }
 
+/**
+ * Run backfillProjectNulls exactly once, guarded by a sentinel file so
+ * no legit note disappears during the transition window before all notes
+ * have a project assigned.
+ *
+ * Ships atomically with the fail-closed isCrossProject filter in recall.ts.
+ */
+export async function runBackfillIfNeeded(dir?: string): Promise<boolean> {
+  const base = dir ?? dataDir();
+  const sentinelFile = path.join(base, "v1-project-backfill.txt");
+  if (fs.existsSync(sentinelFile)) return false;
+  await backfillProjectNulls();
+  fs.mkdirSync(base, { recursive: true });
+  fs.writeFileSync(sentinelFile, new Date().toISOString() + "\n", "utf8");
+  return true;
+}
+
 export async function forcedReindexIfNeeded(version: string, dir?: string): Promise<boolean> {
   const base = dir ?? dataDir();
   const sentinelFile = path.join(base, `reindexed-${version}.txt`);
@@ -70,6 +88,64 @@ export async function forcedReindexIfNeeded(version: string, dir?: string): Prom
   fs.mkdirSync(base, { recursive: true });
   fs.writeFileSync(sentinelFile, new Date().toISOString() + "\n", "utf8");
   return true;
+}
+
+/**
+ * Backfill the `project` column for all notes that currently have NULL.
+ * Rules (in priority order):
+ *  1. If the note file has a non-empty `project` field in frontmatter, use slug(fm.project).
+ *  2. If the path matches `projects/<slug>.md`, use <slug>.
+ *  3. Standard cross-cutting folders (daily/, decisions/, lessons/, knowledge/, meta/) -> "global".
+ *  4. Everything else -> "global" (safe default).
+ *
+ * Ships atomically with the fail-closed isCrossProject filter via the
+ * 'v1-project-backfill' version sentinel so no note vanishes mid-change.
+ */
+export async function backfillProjectNulls(): Promise<{ repaired: number }> {
+  const root = vaultPath();
+  const ix = openIndex();
+  let repaired = 0;
+  try {
+    const rows = ix.db.prepare("SELECT rel_path FROM notes WHERE project IS NULL").all() as { rel_path: string }[];
+    for (const row of rows) {
+      const relPath = row.rel_path;
+      let project: string = "global";
+      try {
+        const abs = path.join(root, relPath);
+        if (fs.existsSync(abs)) {
+          const raw = fs.readFileSync(abs, "utf8");
+          const { data: fm } = parseNote(raw);
+          if (fm.project && typeof fm.project === "string" && fm.project.trim()) {
+            project = routerSlug(fm.project);
+          } else {
+            // Derive from path
+            const parts = relPath.split("/");
+            if (parts[0] === "projects" && parts.length === 2) {
+              // projects/<slug>.md
+              project = parts[1].replace(/\.md$/, "");
+            } else if (
+              parts[0] === "daily" ||
+              parts[0] === "decisions" ||
+              parts[0] === "lessons" ||
+              parts[0] === "knowledge" ||
+              parts[0] === "meta"
+            ) {
+              project = "global";
+            } else {
+              project = "global";
+            }
+          }
+        }
+      } catch {
+        project = "global";
+      }
+      ix.db.prepare("UPDATE notes SET project = ? WHERE rel_path = ?").run(project, relPath);
+      repaired++;
+    }
+    return { repaired };
+  } finally {
+    ix.close();
+  }
 }
 
 export async function reconcile(): Promise<{ added: number; updated: number; deleted: number }> {
