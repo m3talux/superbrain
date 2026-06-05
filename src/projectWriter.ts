@@ -81,8 +81,9 @@ export function appendDatedSection(
   ) {
     throw new Error(`project body missing '${RECENT_HEADING}' section`);
   }
-  if (new RegExp(`(^|\\n)### ${escapeRegex(date)}\\n`).test(body)) {
-    throw new Error(`duplicate heading: ### ${date}`);
+  const dupRe = new RegExp(`((?:^|\\n)### ${escapeRegex(date)}\\n)`);
+  if (dupRe.test(body)) {
+    return body.replace(dupRe, `$1\n${content}\n\n`).replace(/\n{3,}/g, "\n\n");
   }
   const newSection = `### ${date}\n\n${content}\n\n`;
   const updated = body.replace(

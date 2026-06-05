@@ -135,7 +135,7 @@ export function applyRollup(vaultDir: string, plan: RollupPlan): void {
       if (!fs.existsSync(ap)) {
         fs.writeFileSync(ap, serializeNote(
           { type: "summary", project: n.slug, archived_from: `projects/${n.slug}.md` },
-          `# ${n.slug} — archive ${year} Q${q}\n`,
+          `# ${n.slug} - archive ${year} Q${q}\n`,
         ));
       }
       fs.appendFileSync(ap, `\n### ${a.date}\n\n${a.content}\n`);

@@ -44,8 +44,13 @@ describe("appendDatedSection", () => {
     expect(out).toMatch(/## Recent activity\n\n### 2026-05-23\n\nshipped Phase 4\.\n\n### 2026-05-22/);
   });
 
-  it("throws on duplicate date heading", () => {
-    expect(() => appendDatedSection(minimalBody, "2026-05-22", "extra")).toThrow(/duplicate heading/);
+  it("merges into the existing section on duplicate date heading", () => {
+    const out = appendDatedSection(minimalBody, "2026-05-22", "extra content");
+    expect(out).toContain("### 2026-05-22");
+    expect(out).toContain("shipped Phase 1.");
+    expect(out).toContain("extra content");
+    const matches = out.match(/### 2026-05-22/g);
+    expect(matches?.length).toBe(1);
   });
 
   it("throws when ## Recent activity section is absent", () => {
@@ -81,20 +86,20 @@ describe("appendDatedSectionWithArchive", () => {
     // Start with only ONE dated subsection. Archive it. Cannot archive further.
     const oneSub = minimalBody.replace(/### 2026-05-21\n\n[\s\S]*?(?=## Gotchas)/, "");
     const r = appendDatedSectionWithArchive(oneSub, "2026-05-23", "z".repeat(3000), { sizeCap: 100 });
-    // The newly-added one or the previous 2026-05-22 may be archived — but at most TWO subsections existed at any point.
+    // The newly-added one or the previous 2026-05-22 may be archived - but at most TWO subsections existed at any point.
     expect(r.archived.length).toBeLessThanOrEqual(2);
     // body may still be over cap because the new content itself is huge; that's expected
   });
 });
 
-describe("appendDatedSectionWithArchive — format-agnostic ceiling (A4)", () => {
+describe("appendDatedSectionWithArchive - format-agnostic ceiling (A4)", () => {
   function legacyShapedBody(sections: number): string {
     const head = `# SuperBrain\n\n## What it is\n\nA second brain.\n\n## Recent activity\n`;
     let out = head;
     for (let i = 0; i < sections; i++) {
       const day = String((i % 27) + 1).padStart(2, "0");
       out += `\n## 2026-05-${day} 12:0${i % 10}\n\n${"x".repeat(400)}\n`;
-      if (i % 3 === 0) out += `\n## Gotcha — issue ${i}\n\n${"y".repeat(200)}\n`;
+      if (i % 3 === 0) out += `\n## Gotcha - issue ${i}\n\n${"y".repeat(200)}\n`;
     }
     return out;
   }

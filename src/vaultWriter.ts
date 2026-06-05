@@ -106,7 +106,7 @@ export function writeNote(rel: string, args: WriteArgs): WriteResult {
         if (!fs.existsSync(archivePath)) {
           const afm = serializeNote(
             { type: "summary", project: slug, archived_from: `projects/${slug}.md` },
-            `# ${slug} — archive ${year} Q${q}\n`,
+            `# ${slug} - archive ${year} Q${q}\n`,
           );
           fs.writeFileSync(archivePath, afm);
         }
