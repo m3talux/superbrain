@@ -3,14 +3,6 @@ import fs from "node:fs";
 import { isChild } from "../src/distillerEngine.js";
 import { depsPresent } from "../src/bootstrap.js";
 import { pluginRoot } from "../src/paths.js";
-import { getInjectedSlugs, appendInjectedSlugs } from "../src/sessionInjected.js";
-import { logInject } from "../src/injectTelemetry.js";
-import { estimateTokens, INJECT_LIMITS, capNoteContribution } from "../src/injectBudget.js";
-import { resolveProjectSlug } from "../src/sessionProject.js";
-import { incrementTurnCount } from "../src/turnCounter.js";
-import { buildMiniBrief, shouldFireMiniBrief, readPreferencesCore } from "../src/injectWindow.js";
-import { compileInjectionBlock } from "../src/preferences.js";
-import { truncateToBudget } from "../src/injectBudget.js";
 function readStdin() { try {
     return fs.readFileSync(0, "utf8");
 }
@@ -33,6 +25,13 @@ async function main() {
         const prompt = (h?.prompt || "").trim();
         if (!prompt)
             process.exit(0);
+        const { getInjectedSlugs, appendInjectedSlugs } = await import("../src/sessionInjected.js");
+        const { logInject } = await import("../src/injectTelemetry.js");
+        const { estimateTokens, INJECT_LIMITS, capNoteContribution, truncateToBudget } = await import("../src/injectBudget.js");
+        const { resolveProjectSlug } = await import("../src/sessionProject.js");
+        const { incrementTurnCount } = await import("../src/turnCounter.js");
+        const { buildMiniBrief, shouldFireMiniBrief, readPreferencesCore } = await import("../src/injectWindow.js");
+        const { compileInjectionBlock } = await import("../src/preferences.js");
         const sid = h?.session_id || "";
         const cwd = h?.cwd || "";
         const excludeSlugs = sid ? getInjectedSlugs(sid) : [];
