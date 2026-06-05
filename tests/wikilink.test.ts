@@ -79,16 +79,16 @@ describe("resolveLinks", () => {
     expect(resolveLinks(["anything"], path.join(vault, "does-not-exist"))).toEqual([]);
   });
 
-  it("resolves links case-insensitively (Weddy -> projects/weddy)", () => {
-    touch("projects/weddy.md");
-    expect(resolveLinks(["Weddy"], vault)).toEqual(["projects/weddy"]);
-    expect(resolveLinks(["WEDDY"], vault)).toEqual(["projects/weddy"]);
+  it("resolves links case-insensitively (Alpha-proj -> projects/alpha-proj)", () => {
+    touch("projects/alpha-proj.md");
+    expect(resolveLinks(["Alpha-proj"], vault)).toEqual(["projects/alpha-proj"]);
+    expect(resolveLinks(["ALPHA-PROJ"], vault)).toEqual(["projects/alpha-proj"]);
     expect(resolveLinks(["[[Engram]]"], vault)).toEqual([]);
   });
 
-  it("resolves case-insensitive full relative paths (Projects/Weddy -> projects/weddy)", () => {
-    touch("projects/weddy.md");
-    expect(resolveLinks(["Projects/Weddy"], vault)).toEqual(["projects/weddy"]);
+  it("resolves case-insensitive full relative paths (Projects/Alpha-proj -> projects/alpha-proj)", () => {
+    touch("projects/alpha-proj.md");
+    expect(resolveLinks(["Projects/Alpha-proj"], vault)).toEqual(["projects/alpha-proj"]);
   });
 
   it("strips leading ../ and ./ from links before resolving", () => {
@@ -99,8 +99,8 @@ describe("resolveLinks", () => {
   });
 
   it("strips pipe alias before resolving (Obsidian [[target|alias]] form)", () => {
-    touch("projects/weddy.md");
-    expect(resolveLinks(["weddy|the weddy project"], vault)).toEqual(["projects/weddy"]);
-    expect(resolveLinks(["[[weddy|Weddy]]"], vault)).toEqual(["projects/weddy"]);
+    touch("projects/alpha-proj.md");
+    expect(resolveLinks(["alpha-proj|the alpha-proj project"], vault)).toEqual(["projects/alpha-proj"]);
+    expect(resolveLinks(["[[alpha-proj|Alpha-proj]]"], vault)).toEqual(["projects/alpha-proj"]);
   });
 });

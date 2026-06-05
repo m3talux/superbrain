@@ -26,7 +26,7 @@ type: preference
 ## Never push directly to main
 Some body text that is part of the heading entry.
 
-## For Weddy: use middle-east founding market
+## For Alpha-proj: use middle-east founding market
 Body.
 `;
 
@@ -39,7 +39,7 @@ Preamble paragraph.
 
 - Never add comment blocks before every method.
 - I learned that gray-matter quotes dates automatically.
-- For Weddy: use middle-east founding market.
+- For Alpha-proj: use middle-east founding market.
 
 ## Version control
 
@@ -65,7 +65,7 @@ describe("parsePreferences", () => {
     // Both headings are entries (no bullet children)
     expect(entries.length).toBeGreaterThanOrEqual(2);
     expect(entries.some(e => e.text.includes("Never push directly to main"))).toBe(true);
-    expect(entries.some(e => e.text.includes("For Weddy"))).toBe(true);
+    expect(entries.some(e => e.text.includes("For Alpha-proj"))).toBe(true);
   });
 
   it("extracts source context (line or category) for each entry", () => {
@@ -115,15 +115,15 @@ describe("classify", () => {
   });
 
   it("demotes-project a for-slug scoped entry", () => {
-    const result = classify("For Weddy: use middle-east founding market");
+    const result = classify("For Alpha-proj: use middle-east founding market");
     expect(result.verdict).toBe("demote-project");
-    expect(result.projectSlug).toBe("weddy");
+    expect(result.projectSlug).toBe("alpha-proj");
   });
 
   it("demotes-project case-insensitively", () => {
-    const result = classify("for weddy: prefer TypeScript");
+    const result = classify("for alpha-proj: prefer TypeScript");
     expect(result.verdict).toBe("demote-project");
-    expect(result.projectSlug).toBe("weddy");
+    expect(result.projectSlug).toBe("alpha-proj");
   });
 
   it("keeps a long imperative rule (no length cap for imperatives)", () => {

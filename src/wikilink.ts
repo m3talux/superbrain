@@ -7,7 +7,7 @@ const DATE_PREFIX = /^\d{4}-\d{2}-\d{2}-/;
 
 interface Index {
   // Index keys are lowercased so lookup is case-insensitive — Obsidian
-  // treats `[[Weddy]]` and `[[weddy]]` as the same target.
+  // treats `[[Alpha-proj]]` and `[[alpha-proj]]` as the same target.
   byRelPath: Map<string, string>;
   byBasename: Map<string, string[]>;
   byTokens: Array<{ rel: string; tokens: Set<string>; }>;

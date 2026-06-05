@@ -12,7 +12,7 @@ describe("isPromotable", () => {
     expect(isPromotable({ rule: "always sort imports" }, 2)).toBe(false);
   });
   it("rejects a project-scoped rule", () => {
-    expect(isPromotable({ rule: "for Weddy: use middle-east founding market" }, 5)).toBe(false);
+    expect(isPromotable({ rule: "for Alpha-proj: use middle-east founding market" }, 5)).toBe(false);
   });
   it("rejects non-imperative", () => {
     expect(isPromotable({ rule: "I learned about gray-matter" }, 5)).toBe(false);
@@ -64,9 +64,9 @@ describe("appendCandidate + autoPromoteCandidates", () => {
   });
 
   it("does not promote project-scoped candidates even after 5 observations", () => {
-    for (let i = 0; i < 5; i++) appendCandidate(vaultDir, { rule: "for Weddy: use middle-east founding market" });
+    for (let i = 0; i < 5; i++) appendCandidate(vaultDir, { rule: "for Alpha-proj: use middle-east founding market" });
     const promoted = autoPromoteCandidates(vaultDir);
-    expect(promoted).not.toContain("for Weddy: use middle-east founding market");
+    expect(promoted).not.toContain("for Alpha-proj: use middle-east founding market");
   });
 
   it("counts variants of same rule (case + trailing punctuation)", () => {

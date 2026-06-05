@@ -21,7 +21,7 @@ beforeEach(() => {
 
 describe("discoverer — gates", () => {
   it("projectSlug uses the basename, hyphenated and lowercased", () => {
-    expect(projectSlug("/Users/alex/Projects/Vibe/SuperBrain")).toBe("superbrain");
+    expect(projectSlug("/home/user/code/SuperBrain")).toBe("superbrain");
     expect(projectSlug("/tmp/My Cool Repo")).toBe("my-cool-repo");
   });
 
