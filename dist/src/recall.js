@@ -30,9 +30,8 @@ export async function hybridRecall(query, k, opts) {
         ix = openIndex();
         const bm = ix.bm25(query, k * 2);
         let vec = [];
-        // bm25Only skips the embedding model entirely. Short-lived hooks (SessionStart,
-        // UserPromptSubmit) must exit cleanly; loading onnxruntime there aborts the
-        // process on teardown under some Node runtimes, so they pass bm25Only.
+        // bm25Only skips the embedding model entirely. Short-lived hooks can opt in
+        // when they want fast keyword-only recall without the model load latency.
         if (!opts?.bm25Only) {
             try {
                 const [qv] = await embed([query]);

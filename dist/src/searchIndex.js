@@ -3,8 +3,20 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import * as sqliteVec from "sqlite-vec";
 import { dataDir } from "./paths.js";
-import { EMBED_DIM } from "./embed.js";
+import { EMBED_DIM, MODEL_ID } from "./embed.js";
 import { ensureEdgesTable } from "./edges.js";
+import { quantizeToInt8, serializeInt8ForSql } from "./staticEmbed/int8Quant.js";
+function clearReindexSentinels(dir) {
+    try {
+        for (const f of fs.readdirSync(dir)) {
+            if (f.startsWith("reindexed-") && f.endsWith(".txt")) {
+                fs.rmSync(path.join(dir, f), { force: true });
+            }
+        }
+    }
+    catch { /* dir may not exist yet */ }
+}
+const CHUNK_CAP = 50;
 function toScalarString(v) {
     if (typeof v === "string")
         return v;
@@ -26,29 +38,47 @@ export function rrfWithScores(lists, k, c = 60) {
         list.forEach((id, i) => score.set(id, (score.get(id) || 0) + 1 / (c + i + 1)));
     return [...score.entries()].sort((a, b) => b[1] - a[1]).slice(0, k).map(([id, s]) => ({ id, score: s }));
 }
+function ensureVecTable(db) {
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS embed_meta (key TEXT PRIMARY KEY, value TEXT);
+    CREATE TABLE IF NOT EXISTS notes (rel_path TEXT PRIMARY KEY, mtime INTEGER, hash TEXT, project TEXT, created TEXT);
+    CREATE TABLE IF NOT EXISTS chunks (
+      id INTEGER PRIMARY KEY, rel_path TEXT, heading_path TEXT, anchor TEXT, text TEXT);
+    CREATE INDEX IF NOT EXISTS chunks_rel ON chunks(rel_path);
+    CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(text, content='');
+  `);
+    const storedDim = db.prepare("SELECT value FROM embed_meta WHERE key='dim'").get()?.value;
+    const storedModel = db.prepare("SELECT value FROM embed_meta WHERE key='model_id'").get()?.value;
+    const dimMatch = storedDim === String(EMBED_DIM);
+    const modelMatch = storedModel === MODEL_ID;
+    const vecExists = !!(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='vec_chunks'").get());
+    if (!vecExists || !dimMatch || !modelMatch) {
+        if (vecExists)
+            db.exec("DROP TABLE vec_chunks");
+        db.exec(`CREATE VIRTUAL TABLE vec_chunks USING vec0(chunk_id integer primary key, embedding int8[${EMBED_DIM}])`);
+        db.exec("DELETE FROM embed_meta WHERE key IN ('dim','model_id')");
+        db.prepare("INSERT INTO embed_meta(key,value) VALUES ('dim',?)").run(String(EMBED_DIM));
+        db.prepare("INSERT INTO embed_meta(key,value) VALUES ('model_id',?)").run(MODEL_ID);
+        if (vecExists) {
+            // Existing chunks lost their vectors. Invalidate version sentinels so
+            // forcedReindexIfNeeded runs reindexAll() on the next session start.
+            clearReindexSentinels(dataDir());
+        }
+    }
+}
 export function openIndex() {
     const dbPath = path.join(dataDir(), "index.db");
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     const db = new Database(dbPath);
     sqliteVec.load(db);
     db.pragma("journal_mode = WAL");
-    db.exec(`
-    CREATE TABLE IF NOT EXISTS notes (rel_path TEXT PRIMARY KEY, mtime INTEGER, hash TEXT, project TEXT, created TEXT);
-    CREATE TABLE IF NOT EXISTS chunks (
-      id INTEGER PRIMARY KEY, rel_path TEXT, heading_path TEXT, anchor TEXT, text TEXT);
-    CREATE INDEX IF NOT EXISTS chunks_rel ON chunks(rel_path);
-    CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(text, content='');
-    CREATE VIRTUAL TABLE IF NOT EXISTS vec_chunks USING vec0(
-      chunk_id integer primary key, embedding float[${EMBED_DIM}]);
-  `);
+    ensureVecTable(db);
     // Migrate: add columns if they don't exist (idempotent)
     const cols = db.pragma("table_info(notes)").map((c) => c.name);
-    if (!cols.includes("project")) {
+    if (!cols.includes("project"))
         db.exec("ALTER TABLE notes ADD COLUMN project TEXT");
-    }
-    if (!cols.includes("created")) {
+    if (!cols.includes("created"))
         db.exec("ALTER TABLE notes ADD COLUMN created TEXT");
-    }
     ensureEdgesTable(db);
     const delByPath = db.transaction((relPath) => {
         const rows = db.prepare("SELECT id, heading_path, text FROM chunks WHERE rel_path=?").all(relPath);
@@ -61,14 +91,15 @@ export function openIndex() {
     });
     const insChunk = db.prepare("INSERT INTO chunks(rel_path,heading_path,anchor,text) VALUES (?,?,?,?)");
     const insFts = db.prepare("INSERT INTO chunks_fts(rowid,text) VALUES (?,?)");
-    const insVec = db.prepare("INSERT INTO vec_chunks(chunk_id,embedding) VALUES (?,?)");
+    const insVec = db.prepare("INSERT INTO vec_chunks(chunk_id,embedding) VALUES (?,vec_int8(?))");
     const insNote = db.prepare("INSERT OR REPLACE INTO notes(rel_path,mtime,hash,project,created) VALUES (?,?,?,?,?)");
     const upsert = db.transaction((relPath, mtime, hash, chunks, embs, project, created) => {
         delByPath(relPath);
-        chunks.forEach((c, i) => {
+        const capped = chunks.slice(0, CHUNK_CAP);
+        capped.forEach((c, i) => {
             const id = Number(insChunk.run(relPath, c.headingPath, c.anchor, c.text).lastInsertRowid);
             insFts.run(id, (c.headingPath ? c.headingPath + " " : "") + c.text);
-            insVec.run(BigInt(id), JSON.stringify(Array.from(embs[i])));
+            insVec.run(BigInt(id), serializeInt8ForSql(quantizeToInt8(embs[i])));
         });
         insNote.run(relPath, mtime, hash, toScalarString(project ?? null), toScalarString(created ?? null));
     });
@@ -87,7 +118,7 @@ export function openIndex() {
             return hydrate(rows.map((r) => r.rowid));
         },
         vectorKNN: (v, k) => {
-            const rows = db.prepare("SELECT chunk_id, distance FROM vec_chunks WHERE embedding MATCH ? ORDER BY distance LIMIT ?").all(JSON.stringify(Array.from(v)), k);
+            const rows = db.prepare("SELECT chunk_id, distance FROM vec_chunks WHERE embedding MATCH vec_int8(?) ORDER BY distance LIMIT ?").all(serializeInt8ForSql(quantizeToInt8(v)), k);
             const hits = hydrate(rows.map((r) => Number(r.chunk_id)));
             hits.forEach((h, i) => { h.distance = rows[i]?.distance; });
             return hits;
