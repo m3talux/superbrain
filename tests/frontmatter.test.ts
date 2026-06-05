@@ -40,10 +40,10 @@ describe("frontmatter", () => {
     expect(() => serializeNote({ type: "preference", created: "2026-05-22" }, "body")).not.toThrow();
   });
 
-  it("parseNote normalizes wikilink project ([['projects/weddy']]) to string", () => {
-    const raw = "---\ntype: project\nstatus: active\nproject:\n  - - projects/weddy\n---\n\nbody";
+  it("parseNote normalizes wikilink project ([['projects/alpha-proj']]) to string", () => {
+    const raw = "---\ntype: project\nstatus: active\nproject:\n  - - projects/alpha-proj\n---\n\nbody";
     const { data } = parseNote(raw);
-    expect(data.project).toBe("projects/weddy");
+    expect(data.project).toBe("projects/alpha-proj");
   });
 
   it("serializeNote on note missing type does not throw and returns markdown", () => {

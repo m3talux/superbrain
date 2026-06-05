@@ -21,7 +21,7 @@ describe("shouldSkipDistill — pure helper", () => {
     const events = [
       { type: "prompt", prompt: "What is X?" },
       { type: "tool", tool: "Read", file: "/p/x.md" },
-      { type: "tool", tool: "mcp__lean-ctx__ctx_read", file: "/p/y.md" },
+      { type: "tool", tool: "mcp__gamma-lib__ctx_read", file: "/p/y.md" },
     ];
     const r = shouldSkipDistill(events);
     expect(r.skip).toBe(true);

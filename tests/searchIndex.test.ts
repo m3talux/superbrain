@@ -69,7 +69,7 @@ describe("searchIndex", () => {
       ix.upsertNote("projects/z.md", 1, "h1",
         [{ headingPath: "", anchor: "", text: "wikilink project test" }],
         [vec(0.5)],
-        ["projects/weddy"] as any,
+        ["projects/alpha-proj"] as any,
         "2026-05-28")
     ).not.toThrow();
     expect(ix.getNoteMeta("projects/z.md")).not.toBeNull();

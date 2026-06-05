@@ -60,18 +60,18 @@ describe("inferType", () => {
 // ---------------------------------------------------------------------------
 
 describe("inferProject", () => {
-  const knownProjects = ["superbrain", "weddy", "theweproject", "lean-ctx"];
+  const knownProjects = ["superbrain", "alpha-proj", "beta-svc", "gamma-lib"];
 
   it("projects/ folder → basename as project slug", () => {
     expect(inferProject("projects/superbrain.md", "", knownProjects)).toBe("superbrain");
   });
 
   it("projects/_archive/ → basename prefix before -YYYY-Q*", () => {
-    expect(inferProject("projects/_archive/weddy-2025-Q4.md", "", knownProjects)).toBe("weddy");
+    expect(inferProject("projects/_archive/alpha-proj-2025-Q4.md", "", knownProjects)).toBe("alpha-proj");
   });
 
   it("projects/_archive/ → basename prefix before -YYYY (no quarter)", () => {
-    expect(inferProject("projects/_archive/lean-ctx-2025-Q1.md", "", knownProjects)).toBe("lean-ctx");
+    expect(inferProject("projects/_archive/gamma-lib-2025-Q1.md", "", knownProjects)).toBe("gamma-lib");
   });
 
   it("daily/ → no project (null)", () => {
@@ -87,7 +87,7 @@ describe("inferProject", () => {
   });
 
   it("decisions/ → global (not derived from body)", () => {
-    const bodyWithSlug = "We decided to use TypeScript for theweproject frontend.";
+    const bodyWithSlug = "We decided to use TypeScript for beta-svc frontend.";
     expect(inferProject("decisions/2026-05-20-foo.md", bodyWithSlug, knownProjects)).toBe("global");
   });
 
@@ -97,12 +97,12 @@ describe("inferProject", () => {
   });
 
   it("capture/ body mentioning a slug → global (no body scan)", () => {
-    const bodyWithSlug = "Working on lean-ctx today, got some ideas.";
+    const bodyWithSlug = "Working on gamma-lib today, got some ideas.";
     expect(inferProject("capture/idea.md", bodyWithSlug, knownProjects)).toBe("global");
   });
 
   it("capture/ body containing inject marker mentioning a project → global, not that project", () => {
-    const bodyWithMarker = "<!-- superbrain:inject project=superbrain -->\nsome content about lean-ctx";
+    const bodyWithMarker = "<!-- superbrain:inject project=superbrain -->\nsome content about gamma-lib";
     expect(inferProject("capture/idea.md", bodyWithMarker, knownProjects)).toBe("global");
   });
 
@@ -281,11 +281,11 @@ describe("planBackfill", () => {
   });
 
   it("handles _archive subfolder correctly", () => {
-    writeNote("projects/_archive/weddy-2025-Q4.md", `---\nstatus: archived\n---\n\nbody\n`);
+    writeNote("projects/_archive/alpha-proj-2025-Q4.md", `---\nstatus: archived\n---\n\nbody\n`);
     const proposals = planBackfill(tmpDir);
-    const p = proposals.find(p => p.file.includes("weddy-2025-Q4.md"));
+    const p = proposals.find(p => p.file.includes("alpha-proj-2025-Q4.md"));
     expect(p).toBeDefined();
     expect(p!.changes.some(c => c.field === "type" && c.value === "project")).toBe(true);
-    expect(p!.changes.some(c => c.field === "project" && c.value === "weddy")).toBe(true);
+    expect(p!.changes.some(c => c.field === "project" && c.value === "alpha-proj")).toBe(true);
   });
 });

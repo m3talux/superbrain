@@ -71,9 +71,9 @@ describe("project-scoped recall", () => {
     );
     ix.upsertNote(
       "decisions/we1.md", 2, "h-we",
-      [{ headingPath: "", anchor: "root", text: "hybrid fusion topic weddy" }],
+      [{ headingPath: "", anchor: "root", text: "hybrid fusion topic alpha-proj" }],
       [STUB_VEC],
-      "weddy",
+      "alpha-proj",
     );
     ix.upsertNote(
       "decisions/glob.md", 2, "h-gl",
