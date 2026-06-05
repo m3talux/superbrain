@@ -13,7 +13,9 @@
         { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/bin/sb-checkpoint.js\"", "async": true, "timeout": 15 } ] } ],
     "PreCompact": [
       { "matcher": "*", "hooks": [
-        { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/bin/sb-checkpoint.js\"", "async": true, "timeout": 15 } ] } ],
+        { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/bin/sb-checkpoint.js\"", "async": true, "timeout": 15 } ] },
+      { "matcher": "*", "hooks": [
+        { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/bin/sb-session-start.js\"", "timeout": 20 } ] } ],
     "SessionEnd": [
       { "hooks": [
         { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/bin/sb-checkpoint.js\"", "timeout": 20 } ] } ],
