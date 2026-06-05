@@ -1,24 +1,78 @@
 export interface AppendOpts {
-  sizeCap?: number; // bytes; default 20480
+  sizeCap?: number;
 }
 
 export interface ArchivedSection {
-  date: string; // YYYY-MM-DD extracted from the heading
-  content: string; // the content after the heading, up to (but not including) the next ### or ## boundary
+  date: string;
+  content: string;
 }
 
 export interface AppendResult {
-  body: string; // updated full body
-  archived: ArchivedSection[]; // sections that overflowed; caller persists them
+  body: string;
+  archived: ArchivedSection[];
 }
 
 const DEFAULT_SIZE_CAP = 20480;
+const HARD_CEILING_BYTES = Number(process.env.SUPERBRAIN_PROJECT_NOTE_CAP_BYTES) || 32 * 1024;
+const LOW_WATER_RATIO = 0.8;
 const RECENT_HEADING = "## Recent activity";
+
+const STRUCTURAL_HEADINGS = new Set([
+  "## What it is",
+  "## Status",
+  "## Architecture",
+  "## Recent activity",
+  "## Gotchas",
+]);
+
+interface RawSection { date: string; start: number; end: number; heading: string }
+
+function collectArchivableSections(body: string): RawSection[] {
+  const headingRe = /\n(#{2,3}) (.+)\n/g;
+  const heads: Array<{ idx: number; level: number; text: string }> = [];
+  let m: RegExpExecArray | null;
+  while ((m = headingRe.exec(body)) !== null) {
+    heads.push({ idx: m.index, level: m[1].length, text: m[2].trim() });
+  }
+  const sections: RawSection[] = [];
+  for (let i = 0; i < heads.length; i++) {
+    const h = heads[i];
+    const fullHeading = `${"#".repeat(h.level)} ${h.text}`;
+    if (h.level === 2 && STRUCTURAL_HEADINGS.has(`## ${h.text}`)) continue;
+    const dateM = h.text.match(/^(\d{4}-\d{2}-\d{2})/);
+    const isGotcha = /^Gotcha\b/.test(h.text);
+    if (!dateM && !isGotcha) continue;
+    const start = h.idx;
+    const end = i + 1 < heads.length ? heads[i + 1].idx : body.length;
+    sections.push({
+      date: dateM ? dateM[1] : "0000-00-00",
+      start,
+      end,
+      heading: fullHeading,
+    });
+  }
+  return sections;
+}
+
+function findOldestArchivableSection(
+  body: string,
+): { date: string; content: string; start: number; end: number } | null {
+  const secs = collectArchivableSections(body);
+  if (secs.length === 0) return null;
+  let oldest = secs[0];
+  for (const s of secs) {
+    if (s.date < oldest.date || (s.date === oldest.date && s.start < oldest.start)) oldest = s;
+  }
+  const block = body.slice(oldest.start, oldest.end);
+  const headingEnd = block.indexOf("\n", 1) + 1;
+  const content = block.slice(headingEnd).replace(/^\s+|\s+$/g, "");
+  return { date: oldest.date, content, start: oldest.start, end: oldest.end };
+}
 
 export function appendDatedSection(
   body: string,
   date: string,
-  content: string
+  content: string,
 ): string {
   if (
     !body.includes(`\n${RECENT_HEADING}\n`) &&
@@ -27,16 +81,15 @@ export function appendDatedSection(
   ) {
     throw new Error(`project body missing '${RECENT_HEADING}' section`);
   }
-  if (new RegExp(`(^|\\n)### ${escapeRegex(date)}\\n`).test(body)) {
-    throw new Error(`duplicate heading: ### ${date}`);
+  const dupRe = new RegExp(`((?:^|\\n)### ${escapeRegex(date)}\\n)`);
+  if (dupRe.test(body)) {
+    return body.replace(dupRe, `$1\n${content}\n\n`).replace(/\n{3,}/g, "\n\n");
   }
   const newSection = `### ${date}\n\n${content}\n\n`;
-  // Insert immediately after "## Recent activity\n"
   const updated = body.replace(
     `${RECENT_HEADING}\n`,
-    `${RECENT_HEADING}\n\n${newSection}`
+    `${RECENT_HEADING}\n\n${newSection}`,
   );
-  // Normalize excessive blank lines (3+ newlines -> 2)
   return updated.replace(/\n{3,}/g, "\n\n");
 }
 
@@ -44,63 +97,26 @@ export function appendDatedSectionWithArchive(
   body: string,
   date: string,
   content: string,
-  opts: AppendOpts = {}
+  opts: AppendOpts = {},
 ): AppendResult {
-  const cap = opts.sizeCap ?? DEFAULT_SIZE_CAP;
+  const cap = opts.sizeCap ?? HARD_CEILING_BYTES;
+  const lowWater = Math.floor(cap * LOW_WATER_RATIO);
   let updated = appendDatedSection(body, date, content);
   const archived: ArchivedSection[] = [];
 
-  while (Buffer.byteLength(updated, "utf8") > cap) {
-    const oldest = findOldestSubsection(updated);
-    if (!oldest) break;
-    archived.push({ date: oldest.date, content: oldest.content });
-    updated = updated.slice(0, oldest.start) + updated.slice(oldest.end);
-    updated = updated.replace(/\n{3,}/g, "\n\n");
+  if (Buffer.byteLength(updated, "utf8") > cap) {
+    let target = lowWater;
+    while (Buffer.byteLength(updated, "utf8") > target) {
+      const oldest = findOldestArchivableSection(updated);
+      if (!oldest) break;
+      archived.push({ date: oldest.date, content: oldest.content });
+      updated = updated.slice(0, oldest.start) + updated.slice(oldest.end);
+      updated = updated.replace(/\n{3,}/g, "\n\n");
+      if (Buffer.byteLength(updated, "utf8") <= cap && archived.length > 0) target = cap;
+    }
   }
 
   return { body: updated, archived };
-}
-
-function findOldestSubsection(
-  body: string
-): { date: string; content: string; start: number; end: number } | null {
-  const recentIdx = body.indexOf(`\n${RECENT_HEADING}\n`);
-  const recentStart =
-    recentIdx >= 0 ? recentIdx : body.startsWith(`${RECENT_HEADING}\n`) ? 0 : -1;
-  if (recentStart < 0) return null;
-
-  const afterHeadingIdx = recentStart + (recentIdx >= 0 ? 1 : 0);
-  // Find boundary: next "## " heading (NOT "###") after Recent activity, or end of file
-  const afterRecent = body.slice(afterHeadingIdx + RECENT_HEADING.length);
-  const nextSectionMatch = afterRecent.match(/\n## [^#]/);
-  const recentEnd = nextSectionMatch
-    ? afterHeadingIdx + RECENT_HEADING.length + nextSectionMatch.index!
-    : body.length;
-
-  // Find all "### YYYY-MM-DD" subsections within the Recent activity block
-  const ra = body.slice(afterHeadingIdx, recentEnd);
-  const offset = afterHeadingIdx;
-  const subSectionRegex = /\n### (\d{4}-\d{2}-\d{2})\n/g;
-  let match: RegExpExecArray | null;
-  const subs: Array<{ date: string; start: number; end: number }> = [];
-
-  while ((match = subSectionRegex.exec(ra)) !== null) {
-    subs.push({ date: match[1], start: match.index + offset, end: -1 });
-  }
-  if (subs.length === 0) return null;
-
-  // Compute end for each: start of next sub, or recentEnd
-  for (let i = 0; i < subs.length; i++) {
-    subs[i].end = i + 1 < subs.length ? subs[i + 1].start : recentEnd;
-  }
-
-  // Oldest = LAST sub (since they're most-recent-first)
-  const oldest = subs[subs.length - 1];
-  const block = body.slice(oldest.start, oldest.end);
-  // Skip past "\n### date\n"
-  const headingEnd = block.indexOf("\n", 1) + 1;
-  const content = block.slice(headingEnd).replace(/^\s+|\s+$/g, "");
-  return { date: oldest.date, content, start: oldest.start, end: oldest.end };
 }
 
 /**
@@ -109,7 +125,7 @@ function findOldestSubsection(
  */
 export function initializeProjectNote(
   slug: string,
-  frontmatter: Record<string, any>
+  frontmatter: Record<string, any>,
 ): string {
   const title = frontmatter.title || slug;
   return `# ${title}\n\n## Recent activity\n`;

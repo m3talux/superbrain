@@ -81,13 +81,19 @@ export function writeNote(rel: string, args: WriteArgs): WriteResult {
       ) {
         currentBody = currentBody.replace(/\s+$/, "") + "\n\n## Recent activity\n";
       }
-      const r = appendDatedSectionWithArchive(currentBody, date, args.body);
       const mergedFm = { ...baseFm, ...args.frontmatter, updated: stamp };
+      const fmOverhead = Buffer.byteLength(serializeNote(mergedFm, ""), "utf8");
+      const r = appendDatedSectionWithArchive(currentBody, date, args.body, {
+        sizeCap: Math.max(8192, (Number(process.env.SUPERBRAIN_PROJECT_NOTE_CAP_BYTES) || 32 * 1024) - fmOverhead),
+      });
       atomicWrite(abs, serializeNote(mergedFm, r.body));
-      // Persist archived sections to projects/_archive/<slug>-<year>-Q<n>.md
       for (const a of r.archived) {
-        const year = a.date.slice(0, 4);
-        const month = parseInt(a.date.slice(5, 7), 10);
+        const year = a.date === "0000-00-00"
+          ? new Date().toISOString().slice(0, 4)
+          : a.date.slice(0, 4);
+        const month = a.date === "0000-00-00"
+          ? new Date().getMonth() + 1
+          : parseInt(a.date.slice(5, 7), 10);
         const q = Math.ceil(month / 3);
         const slug = path.basename(abs, ".md");
         const archivePath = path.join(
@@ -97,6 +103,13 @@ export function writeNote(rel: string, args: WriteArgs): WriteResult {
           `${slug}-${year}-Q${q}.md`,
         );
         fs.mkdirSync(path.dirname(archivePath), { recursive: true });
+        if (!fs.existsSync(archivePath)) {
+          const afm = serializeNote(
+            { type: "summary", project: slug, archived_from: `projects/${slug}.md` },
+            `# ${slug} - archive ${year} Q${q}\n`,
+          );
+          fs.writeFileSync(archivePath, afm);
+        }
         const archiveBlock = `\n### ${a.date}\n\n${a.content}\n`;
         fs.appendFileSync(archivePath, archiveBlock);
       }

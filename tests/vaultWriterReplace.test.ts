@@ -41,13 +41,14 @@ it("replace no-ops when normalized body unchanged (mtime stable)", () => {
   expect(m2).toBe(m1);
 });
 
-it("create/append modes still behave as before (regression guard)", () => {
+it("create/append modes use dated subsections and same-date content merges", () => {
   writeNote("projects/x.md", { frontmatter: { type: "project", status: "active", project: "x", created: "2026-05-19" }, body: "first", mode: "create" });
   writeNote("projects/x.md", { frontmatter: { type: "project", status: "active", project: "x", created: "2026-05-19" }, body: "second", mode: "append" });
   const c = fs.readFileSync(path.join(TMP, "projects/x.md"), "utf8");
   expect(c).toContain("first");
   expect(c).toContain("second");
-  expect(c).toMatch(/## \d{4}-\d\d-\d\d \d\d:\d\d/);
+  expect(c).toMatch(/### \d{4}-\d\d-\d\d/);
+  expect(c).not.toMatch(/## \d{4}-\d\d-\d\d \d\d:\d\d/);
 });
 
 it("replace does not throw when created is absent on both sides", () => {
