@@ -65,6 +65,13 @@ it("an item that throws during routing is dropped and does not abort siblings", 
     path.join(TMP_DATA, "sessions/ISO2.ndjson"),
     JSON.stringify({ type: "tool", tool: "Write", file: "a.ts", cwd: "/p", ts: "t" }) + "\n",
   );
+
+  // Seed the vault with one real note so buildIndex's byRelPath.size > 0.
+  // Without this, resolveLinks short-circuits before iterating `links` and
+  // the bogus object never triggers the TypeError that exercises the catch branch.
+  fs.mkdirSync(path.join(TMP_VAULT, "capture"), { recursive: true });
+  fs.writeFileSync(path.join(TMP_VAULT, "capture", "seed-note.md"), "# Seed\n");
+
   const stub = path.join(TMP_DATA, "stub.json");
   fs.writeFileSync(stub, JSON.stringify([
     { kind: "capture", title: "Throwing item", date: "2026-06-05", links: { bogus: true }, body: "x" },
@@ -86,8 +93,13 @@ it("an item that throws during routing is dropped and does not abort siblings", 
   });
 
   const captureDir = path.join(TMP_VAULT, "capture");
-  expect(fs.existsSync(captureDir)).toBe(true);
-  const written = fs.readdirSync(captureDir).filter((f) => f.endsWith(".md"));
+  const written = fs.readdirSync(captureDir).filter((f) => f.endsWith(".md") && f !== "seed-note.md");
   expect(written.some((f) => f.includes("good-sibling"))).toBe(true);
+
+  const rejectsFile = path.join(TMP_VAULT, "meta", "distill-rejects.md");
+  expect(fs.existsSync(rejectsFile)).toBe(true);
+  const rejectsContent = fs.readFileSync(rejectsFile, "utf8");
+  expect(rejectsContent).toContain("item dropped (routing error)");
+
   expect(Number(fs.readFileSync(path.join(TMP_DATA, "sessions/ISO2.cursor"), "utf8"))).toBeGreaterThan(0);
 });
