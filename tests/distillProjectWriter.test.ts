@@ -114,14 +114,13 @@ it("creates project note from scratch when file does not exist, with ## Recent a
   expect(content).toContain("Service owns auth");
 });
 
-it("archives oldest dated subsection to projects/_archive/<slug>-<year>-Q<n>.md when file exceeds 20KB", () => {
-  // Build a project note that's already >19KB so one more append tips it over
+it("archives oldest dated subsection to projects/_archive/<slug>-<year>-Q<n>.md when file exceeds 32KB ceiling", () => {
+  // Build a project note that's already >32KB so one more append tips it over
   const projectsDir = path.join(TMP_VAULT, "projects");
   fs.mkdirSync(projectsDir, { recursive: true });
 
-  // Fill ## Recent activity with content to push file size well over cap.
-  // The initial note alone must already exceed 20KB so any new append triggers archiving.
-  const bigChunk = "x".repeat(20_800);
+  // Fill ## Recent activity with content to push file size well over the 32KB ceiling.
+  const bigChunk = "x".repeat(33_000);
   const existingNote = [
     "---",
     "type: project",
@@ -153,6 +152,10 @@ it("archives oldest dated subsection to projects/_archive/<slug>-<year>-Q<n>.md 
   // At least one archive file for bigapp must exist
   const archiveFiles = fs.readdirSync(archiveDir).filter(f => f.startsWith("bigapp-"));
   expect(archiveFiles.length).toBeGreaterThan(0);
+
+  // Archive file must carry the project slug in frontmatter (never NULL-tagged)
+  const archived = fs.readFileSync(path.join(archiveDir, archiveFiles[0]), "utf8");
+  expect(archived).toContain("project: bigapp");
 
   // The main file must still contain Recent activity and the new fact
   const main = fs.readFileSync(path.join(projectsDir, "bigapp.md"), "utf8");
