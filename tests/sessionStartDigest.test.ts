@@ -296,7 +296,7 @@ beforeEach(() => {
   // is BM25-gated in P2.0 — zero lexical hits → returns [] immediately.
   ix.upsertNote("projects/super-brain.md", 1, "h",
     [{ headingPath: "Status", anchor: "status", text: "superbrain phase 1 shipped; phase 2 adds hybrid search" }],
-    [Float32Array.from(Array(384).fill(0.6))]);
+    [Float32Array.from(Array(256).fill(0.6))]);
   ix.close();
 });
 

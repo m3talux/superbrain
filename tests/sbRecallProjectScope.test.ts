@@ -28,13 +28,13 @@ beforeEach(() => {
   ix.upsertNote(
     "projects/my-project.md", 1, "h-mp",
     [{ headingPath: "", anchor: "root", text: "hybrid recall fusion RRF my-project specifics" }],
-    [Float32Array.from(Array(384).fill(0.4))],
+    [Float32Array.from(Array(256).fill(0.4))],
     "my-project",
   );
   ix.upsertNote(
     "projects/other-project.md", 1, "h-op",
     [{ headingPath: "", anchor: "root", text: "hybrid recall fusion RRF other-project specifics" }],
-    [Float32Array.from(Array(384).fill(0.4))],
+    [Float32Array.from(Array(256).fill(0.4))],
     "other-project",
   );
   ix.close();

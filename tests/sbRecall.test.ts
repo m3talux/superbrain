@@ -14,7 +14,7 @@ beforeEach(() => {
   const ix = openIndex();
   ix.upsertNote("projects/super-brain.md", 1, "h",
     [{ headingPath: "Decisions", anchor: "decisions", text: "we picked RRF hybrid fusion for recall" }],
-    [Float32Array.from(Array(384).fill(0.4))]);
+    [Float32Array.from(Array(256).fill(0.4))]);
   ix.close();
 });
 
