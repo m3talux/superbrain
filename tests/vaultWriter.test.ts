@@ -89,4 +89,49 @@ describe("vaultWriter", () => {
     expect(writeNote(".git/HEAD.md", { frontmatter: { type: "project", status: "active" }, body: "", mode: "create" }).ok).toBe(false);
     expect(writeNote("subdir/.trash/x.md", { frontmatter: { type: "project", status: "active" }, body: "", mode: "create" }).ok).toBe(false);
   });
+
+  it("project append stays under the 32KB hard ceiling even from a legacy-H2-only note", () => {
+    const fm = { type: "project", status: "active", project: "big" };
+    let seed = "# Big\n\n## What it is\n\nx\n\n## Recent activity\n";
+    for (let i = 0; i < 130; i++) {
+      const day = String((i % 27) + 1).padStart(2, "0");
+      seed += `\n## 2026-05-${day} 09:0${i % 10}\n\n${"q".repeat(450)}\n`;
+    }
+    fs.mkdirSync(path.join(TMP, "projects"), { recursive: true });
+    fs.writeFileSync(
+      path.join(TMP, "projects/big.md"),
+      `---\ntype: project\nstatus: active\nproject: big\n---\n\n${seed}`,
+    );
+    expect(fs.statSync(path.join(TMP, "projects/big.md")).size).toBeGreaterThan(32 * 1024);
+
+    const r = writeNote("projects/big.md", { frontmatter: fm, body: "a brand new distilled fact about the build", mode: "append" });
+    expect(r.ok).toBe(true);
+
+    const after = fs.statSync(path.join(TMP, "projects/big.md")).size;
+    expect(after).toBeLessThanOrEqual(32 * 1024);
+    const text = fs.readFileSync(path.join(TMP, "projects/big.md"), "utf8");
+    expect(text).toContain("a brand new distilled fact about the build");
+  });
+
+  it("evicted project content lands in projects/_archive tagged with the project slug", () => {
+    const fm = { type: "project", status: "active", project: "big2" };
+    let seed = "# Big2\n\n## Recent activity\n";
+    for (let i = 0; i < 130; i++) {
+      const day = String((i % 27) + 1).padStart(2, "0");
+      seed += `\n## 2026-05-${day} 09:0${i % 10}\n\n${"w".repeat(450)}\n`;
+    }
+    fs.mkdirSync(path.join(TMP, "projects"), { recursive: true });
+    fs.writeFileSync(
+      path.join(TMP, "projects/big2.md"),
+      `---\ntype: project\nstatus: active\nproject: big2\n---\n\n${seed}`,
+    );
+
+    writeNote("projects/big2.md", { frontmatter: fm, body: "newest fact to force an archive write here", mode: "append" });
+
+    const archiveDir = path.join(TMP, "projects/_archive");
+    const files = fs.readdirSync(archiveDir).filter((f) => f.startsWith("big2-"));
+    expect(files.length).toBeGreaterThan(0);
+    const archive = fs.readFileSync(path.join(archiveDir, files[0]), "utf8");
+    expect(archive).toMatch(/^---[\s\S]*\nproject: big2\n[\s\S]*---/m);
+  });
 });
