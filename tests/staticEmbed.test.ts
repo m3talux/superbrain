@@ -113,10 +113,18 @@ describe("int8 quantization", () => {
     expect(q[2]).toBe(127);
   });
 
-  it("serializeInt8ForSql returns a JSON array string", () => {
+  it("serializeInt8ForSql returns a Buffer (not a JSON string)", () => {
     const q = new Int8Array([10, -20, 30, -40]);
-    const s = serializeInt8ForSql(q);
-    expect(s).toBe("[10,-20,30,-40]");
+    const result = serializeInt8ForSql(q);
+    expect(Buffer.isBuffer(result)).toBe(true);
+    expect((result as Buffer).byteLength).toBe(4);
+  });
+
+  it("serializeInt8ForSql buffer contains correct int8 bytes", () => {
+    const q = new Int8Array([10, -20, 30, -40]);
+    const buf = serializeInt8ForSql(q) as unknown as Buffer;
+    const recovered = new Int8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+    expect(Array.from(recovered)).toEqual([10, -20, 30, -40]);
   });
 
   it("int8ArrayFromBuffer round-trips raw bytes", () => {
