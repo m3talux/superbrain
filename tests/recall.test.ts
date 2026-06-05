@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { openIndex } from "../src/searchIndex";
-import { bm25Recall, hybridRecall } from "../src/recall";
+import { hybridRecall } from "../src/recall";
 import * as embedMod from "../src/embed";
 
 let TMP: string;
@@ -26,11 +26,6 @@ afterEach(() => {
 });
 
 describe("recall", () => {
-  it("bm25Recall returns pointers without loading embeddings", async () => {
-    const r = await bm25Recall("sqlite-vec", 3);
-    expect(r[0].relPath).toBe("decisions/2026-05-01-vec.md");
-    expect(r[0].text ?? r[0].excerpt).toContain("sqlite-vec");
-  });
   it("hybridRecall returns pointers (embed via stub)", async () => {
     const r = await hybridRecall("local vector database", 3);
     expect(r.length).toBeGreaterThan(0);

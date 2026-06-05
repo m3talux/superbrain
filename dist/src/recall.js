@@ -18,19 +18,6 @@ function isCrossProject(noteProject, projectSlug) {
         return true; // untagged = unknown origin = exclude
     return noteProject !== "global" && noteProject !== projectSlug;
 }
-export async function bm25Recall(query, k) {
-    let ix;
-    try {
-        ix = openIndex();
-        return toPointers(ix.bm25(query, k));
-    }
-    catch {
-        return [];
-    }
-    finally {
-        ix?.close();
-    }
-}
 export async function hybridRecall(query, k, opts) {
     let ix;
     try {

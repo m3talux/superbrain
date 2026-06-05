@@ -20,6 +20,7 @@ import { preferencesPath, emitPreferencesCore } from "./preferences.js";
 import { filterToUniversal } from "./preferenceClassify.js";
 import { resolveLinks } from "./wikilink.js";
 import { gcTranscript } from "./transcriptStore.js";
+import { pruneSessionFiles } from "./sessionGc.js";
 import { classify } from "./classification.js";
 import { recordRejection } from "./rejectQueue.js";
 import { serializeNote } from "./frontmatter.js";
@@ -467,6 +468,11 @@ export async function runDistill() {
         // failure must never abort an otherwise-successful distill.
         try {
             gcTranscript(path.join(dataDir(), "transcripts"), sid);
+        }
+        catch { /* best-effort */ }
+        // GC old session files. Best-effort: never abort an otherwise-successful distill.
+        try {
+            pruneSessionFiles(dataDir());
         }
         catch { /* best-effort */ }
     }

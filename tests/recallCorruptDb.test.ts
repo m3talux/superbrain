@@ -2,7 +2,7 @@ import { it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { bm25Recall, hybridRecall } from "../src/recall";
+import { hybridRecall } from "../src/recall";
 
 let TMP: string;
 let prevData: string | undefined;
@@ -22,10 +22,6 @@ afterEach(() => {
   if (prevData === undefined) delete process.env.SUPERBRAIN_DATA_DIR; else process.env.SUPERBRAIN_DATA_DIR = prevData;
   if (prevStub === undefined) delete process.env.SUPERBRAIN_EMBED_STUB; else process.env.SUPERBRAIN_EMBED_STUB = prevStub;
   fs.rmSync(TMP, { recursive: true, force: true });
-});
-
-it("bm25Recall returns [] on a corrupt index.db (spec §7), does not throw", async () => {
-  await expect(bm25Recall("anything", 5)).resolves.toEqual([]);
 });
 
 it("hybridRecall returns [] on a corrupt index.db (spec §7), does not throw", async () => {

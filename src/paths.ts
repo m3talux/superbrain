@@ -37,7 +37,7 @@ export function pluginRoot(): string {
   }
   return path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 }
-function sessionsDir(): string { return path.join(dataDir(), "sessions"); }
+export function sessionsDir(): string { return path.join(dataDir(), "sessions"); }
 export function sessionNdjsonPath(id: string): string { return path.join(sessionsDir(), `${id}.ndjson`); }
 export function cursorPath(id: string): string { return path.join(sessionsDir(), `${id}.cursor`); }
 export function sentinelPath(): string { return path.join(dataDir(), "last-failure.txt"); }

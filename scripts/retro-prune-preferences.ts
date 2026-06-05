@@ -41,7 +41,7 @@ export interface Classification {
 // Parsing
 // ---------------------------------------------------------------------------
 
-// Imperative first-word allow-list (same as isPromotable in preferenceCandidates.ts)
+// Imperative first-word allow-list
 const IMPERATIVE_PREFIXES = [
   "always", "never", "prefer", "default", "don't", "do not", "avoid", "use",
 ];

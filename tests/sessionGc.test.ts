@@ -1,0 +1,133 @@
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { pruneSessionFiles } from "../src/sessionGc.js";
+
+let TMP: string;
+
+function sessDir(base: string): string {
+  return path.join(base, "sessions");
+}
+
+function makeSessionFile(dir: string, name: string, mtime: Date): void {
+  const p = path.join(dir, name);
+  fs.writeFileSync(p, "");
+  fs.utimesSync(p, mtime, mtime);
+}
+
+beforeEach(() => {
+  TMP = fs.mkdtempSync(path.join(os.tmpdir(), "sbgc-"));
+  fs.mkdirSync(sessDir(TMP), { recursive: true });
+});
+
+afterEach(() => {
+  fs.rmSync(TMP, { recursive: true, force: true });
+});
+
+describe("pruneSessionFiles", () => {
+  it("removes a session group whose most-recent mtime exceeds maxAgeDays", () => {
+    const old = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+    const sid = "session-abc-001";
+    const sd = sessDir(TMP);
+    makeSessionFile(sd, `${sid}.ndjson`, old);
+    makeSessionFile(sd, `${sid}.injected.json`, old);
+    makeSessionFile(sd, `${sid}.turns.json`, old);
+
+    const result = pruneSessionFiles(TMP, { maxAgeDays: 30 });
+    expect(result.deleted.length).toBe(3);
+    expect(result.errors).toEqual([]);
+    expect(fs.existsSync(path.join(sd, `${sid}.ndjson`))).toBe(false);
+    expect(fs.existsSync(path.join(sd, `${sid}.injected.json`))).toBe(false);
+  });
+
+  it("does not touch a session group within maxAgeDays", () => {
+    const recent = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
+    const sid = "session-fresh-001";
+    const sd = sessDir(TMP);
+    makeSessionFile(sd, `${sid}.ndjson`, recent);
+    makeSessionFile(sd, `${sid}.injected.json`, recent);
+
+    const result = pruneSessionFiles(TMP, { maxAgeDays: 30 });
+    expect(result.deleted).toEqual([]);
+    expect(fs.existsSync(path.join(sd, `${sid}.ndjson`))).toBe(true);
+  });
+
+  it("dryRun returns would-be deleted list without deleting", () => {
+    const old = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
+    const sid = "session-dry-001";
+    const sd = sessDir(TMP);
+    makeSessionFile(sd, `${sid}.ndjson`, old);
+    makeSessionFile(sd, `${sid}.cursor`, old);
+
+    const result = pruneSessionFiles(TMP, { maxAgeDays: 30, dryRun: true });
+    expect(result.deleted.length).toBe(2);
+    expect(fs.existsSync(path.join(sd, `${sid}.ndjson`))).toBe(true);
+    expect(fs.existsSync(path.join(sd, `${sid}.cursor`))).toBe(true);
+  });
+
+  it("does NOT delete a group when some files are within the window and some are old (all-or-nothing)", () => {
+    const old = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
+    const recent = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
+    const sid = "session-mixed-001";
+    const sd = sessDir(TMP);
+    makeSessionFile(sd, `${sid}.ndjson`, old);
+    makeSessionFile(sd, `${sid}.injected.json`, recent);
+
+    const result = pruneSessionFiles(TMP, { maxAgeDays: 30 });
+    expect(result.deleted).toEqual([]);
+    expect(fs.existsSync(path.join(sd, `${sid}.ndjson`))).toBe(true);
+  });
+
+  it("does not touch files with unknown extensions", () => {
+    const old = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
+    const sd = sessDir(TMP);
+    makeSessionFile(sd, "session-unk-001.weird", old);
+    makeSessionFile(sd, "session-unk-001.log", old);
+
+    const result = pruneSessionFiles(TMP, { maxAgeDays: 30 });
+    expect(result.deleted).toEqual([]);
+    expect(fs.existsSync(path.join(sd, "session-unk-001.weird"))).toBe(true);
+  });
+
+  it("collects errors and does not throw when unlink fails", () => {
+    const old = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
+    const sid = "session-err-001";
+    const sd = sessDir(TMP);
+    const fp = path.join(sd, `${sid}.ndjson`);
+    // Create a directory at the file path so fs.unlinkSync throws EPERM/EISDIR.
+    // Set its mtime to be old so the group is selected for deletion.
+    fs.mkdirSync(fp);
+    fs.utimesSync(fp, old, old);
+
+    const result = pruneSessionFiles(TMP, { maxAgeDays: 30 });
+    // The directory cannot be unlinked with fs.unlinkSync, so an error is collected.
+    expect(result.errors.length).toBeGreaterThanOrEqual(1);
+    // Clean up the directory we made
+    fs.rmdirSync(fp);
+  });
+
+  it("returns empty result without throwing when sessions dir does not exist", () => {
+    fs.rmdirSync(sessDir(TMP));
+    const result = pruneSessionFiles(TMP, { maxAgeDays: 30 });
+    expect(result.deleted).toEqual([]);
+    expect(result.skipped).toBe(0);
+    expect(result.errors).toEqual([]);
+  });
+
+  it("handles all known session extensions: .ndjson .cursor .pending .salience.json .injected.json .turns.json", () => {
+    const old = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
+    const sid = "session-exts-001";
+    const sd = sessDir(TMP);
+    const exts = [".ndjson", ".cursor", ".pending", ".salience.json", ".injected.json", ".turns.json"];
+    for (const ext of exts) {
+      makeSessionFile(sd, `${sid}${ext}`, old);
+    }
+
+    const result = pruneSessionFiles(TMP, { maxAgeDays: 30 });
+    expect(result.deleted.length).toBe(exts.length);
+    for (const ext of exts) {
+      expect(fs.existsSync(path.join(sd, `${sid}${ext}`))).toBe(false);
+    }
+  });
+});
