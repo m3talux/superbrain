@@ -13,7 +13,7 @@ import { buildInjectPrompt } from "./injectPrompt.js";
 import { acquireLock, releaseLock } from "./lockfile.js";
 import { resolveLinks } from "./wikilink.js";
 import { claudeP } from "./claudeCli.js";
-import { classifyPath, basenameSlug } from "./projectDetect.js";
+import { resolveProjectSlug } from "./sessionProject.js";
 const MAX_INPUT_BYTES = 32 * 1024;
 export function sanityCheck(raw) {
     const stripped = raw.replace(/\0/g, "");
@@ -127,10 +127,7 @@ async function gatherRecall(text, cwd) {
     try {
         let projectSlug;
         if (cwd) {
-            const classification = classifyPath(cwd);
-            if (classification.kind === "single" || classification.kind === "umbrella") {
-                projectSlug = basenameSlug(classification.projectDir);
-            }
+            projectSlug = resolveProjectSlug(cwd);
         }
         return await hybridRecall(text, 5, projectSlug ? { projectSlug } : undefined);
     }

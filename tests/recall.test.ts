@@ -44,18 +44,12 @@ describe("recall", () => {
     delete process.env.SUPERBRAIN_EMBED_FORCE_FAIL;
   });
 
-  it("hybridRecall with bm25Only never loads the embedding model and still returns results", async () => {
+  it("hybridRecall always invokes embed (bm25Only removed in B2)", async () => {
+    // B2: bm25Only option is removed; embed is always called for hybrid fusion.
     const spy = vi.spyOn(embedMod, "embed");
-    const r = await hybridRecall("sqlite-vec", 3, { bm25Only: true });
-    expect(spy).not.toHaveBeenCalled();
-    expect(r[0].relPath).toBe("decisions/2026-05-01-vec.md");
-    spy.mockRestore();
-  });
-
-  it("hybridRecall without bm25Only does invoke embed (guards the spy is wired)", async () => {
-    const spy = vi.spyOn(embedMod, "embed");
-    await hybridRecall("local vector database", 3);
+    const r = await hybridRecall("sqlite-vec", 3);
     expect(spy).toHaveBeenCalled();
+    expect(r[0].relPath).toBe("decisions/2026-05-01-vec.md");
     spy.mockRestore();
   });
 });
@@ -157,11 +151,14 @@ describe("project-scoped recall — hard exclusion", () => {
     expect(relPaths).toContain("proj/glob.md");
   });
 
-  it("allows project-less notes through the project filter", async () => {
+  it("excludes project-less (NULL) notes through the fail-closed filter when project active", async () => {
+    // B2 fail-closed: NULL project notes are excluded when a project is active.
+    // After backfill all notes are tagged; during the transition window,
+    // ambiguous NULL notes are excluded to prevent cross-project leakage.
     seedMultiProject();
     const results = await hybridRecall("hybrid recall topic alpha", 10, { projectSlug: "proj-a" });
     const relPaths = results.map((r) => r.relPath);
-    expect(relPaths).toContain("proj/none.md");
+    expect(relPaths).not.toContain("proj/none.md");
   });
 
   it("no cross-project leakage when projectSlug is set (both bm25 and vector arms)", async () => {
