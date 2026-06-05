@@ -4,13 +4,11 @@ import { logInject, readInjectLog, summarize } from "../src/injectTelemetry.js";
 
 describe("injectTelemetry", () => {
   beforeEach(() => {
-    delete process.env.SUPERBRAIN_HOME;
     delete process.env.SUPERBRAIN_DATA_DIR;
     process.env.SUPERBRAIN_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "sit-"));
   });
 
   afterEach(() => {
-    delete process.env.SUPERBRAIN_HOME;
     delete process.env.SUPERBRAIN_DATA_DIR;
   });
 

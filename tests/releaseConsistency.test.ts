@@ -17,18 +17,21 @@ function mcpServerVersion(): string {
 }
 
 describe("release consistency", () => {
-  it("all four version sources agree", () => {
+  it("all five version sources agree", () => {
     const pkg = readJson("package.json");
+    const lockfile = readJson("package-lock.json");
     const pluginJson = readJson(".claude-plugin/plugin.json");
     const marketplaceJson = readJson(".claude-plugin/marketplace.json");
     const mcpVersion = mcpServerVersion();
 
     const packageVersion = pkg.version as string;
+    const lockfileVersion = lockfile.version as string;
     const pluginVersion = pluginJson.version as string;
     const marketplaceVersion = (
       (marketplaceJson.plugins as Array<Record<string, unknown>>)[0]
     ).version as string;
 
+    expect(lockfileVersion, "package-lock.json version must match package.json").toBe(packageVersion);
     expect(pluginVersion, ".claude-plugin/plugin.json version must match package.json").toBe(packageVersion);
     expect(marketplaceVersion, ".claude-plugin/marketplace.json plugin version must match package.json").toBe(packageVersion);
     expect(mcpVersion, "bin/sb-mcp.ts McpServer version must match package.json").toBe(packageVersion);

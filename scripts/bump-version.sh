@@ -48,10 +48,14 @@ node -e "
 # sync package-lock.json (no install, just update the version field)
 npm install --package-lock-only --ignore-scripts 2>/dev/null || true
 
+# rebuild dist so committed dist stays in sync with the bumped source
+npm run build 2>/dev/null
+
 # stage the files we changed so npm version includes them in the commit
 git add \
   "$ROOT/.claude-plugin/plugin.json" \
   "$ROOT/.claude-plugin/marketplace.json" \
   "$ROOT/bin/sb-mcp.ts" \
   "$ROOT/package-lock.json" \
+  "$ROOT/dist" \
   || true
