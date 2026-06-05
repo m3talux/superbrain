@@ -1,4 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { parsePreferences, classify, demoteLessonFilename } from "../scripts/retro-prune-preferences.js";
 
 // --- parsePreferences ---
@@ -26,7 +30,7 @@ type: preference
 ## Never push directly to main
 Some body text that is part of the heading entry.
 
-## For Alpha-proj: use middle-east founding market
+## For alpha-proj: use the event-sourcing pattern
 Body.
 `;
 
@@ -39,7 +43,7 @@ Preamble paragraph.
 
 - Never add comment blocks before every method.
 - I learned that gray-matter quotes dates automatically.
-- For Alpha-proj: use middle-east founding market.
+- For alpha-proj: use the event-sourcing pattern.
 
 ## Version control
 
@@ -65,7 +69,7 @@ describe("parsePreferences", () => {
     // Both headings are entries (no bullet children)
     expect(entries.length).toBeGreaterThanOrEqual(2);
     expect(entries.some(e => e.text.includes("Never push directly to main"))).toBe(true);
-    expect(entries.some(e => e.text.includes("For Alpha-proj"))).toBe(true);
+    expect(entries.some(e => e.text.includes("For alpha-proj"))).toBe(true);
   });
 
   it("extracts source context (line or category) for each entry", () => {
@@ -115,7 +119,7 @@ describe("classify", () => {
   });
 
   it("demotes-project a for-slug scoped entry", () => {
-    const result = classify("For Alpha-proj: use middle-east founding market");
+    const result = classify("For alpha-proj: use the event-sourcing pattern");
     expect(result.verdict).toBe("demote-project");
     expect(result.projectSlug).toBe("alpha-proj");
   });
@@ -161,5 +165,140 @@ describe("demoteLessonFilename", () => {
   it("collapses multiple dashes", () => {
     const result = demoteLessonFilename("I learned --- something", "2026-05-22");
     expect(result).not.toContain("--");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Extended tests: heading-preserving rewrite, core emission, idempotency
+// ---------------------------------------------------------------------------
+
+const MIXED_WITH_HEADINGS = `---
+type: preference
+created: '2026-01-01'
+superbrain: true
+---
+Durable opinions.
+
+## Code style
+
+- Never push directly to main.
+- For alpha-proj: use the event-sourcing pattern.
+- Always sort imports alphabetically.
+
+## Tools
+
+- Prefer Playwright for browser testing.
+- For test-svc: use the internal test harness.
+
+## Version control
+
+- I learned that rebasing is cleaner than merging.
+`;
+
+let TMP: string;
+
+beforeEach(() => {
+  TMP = fs.mkdtempSync(path.join(os.tmpdir(), "sb-retro-"));
+  fs.mkdirSync(path.join(TMP, "meta"), { recursive: true });
+  fs.mkdirSync(path.join(TMP, "projects"), { recursive: true });
+  fs.mkdirSync(path.join(TMP, "lessons"), { recursive: true });
+});
+
+afterEach(() => {
+  fs.rmSync(TMP, { recursive: true, force: true });
+});
+
+function runRetroPrune(vaultDir: string, extraArgs: string[] = []): string {
+  return execFileSync("npx", ["tsx", "scripts/retro-prune-preferences.ts", vaultDir, ...extraArgs], {
+    encoding: "utf8",
+    timeout: 30000,
+    cwd: path.resolve(path.join(path.dirname(new URL(import.meta.url).pathname), "..")),
+  });
+}
+
+describe("retro-prune-preferences — extended: heading-preserving rewrite", () => {
+  it("preserves ## Category headings for kept entries", () => {
+    fs.writeFileSync(path.join(TMP, "meta", "preferences.md"), MIXED_WITH_HEADINGS);
+    runRetroPrune(TMP, ["--apply"]);
+    const result = fs.readFileSync(path.join(TMP, "meta", "preferences.md"), "utf8");
+    // Kept entries retain their category headings
+    expect(result).toContain("## Code style");
+    expect(result).toContain("Never push directly to main");
+    expect(result).toContain("Always sort imports alphabetically");
+  });
+
+  it("drops empty ## Category sections after all bullets are demoted", () => {
+    const allProjectDoc = `---
+type: preference
+created: '2026-01-01'
+superbrain: true
+---
+
+## Project-specific rules
+
+- For alpha-proj: use the event-sourcing pattern.
+- For test-svc: use the internal test harness.
+
+## Universal rules
+
+- Never push directly to main.
+`;
+    fs.writeFileSync(path.join(TMP, "meta", "preferences.md"), allProjectDoc);
+    runRetroPrune(TMP, ["--apply"]);
+    const result = fs.readFileSync(path.join(TMP, "meta", "preferences.md"), "utf8");
+    expect(result).not.toContain("## Project-specific rules");
+    expect(result).toContain("## Universal rules");
+    expect(result).toContain("Never push directly to main");
+  });
+
+  it("routes demoted project rules to projects/<slug>.md under ## Preferences", () => {
+    fs.writeFileSync(path.join(TMP, "meta", "preferences.md"), MIXED_WITH_HEADINGS);
+    runRetroPrune(TMP, ["--apply"]);
+    const projectNote = path.join(TMP, "projects", "alpha-proj.md");
+    expect(fs.existsSync(projectNote)).toBe(true);
+    const content = fs.readFileSync(projectNote, "utf8");
+    expect(content).toContain("event-sourcing pattern");
+    // Should use ## Preferences, not ## Gotcha
+    expect(content).toContain("## Preferences");
+    expect(content).not.toContain("## Gotcha");
+  });
+});
+
+describe("retro-prune-preferences — extended: core emission", () => {
+  it("emits preferences-core.md during --apply", () => {
+    fs.writeFileSync(path.join(TMP, "meta", "preferences.md"), MIXED_WITH_HEADINGS);
+    runRetroPrune(TMP, ["--apply"]);
+    const corePath = path.join(TMP, "meta", "preferences-core.md");
+    expect(fs.existsSync(corePath)).toBe(true);
+    const core = fs.readFileSync(corePath, "utf8");
+    // Must contain imperative-prefix lines
+    expect(core).toContain("Never push directly to main");
+  });
+
+  it("includes a CORE EMISSION PREVIEW section in dry-run output", () => {
+    fs.writeFileSync(path.join(TMP, "meta", "preferences.md"), MIXED_WITH_HEADINGS);
+    const output = runRetroPrune(TMP);
+    expect(output).toContain("CORE EMISSION PREVIEW");
+  });
+});
+
+describe("retro-prune-preferences — extended: idempotency", () => {
+  it("is idempotent when run twice on an already-migrated vault", () => {
+    fs.writeFileSync(path.join(TMP, "meta", "preferences.md"), MIXED_WITH_HEADINGS);
+    // First run
+    runRetroPrune(TMP, ["--apply"]);
+    const firstPrefs = fs.readFileSync(path.join(TMP, "meta", "preferences.md"), "utf8");
+    const firstCore = fs.readFileSync(path.join(TMP, "meta", "preferences-core.md"), "utf8");
+
+    // Second run: preferences-core.md already exists and preferences.md is already pruned
+    const secondOutput = runRetroPrune(TMP, ["--apply"]);
+    const secondPrefs = fs.readFileSync(path.join(TMP, "meta", "preferences.md"), "utf8");
+    const secondCore = fs.readFileSync(path.join(TMP, "meta", "preferences-core.md"), "utf8");
+
+    // The docs must be stable across runs
+    expect(secondPrefs).toBe(firstPrefs);
+    expect(secondCore).toBe(firstCore);
+    // Should indicate already-migrated
+    expect(secondOutput).toContain("already migrated");
   });
 });
