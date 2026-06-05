@@ -11,12 +11,12 @@ const WORD_CEILINGS = {
     daily: Infinity,
     person: 300,
 };
-const REQUIRED_SECTIONS = {
+export const REQUIRED_SECTIONS = {
     decision: ["## Decision", "## Why", "## Alternatives considered", "## Consequences"],
     lesson: ["## Rule", "## Why", "## When this applies"],
     capture: ["## What", "## Why it matters"],
     project: ["## What it is", "## Status", "## Architecture", "## Recent activity", "## Gotchas"],
-    daily: ["## Worked on", "## Decisions", "## Lessons", "## Captures", "## Open threads"],
+    daily: ["## Summary", "## Also did"],
     person: ["## Role", "## Context", "## Interactions"],
 };
 // ---------------------------------------------------------------------------
@@ -125,20 +125,17 @@ function renderDaily(fields) {
     return [
         `# ${title}`,
         "",
-        "## Worked on",
-        "- [[projects/{slug}]] — {one-line context}",
+        "## Summary",
+        "- {one-line digest per session}",
         "",
-        "## Decisions",
+        "## Decisions & gotchas",
         "- [[decisions/{slug}]] — {title}",
         "",
-        "## Lessons",
-        "- [[lessons/{slug}]] — {rule}",
+        "## Also did",
+        "- {free-text items not tied to a specific note}",
         "",
-        "## Captures",
-        "- [[capture/{slug}]]",
-        "",
-        "## Open threads",
-        "- {free-text bullet — the only section without wikilinks}",
+        "## Threads open",
+        "- {open thread or question}",
         "",
     ].join("\n");
 }
@@ -208,13 +205,11 @@ export function validateNote(type, body) {
         }
     }
     if (type === "daily") {
-        for (const sec of ["Worked on", "Decisions", "Lessons", "Captures"]) {
-            const content = extractSection(body, sec);
-            const bulletLines = content.split("\n").filter((l) => l.trimStart().startsWith("- "));
-            const bad = bulletLines.filter((l) => !l.trimStart().startsWith("- [["));
-            if (bad.length > 0) {
-                errors.push(`daily: '${sec}' contains non-wikilink bullets`);
-            }
+        const linksSec = extractSection(body, "Decisions & gotchas");
+        const bulletLines = linksSec.split("\n").filter((l) => l.trimStart().startsWith("- "));
+        const bad = bulletLines.filter((l) => !l.trimStart().startsWith("- [[") && l.trim() !== "- _none_");
+        if (bad.length > 0) {
+            errors.push("daily: 'Decisions & gotchas' contains non-wikilink bullets");
         }
     }
     // Forbid ## See also — edges are frontmatter-driven

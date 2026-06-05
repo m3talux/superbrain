@@ -1,5 +1,6 @@
 import matter from "gray-matter";
-const VALID_TYPES = ["project", "person", "decision", "capture", "daily", "map", "summary", "lesson", "preference"];
+import { VALID_FRONTMATTER_TYPES } from "./types.js";
+const VALID_TYPES = [...VALID_FRONTMATTER_TYPES];
 const VALID_STATUS = ["active", "paused", "done", "archived"];
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 function normalizeDates(data) {
