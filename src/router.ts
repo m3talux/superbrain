@@ -1,4 +1,5 @@
-export type Kind = "decision" | "project_fact" | "person" | "gotcha" | "capture" | "lesson" | "preference" | "daily";
+import type { Kind } from "./types.js";
+export type { Kind } from "./types.js";
 
 // DistilledItem carries either freeform `body` (capture, person, simple cases)
 // OR structured per-kind sections (decision/lesson/gotcha). When structured

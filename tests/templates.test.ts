@@ -55,11 +55,10 @@ describe("renderNote — required sections present", () => {
       frontmatter: { type: "daily", date: "2026-05-22", superbrain: true },
       title: "2026-05-22",
     });
-    expect(body).toContain("## Worked on");
-    expect(body).toContain("## Decisions");
-    expect(body).toContain("## Lessons");
-    expect(body).toContain("## Captures");
-    expect(body).toContain("## Open threads");
+    expect(body).toContain("## Summary");
+    expect(body).toContain("## Decisions & gotchas");
+    expect(body).toContain("## Also did");
+    expect(body).toContain("## Threads open");
   });
 
   it("person contains all required sections", () => {
@@ -106,11 +105,11 @@ describe("validateNote — rejects missing required section", () => {
     expect(r.errors.some(e => e.includes("## Gotchas"))).toBe(true);
   });
 
-  it("daily: missing ## Open threads", () => {
-    const body = `# 2026-05-22\n\n## Worked on\n- [[projects/foo]] — stuff\n\n## Decisions\n- [[decisions/bar]] — title\n\n## Lessons\n- [[lessons/baz]] — rule\n\n## Captures\n- [[capture/qux]]\n`;
+  it("daily: missing ## Also did", () => {
+    const body = `# 2026-05-22\n\n## Summary\n- did some work\n`;
     const r = validateNote("daily", body);
     expect(r.valid).toBe(false);
-    expect(r.errors.some(e => e.includes("## Open threads"))).toBe(true);
+    expect(r.errors.some(e => e.includes("## Also did"))).toBe(true);
   });
 
   it("person: missing ## Context", () => {
@@ -185,26 +184,33 @@ describe("validateNote — capture: title rules", () => {
   });
 });
 
-describe("validateNote — daily: non-wikilink bullets", () => {
-  const validTail = `\n## Captures\n- [[capture/foo]]\n\n## Open threads\n- free text here\n`;
+describe("validateNote — daily: wikilink rules", () => {
+  const base = `# 2026-05-22\n\n## Summary\n- did some work\n\n`;
+  const tail = `\n## Also did\n- reviewed PRs\n\n## Threads open\n- open question\n`;
 
-  it("rejects prose bullet under ## Worked on", () => {
-    const body = `# 2026-05-22\n\n## Worked on\n- did some work on superbrain\n\n## Decisions\n- [[decisions/foo]] — title\n\n## Lessons\n- [[lessons/bar]] — rule\n` + validTail;
+  it("rejects prose bullet under ## Decisions & gotchas", () => {
+    const body = base + `## Decisions & gotchas\n- plain text bullet\n` + tail;
     const r = validateNote("daily", body);
     expect(r.valid).toBe(false);
-    expect(r.errors.some(e => e.includes("Worked on"))).toBe(true);
+    expect(r.errors.some(e => e.includes("Decisions & gotchas"))).toBe(true);
   });
 
-  it("accepts wikilink bullets under ## Worked on", () => {
-    const body = `# 2026-05-22\n\n## Worked on\n- [[projects/superbrain]] — shipped templates\n\n## Decisions\n- [[decisions/foo]] — title\n\n## Lessons\n- [[lessons/bar]] — rule\n` + validTail;
+  it("accepts wikilink bullets under ## Decisions & gotchas", () => {
+    const body = base + `## Decisions & gotchas\n- [[decisions/foo]] — title\n` + tail;
     const r = validateNote("daily", body);
-    expect(r.errors.some(e => e.includes("Worked on"))).toBe(false);
+    expect(r.errors.some(e => e.includes("Decisions & gotchas"))).toBe(false);
   });
 
-  it("allows free text under ## Open threads", () => {
-    const body = `# 2026-05-22\n\n## Worked on\n- [[projects/sb]] — work\n\n## Decisions\n- [[decisions/foo]] — title\n\n## Lessons\n- [[lessons/bar]] — rule\n\n## Captures\n- [[capture/baz]]\n\n## Open threads\n- some free text here without wikilink\n`;
+  it("allows free text under ## Also did", () => {
+    const body = base + `## Decisions & gotchas\n- [[decisions/foo]]\n` + tail;
     const r = validateNote("daily", body);
-    expect(r.errors.some(e => e.includes("Open threads"))).toBe(false);
+    expect(r.errors.some(e => e.includes("Also did"))).toBe(false);
+  });
+
+  it("accepts _none_ placeholder under ## Decisions & gotchas", () => {
+    const body = base + `## Decisions & gotchas\n\n_none_\n` + tail;
+    const r = validateNote("daily", body);
+    expect(r.errors.some(e => e.includes("Decisions & gotchas"))).toBe(false);
   });
 });
 

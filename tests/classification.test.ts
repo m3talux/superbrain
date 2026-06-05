@@ -115,15 +115,13 @@ superbrain: true
 
 # 2026-05-22
 
-## Worked on
+## Summary
 
-## Decisions
+## Decisions & gotchas
 
-## Lessons
+## Also did
 
-## Captures
-
-## Open threads
+## Threads open
 `;
     const r = classify({ proposedType: "daily", title: "2026-05-22", body });
     expect(r.accepted).toBe(true);
