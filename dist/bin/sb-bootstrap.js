@@ -63,6 +63,16 @@ async function main() {
             return;
         }
         markBootstrapDone(root);
+        // Step 4: pre-fetch the embedding model now, while we already have a
+        // background process, so semantic recall is ready next session instead of
+        // racing a fragile lazy download inside a short-lived hook.
+        try {
+            const { ensureModelAssets } = await import("../src/staticEmbed/modelCache.js");
+            await ensureModelAssets();
+        }
+        catch (e) {
+            writeFailure(`bootstrap step 4 (model prefetch) failed (non-fatal; recall stays keyword-only until it succeeds): ${e?.message || e}`);
+        }
         // After successful bootstrap, check for legacy vault state and auto-run
         // the safe (idempotent) frontmatter backfill in a detached subprocess.
         try {

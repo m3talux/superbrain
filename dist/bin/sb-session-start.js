@@ -33,7 +33,7 @@ async function main() {
         const root = pluginRoot();
         if (!depsPresent(root)) {
             runBootstrap(root);
-            parts.push("SuperBrain is rebuilding native dependencies for this install (one-time per plugin version). Capture resumes automatically next session.");
+            parts.push("SuperBrain is finishing one-time setup for this version (building native dependencies and fetching the embedding model). Recall, the session brief, and capture are warming up and will be ready next session; for now, work from the current conversation rather than assuming SuperBrain recall is available.");
         }
         else {
             // One-time backfill: assign project to all NULL notes before any query.
