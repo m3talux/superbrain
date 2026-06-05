@@ -42,6 +42,12 @@ export interface Index {
   deleteNote(relPath: string): void;
   bm25(query: string, k: number): Hit[];
   vectorKNN(v: Float32Array, k: number): Hit[];
+  /** BM25 restricted to global/daily/preference notes only. */
+  bm25Global(query: string, k: number): Hit[];
+  /** vectorKNN restricted to global/daily/preference notes only. */
+  vectorKNNGlobal(v: Float32Array, k: number): Hit[];
+  /** Fallback: return up to k global/daily/pref notes ordered by created date desc. */
+  globalFallbackNotes(k: number): Hit[];
   getNoteMeta(relPath: string): { mtime: number; hash: string } | null;
   getProjectsForPaths(relPaths: string[]): Map<string, string>;
   getCreatedForPaths(relPaths: string[]): Map<string, string>;
@@ -158,6 +164,70 @@ export function openIndex(): Index {
       const hits = hydrate(rows.map((r) => Number(r.chunk_id)));
       hits.forEach((h, i) => { h.distance = rows[i]?.distance; });
       return hits;
+    },
+    bm25Global: (q, k) => {
+      // Fetch a wider BM25 set and filter down to global/daily/pref notes.
+      const terms = q.replace(/[^\w\s]/g, " ").trim().split(/\s+/).filter(Boolean);
+      const ftsQuery = terms.length ? terms.join(" OR ") : '""';
+      const rows = db.prepare(
+        "SELECT rowid FROM chunks_fts WHERE chunks_fts MATCH ? ORDER BY bm25(chunks_fts) LIMIT ?"
+      ).all(ftsQuery, k * 4) as { rowid: number }[];
+      const filtered: number[] = [];
+      for (const row of rows) {
+        if (filtered.length >= k) break;
+        const chunk = db.prepare("SELECT rel_path FROM chunks WHERE id=?").get(row.rowid) as { rel_path: string } | undefined;
+        if (!chunk) continue;
+        const note = db.prepare("SELECT project FROM notes WHERE rel_path=?").get(chunk.rel_path) as { project: string | null } | undefined;
+        if (!note) continue;
+        if (
+          note.project === "global" ||
+          chunk.rel_path.startsWith("daily/") ||
+          chunk.rel_path === "meta/preferences.md"
+        ) {
+          filtered.push(row.rowid);
+        }
+      }
+      return hydrate(filtered);
+    },
+    vectorKNNGlobal: (v, k) => {
+      // Fetch a wider candidate set from vectorKNN, then filter to global/daily/pref.
+      const allRows = db.prepare(
+        "SELECT chunk_id, distance FROM vec_chunks WHERE embedding MATCH vec_int8(?) ORDER BY distance LIMIT ?"
+      ).all(serializeInt8ForSql(quantizeToInt8(v)), k * 4) as { chunk_id: number; distance: number }[];
+      // Filter by joining with notes for global/daily/pref restriction
+      const filtered: { chunk_id: number; distance: number }[] = [];
+      for (const row of allRows) {
+        if (filtered.length >= k) break;
+        const chunk = db.prepare("SELECT rel_path FROM chunks WHERE id=?").get(Number(row.chunk_id)) as { rel_path: string } | undefined;
+        if (!chunk) continue;
+        const note = db.prepare("SELECT project FROM notes WHERE rel_path=?").get(chunk.rel_path) as { project: string | null } | undefined;
+        if (!note) continue;
+        if (
+          note.project === "global" ||
+          chunk.rel_path.startsWith("daily/") ||
+          chunk.rel_path === "meta/preferences.md"
+        ) {
+          filtered.push(row);
+        }
+      }
+      const hits = hydrate(filtered.map((r) => Number(r.chunk_id)));
+      hits.forEach((h, i) => { h.distance = filtered[i]?.distance; });
+      return hits;
+    },
+    globalFallbackNotes: (k) => {
+      // Return chunks from global/daily/pref notes ordered by created date desc.
+      const rows = db.prepare(`
+        SELECT c.id FROM chunks c
+        JOIN notes n ON n.rel_path = c.rel_path
+        WHERE (
+          n.project = 'global'
+          OR n.rel_path LIKE 'daily/%'
+          OR n.rel_path = 'meta/preferences.md'
+        )
+        ORDER BY n.created DESC, c.id DESC
+        LIMIT ?
+      `).all(k) as { id: number }[];
+      return hydrate(rows.map((r) => r.id));
     },
     getProjectsForPaths: (relPaths: string[]): Map<string, string> => {
       if (relPaths.length === 0) return new Map();

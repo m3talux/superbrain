@@ -5,7 +5,7 @@ import { hybridRecall } from "./recall.js";
 import { compileInjectionBlock } from "./preferences.js";
 import { readDay } from "./dailyState.js";
 import { fitToBudget, INJECT_LIMITS, estimateTokens, truncateToBudget } from "./injectBudget.js";
-import { classifyPath, basenameSlug } from "./projectDetect.js";
+import { resolveProjectSlug } from "./sessionProject.js";
 import { appendInjectedSlugs } from "./sessionInjected.js";
 import { logInject } from "./injectTelemetry.js";
 import { dataDir, vaultPath } from "./paths.js";
@@ -21,11 +21,8 @@ export async function appendDigest(parts: string[], h: any): Promise<void> {
   let currentProjectSlug: string | undefined;
   let currentProjectKnown = false; // true only when cwd maps to a concrete project
   if (cwd) {
-    const classification = classifyPath(cwd);
-    if (classification.kind === "single" || classification.kind === "umbrella") {
-      currentProjectSlug = basenameSlug(classification.projectDir);
-      currentProjectKnown = true;
-    }
+    currentProjectSlug = resolveProjectSlug(cwd);
+    currentProjectKnown = currentProjectSlug !== undefined;
   }
 
   // Project-scoped session brief: leads additionalContext when we know the project.
@@ -65,9 +62,7 @@ export async function appendDigest(parts: string[], h: any): Promise<void> {
   // Hybrid recall digest: project-slug filtered when cwd resolves to a known project.
   try {
     let query: string;
-    // bm25Only: this SessionStart hook must exit cleanly; loading the embedding
-    // model here aborts the process on teardown under some Node runtimes.
-    const recallOpts: { projectSlug?: string; bm25Only: boolean } = { bm25Only: true };
+    const recallOpts: { projectSlug?: string } = {};
 
     if (currentProjectKnown && currentProjectSlug) {
       query = currentProjectSlug;
