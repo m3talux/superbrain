@@ -6,9 +6,21 @@
 //
 // Usage:
 //   npx tsx scripts/retro-prune-preferences.ts <vault-dir> [--apply]
+//
+// Extensions (B3):
+//   - Heading-preserving rewrite: kept entries are re-filed under their
+//     original ## Category headings; empty categories are dropped.
+//   - Project-rule routing: demoted entries with a known projectSlug are
+//     appended to projects/<slug>.md under a ## Preferences subsection.
+//   - Core file emission: calls emitPreferencesCore to produce
+//     meta/preferences-core.md after migration.
+//   - Idempotency: if preferences-core.md already exists and the doc has no
+//     project-scoped rules, prints "already migrated" and exits.
+//   - Dry-run: adds a CORE EMISSION PREVIEW section.
 
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -226,6 +238,16 @@ export function demoteLessonFilename(text: string, today: string): string {
 // Apply helpers
 // ---------------------------------------------------------------------------
 
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Reconstruct preferences.md from kept entries, preserving original
+ * ## Category headings. Entries are grouped by their source category.
+ * Empty categories are dropped. Entries whose source looks like a line
+ * reference ("line N") are placed under a fallback "## Preferences" heading.
+ */
 function buildPreferencesContent(kept: Entry[]): string {
   const header =
     `---\ntype: preference\nupdated: '${today()}'\nsuperbrain: true\n---\n` +
@@ -233,12 +255,29 @@ function buildPreferencesContent(kept: Entry[]): string {
 
   if (kept.length === 0) return header;
 
-  const lines = kept.map(e => `- ${e.text}`).join("\n");
-  return header + `## Preferences\n\n${lines}\n`;
-}
+  // Group entries by category (source), preserving insertion order.
+  const categoryOrder: string[] = [];
+  const byCategory = new Map<string, string[]>();
 
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  for (const e of kept) {
+    // source is either a category name or "line N"
+    const cat = /^line \d+$/.test(e.source) ? "Preferences" : e.source;
+    if (!byCategory.has(cat)) {
+      categoryOrder.push(cat);
+      byCategory.set(cat, []);
+    }
+    byCategory.get(cat)!.push(e.text);
+  }
+
+  const sections: string[] = [];
+  for (const cat of categoryOrder) {
+    const entries = byCategory.get(cat)!;
+    if (entries.length === 0) continue;
+    const lines = entries.map(t => `- ${t}`).join("\n");
+    sections.push(`## ${cat}\n\n${lines}`);
+  }
+
+  return header + sections.join("\n\n") + "\n";
 }
 
 function lessonContent(text: string): string {
@@ -249,8 +288,47 @@ function lessonContent(text: string): string {
   );
 }
 
+// Route demoted project rules under ## Preferences (not ## Gotcha).
+function projectPreferencesBlock(text: string): string {
+  return `\n## Preferences\n\n- ${text}\n`;
+}
+
+// Legacy alias preserved for tests that reference projectGotchaBlock.
+// Kept entries no longer use Gotcha for project-preference routing.
 function projectGotchaBlock(text: string): string {
   return `\n## Gotcha\n\n${text}\n`;
+}
+
+// Build the preferences-core content (imperative rules, truncated).
+// Mirrors the logic in src/preferences.ts but without the ESM import so the
+// script can run standalone.
+const IMPERATIVE_PREFIXES_CORE = [
+  "always", "never", "prefer", "default", "don't", "do not", "avoid", "use",
+  "when", "before", "after",
+];
+
+function isHardRule(line: string): boolean {
+  const trimmed = line.replace(/^[-*]\s*/, "").trim().toLowerCase();
+  return IMPERATIVE_PREFIXES_CORE.some(
+    p => trimmed === p || trimmed.startsWith(p + " ") || trimmed.startsWith(p + ","),
+  );
+}
+
+const CORE_MAX_TOKENS = 250;
+function estimateTokens(t: string): number { return Math.ceil(t.length / 4); }
+
+function buildCoreContent(keptEntries: Entry[]): string {
+  const output: string[] = [];
+  let tokens = 0;
+  for (const e of keptEntries) {
+    const line = `- ${e.text}`;
+    if (!isHardRule(line)) continue;
+    const t = estimateTokens(line) + 1;
+    if (tokens + t > CORE_MAX_TOKENS) break;
+    output.push(line);
+    tokens += t;
+  }
+  return output.join("\n") + (output.length > 0 ? "\n" : "");
 }
 
 // ---------------------------------------------------------------------------
@@ -287,6 +365,17 @@ function main(): void {
 
   const date = today();
 
+  // Idempotency check: if preferences-core.md already exists and there are no
+  // project-scoped rules left, this vault is already migrated.
+  const coreFile = path.join(vault, "meta", "preferences-core.md");
+  if (apply && fs.existsSync(coreFile) && projects.length === 0 && lessons.length === 0) {
+    // Re-emit the core to ensure it is up-to-date, but skip all other writes.
+    const coreContent = buildCoreContent(kept.map(c => c.entry));
+    fs.writeFileSync(coreFile, coreContent);
+    console.log("already migrated: preferences-core.md exists and no project-scoped rules found. Core re-emitted.");
+    return;
+  }
+
   // --- Print report ---
   console.log(`\nKEEP (${kept.length} entries):`);
   for (const c of kept) {
@@ -310,8 +399,20 @@ function main(): void {
     const preview = c.entry.text.length > 80
       ? c.entry.text.slice(0, 77) + "…"
       : c.entry.text;
-    console.log(`  "${preview}"\n    → projects/${c.projectSlug}.md (Gotchas section)`);
+    console.log(`  "${preview}"\n    → projects/${c.projectSlug}.md (Preferences section)`);
   }
+
+  // Always show the CORE EMISSION PREVIEW (dry-run or apply)
+  const corePreview = buildCoreContent(kept.map(c => c.entry));
+  console.log("\n--- CORE EMISSION PREVIEW (meta/preferences-core.md) ---");
+  if (corePreview.trim()) {
+    for (const line of corePreview.trimEnd().split("\n")) {
+      console.log(`  ${line}`);
+    }
+  } else {
+    console.log("  (empty — no imperative-prefix rules found)");
+  }
+  console.log("---");
 
   if (!apply) {
     console.log("\n(Dry-run. Use --apply to write changes.)");
@@ -325,7 +426,7 @@ function main(): void {
   fs.copyFileSync(file, bakFile);
   console.log(`\nBacked up original to ${bakFile}`);
 
-  // Rewrite meta/preferences.md with only kept entries
+  // Heading-preserving rewrite of meta/preferences.md
   fs.writeFileSync(file, buildPreferencesContent(kept.map(c => c.entry)));
 
   // Write lesson files
@@ -342,7 +443,7 @@ function main(): void {
     }
   }
 
-  // Append gotchas to project files
+  // Append demoted project rules to project files under ## Preferences.
   let appendedProjects = 0;
   const projectsDir = path.join(vault, "projects");
   fs.mkdirSync(projectsDir, { recursive: true });
@@ -350,7 +451,7 @@ function main(): void {
   for (const c of projects) {
     const slug = c.projectSlug!;
     const dest = path.join(projectsDir, `${slug}.md`);
-    const block = projectGotchaBlock(c.entry.text);
+    const block = projectPreferencesBlock(c.entry.text);
     if (fs.existsSync(dest)) {
       fs.appendFileSync(dest, block);
     } else {
@@ -362,10 +463,15 @@ function main(): void {
     appendedProjects++;
   }
 
+  // Emit the preferences-core after migration.
+  fs.mkdirSync(path.join(vault, "meta"), { recursive: true });
+  fs.writeFileSync(coreFile, corePreview);
+
   console.log(
     `Applied. meta/preferences.md now has ${kept.length} entries; ` +
     `created ${createdLessons} lesson files; ` +
-    `appended ${appendedProjects} project gotchas.`
+    `appended ${appendedProjects} project entries; ` +
+    `wrote meta/preferences-core.md.`,
   );
 }
 

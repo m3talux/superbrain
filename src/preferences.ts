@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { vaultPath } from "./paths.js";
 import { parseNote } from "./frontmatter.js";
-import { truncateToBudget, INJECT_LIMITS } from "./injectBudget.js";
+import { truncateToBudget, INJECT_LIMITS, estimateTokens } from "./injectBudget.js";
+import { atomicWrite } from "./atomicWrite.js";
 
 const CAP_BYTES = 3072;
 const SENTINEL = "\n[…truncated; see meta/preferences.md]\n";
@@ -35,6 +36,67 @@ export function capPreferences(content: string): string {
 
 export function preferencesPath(): string {
   return path.join(vaultPath(), "meta", "preferences.md");
+}
+
+export function preferencesCorePath(): string {
+  return path.join(vaultPath(), "meta", "preferences-core.md");
+}
+
+// ~250 tokens is enough for the hard-rules core Alfred consumes.
+export const PREFERENCES_CORE_MAX_TOKENS = 250;
+
+// Imperative first-word prefixes that identify hard rules worth including in
+// the lean core file. Matches the same allow-list used across the codebase.
+const IMPERATIVE_PREFIXES_CORE = [
+  "always", "never", "prefer", "default", "don't", "do not", "avoid", "use",
+  "when", "before", "after",
+];
+
+function isHardRule(line: string): boolean {
+  const trimmed = line.replace(/^[-*]\s*/, "").trim().toLowerCase();
+  return IMPERATIVE_PREFIXES_CORE.some(p => trimmed === p || trimmed.startsWith(p + " ") || trimmed.startsWith(p + ","));
+}
+
+/**
+ * Extract imperative rules from the universal body, truncate to
+ * PREFERENCES_CORE_MAX_TOKENS, and write to meta/preferences-core.md.
+ * Called after a successful preference replace write.
+ * Pure side-effect: writes the file; throws only on permission errors.
+ */
+export function emitPreferencesCore(universalBody: string): void {
+  const dest = preferencesCorePath();
+
+  if (!universalBody.trim()) {
+    atomicWrite(dest, "");
+    return;
+  }
+
+  // Extract bullet lines that start with an imperative prefix.
+  const coreLines: string[] = [];
+  for (const raw of universalBody.split("\n")) {
+    const line = raw.trim();
+    // Skip headings, blank lines, frontmatter remnants, and prose
+    if (!line) continue;
+    if (line.startsWith("#")) continue;
+    if (line.startsWith("---")) continue;
+    if (line.startsWith("type:") || line.startsWith("created:") || line.startsWith("updated:") || line.startsWith("superbrain:")) continue;
+    if (isHardRule(line)) {
+      // Strip leading bullet markers for the core file
+      coreLines.push(line.replace(/^[-*]\s*/, "- "));
+    }
+  }
+
+  // Truncate to budget
+  const output: string[] = [];
+  let tokens = 0;
+  for (const line of coreLines) {
+    const t = estimateTokens(line) + 1; // +1 for newline
+    if (tokens + t > PREFERENCES_CORE_MAX_TOKENS) break;
+    output.push(line);
+    tokens += t;
+  }
+
+  atomicWrite(dest, output.join("\n") + (output.length > 0 ? "\n" : ""));
 }
 
 export function compileInjectionBlock(): string {
