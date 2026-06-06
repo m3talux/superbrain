@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 function logDir() {
-    return process.env.SUPERBRAIN_HOME || path.join(os.homedir(), ".superbrain");
+    return process.env.SUPERBRAIN_DATA_DIR || path.join(os.homedir(), ".superbrain");
 }
 function logPath() {
     return path.join(logDir(), "inject.log");
