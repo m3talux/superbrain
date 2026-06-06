@@ -295,6 +295,15 @@ export async function distillFromEvents(sid, events) {
                         catch { /* best-effort */ }
                     }
                 }
+                else if (!res0.ok) {
+                    recordRejection(vaultPath(), {
+                        type: r.frontmatter.type ?? it.kind,
+                        reason: `writeNote rejected: ${res0.reason ?? "unknown"}`,
+                        sessionId: sid,
+                        title: it.title,
+                        excerpt: r.body.slice(0, 500),
+                    });
+                }
                 continue;
             }
             {
@@ -394,6 +403,15 @@ export async function distillFromEvents(sid, events) {
                 }
                 (routedByDate[it.date] ||= []).push(writeRelPath);
                 notesWritten++;
+            }
+            else if (!res.ok) {
+                recordRejection(vaultPath(), {
+                    type: writeFrontmatter.type ?? it.kind,
+                    reason: `writeNote rejected: ${res.reason ?? "unknown"}`,
+                    sessionId: sid,
+                    title: it.title,
+                    excerpt: writeBody.slice(0, 500),
+                });
             }
         }
         catch (e) {

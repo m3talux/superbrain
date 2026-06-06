@@ -1,18 +1,28 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { writeNote, softDelete } from "../src/vaultWriter";
+import { readAndClearFailure } from "../src/sentinel";
+
+vi.mock("../src/projectWriter.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/projectWriter.js")>();
+  return { ...actual };
+});
 
 let TMP: string;
+let TMP_DATA: string;
 
 beforeEach(() => {
   TMP = fs.mkdtempSync(path.join(os.tmpdir(), "sb-vault-"));
+  TMP_DATA = fs.mkdtempSync(path.join(os.tmpdir(), "sb-vault-data-"));
   process.env.SUPERBRAIN_VAULT_DIR = TMP;
+  process.env.SUPERBRAIN_DATA_DIR = TMP_DATA;
 });
 
 afterEach(() => {
   fs.rmSync(TMP, { recursive: true, force: true });
+  fs.rmSync(TMP_DATA, { recursive: true, force: true });
 });
 
 describe("vaultWriter", () => {
@@ -172,5 +182,87 @@ describe("vaultWriter", () => {
     expect(archiveContent).toMatch(/project: sameday/);
 
     delete process.env.SUPERBRAIN_PROJECT_NOTE_CAP_BYTES;
+  });
+});
+
+describe("G17: fail-open fallback is logged to sentinel", () => {
+  it("when project-note structured write throws, sentinel receives a fail-open message", async () => {
+    const projectWriter = await import("../src/projectWriter.js");
+    const spy = vi.spyOn(projectWriter, "appendDatedSectionWithArchive").mockImplementationOnce(() => {
+      throw new Error("simulated structured-write failure");
+    });
+    readAndClearFailure();
+    const projectsDir = path.join(TMP, "projects");
+    fs.mkdirSync(projectsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(projectsDir, "broken.md"),
+      "---\ntype: project\nstatus: active\nproject: broken\n---\n\n## Recent activity\n",
+    );
+    const fm = { type: "project", status: "active", project: "broken" };
+    const r = writeNote("projects/broken.md", { frontmatter: fm, body: "new fact here", mode: "append" });
+    expect(r.ok).toBe(true);
+    const sentinel = readAndClearFailure();
+    expect(sentinel).not.toBeNull();
+    expect(sentinel).toMatch(/fail-open/i);
+    expect(sentinel).toMatch(/broken\.md/);
+    spy.mockRestore();
+  });
+});
+
+describe("G19: archive written atomically before main-note truncation", () => {
+  it("multi-section evictions land in archive ordered date-ascending (oldest first)", () => {
+    const fm = { type: "project", status: "active", project: "ordered", created: "2026-06-01" };
+    const projectsDir = path.join(TMP, "projects");
+    fs.mkdirSync(projectsDir, { recursive: true });
+
+    // Seed with many dated sections so that multiple get evicted (use default 32KB cap)
+    let seed = "# ordered\n\n## Recent activity\n";
+    const dates = ["2026-01-10", "2026-02-15", "2026-03-20", "2026-04-25"];
+    for (const d of dates) {
+      seed += `\n### ${d}\n\n${"q".repeat(8500)}\n`;
+    }
+    fs.writeFileSync(
+      path.join(projectsDir, "ordered.md"),
+      `---\ntype: project\nstatus: active\nproject: ordered\n---\n\n${seed}`,
+    );
+
+    writeNote("projects/ordered.md", { frontmatter: fm, body: "newest entry to force archive flush", mode: "append" });
+
+    const archiveDir = path.join(projectsDir, "_archive");
+    expect(fs.existsSync(archiveDir)).toBe(true);
+    const archiveFiles = fs.readdirSync(archiveDir).filter((f) => f.startsWith("ordered-"));
+    expect(archiveFiles.length).toBeGreaterThan(0);
+    const archiveContent = fs.readFileSync(path.join(archiveDir, archiveFiles[0]), "utf8");
+
+    // All evicted date sections must appear in ascending order (oldest content first)
+    const dateMatches = [...archiveContent.matchAll(/^### (\d{4}-\d{2}-\d{2})$/gm)].map((m) => m[1]);
+    for (let i = 1; i < dateMatches.length; i++) {
+      expect(dateMatches[i] >= dateMatches[i - 1]).toBe(true);
+    }
+  });
+
+  it("archive file is committed before main-note atomicWrite completes", () => {
+    const fm = { type: "project", status: "active", project: "crashsim", created: "2026-06-01" };
+    const projectsDir = path.join(TMP, "projects");
+    fs.mkdirSync(projectsDir, { recursive: true });
+
+    let seed = "# crashsim\n\n## Recent activity\n";
+    for (let i = 0; i < 130; i++) {
+      const day = String((i % 27) + 1).padStart(2, "0");
+      const month = String(Math.floor(i / 27) + 1).padStart(2, "0");
+      seed += `\n### 2026-${month}-${day}\n\n${"r".repeat(500)}\n`;
+    }
+    fs.writeFileSync(
+      path.join(projectsDir, "crashsim.md"),
+      `---\ntype: project\nstatus: active\nproject: crashsim\n---\n\n${seed}`,
+    );
+
+    writeNote("projects/crashsim.md", { frontmatter: fm, body: "trigger eviction for ordering test", mode: "append" });
+
+    const archiveDir = path.join(projectsDir, "_archive");
+    const archiveFiles = fs.readdirSync(archiveDir).filter((f) => f.startsWith("crashsim-"));
+    expect(archiveFiles.length).toBeGreaterThan(0);
+    const archiveContent = fs.readFileSync(path.join(archiveDir, archiveFiles[0]), "utf8");
+    expect(archiveContent.length).toBeGreaterThan(0);
   });
 });

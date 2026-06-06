@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { compileInjectionBlock, capPreferences } from "../src/preferences";
+import { compileInjectionBlock, capPreferences, validateBudgetConsistency, emitPreferencesCore, PREFERENCES_CORE_MAX_TOKENS } from "../src/preferences";
+import { INJECT_LIMITS, estimateTokens } from "../src/injectBudget";
 
 let TMP: string;
 
@@ -70,4 +71,26 @@ it("compileInjectionBlock applies the 3KB cap on large preferences", () => {
   // The block includes header/footer lines — total must stay bounded
   expect(Buffer.byteLength(out, "utf8")).toBeLessThanOrEqual(3072 + 200);
   expect(out).toContain("[…truncated; see meta/preferences.md]");
+});
+
+describe("G11: pref-core producer/consumer budget alignment", () => {
+  it("prefCore inject slot is >= PREFERENCES_CORE_MAX_TOKENS (consumer fits producer)", () => {
+    expect(INJECT_LIMITS.prefCore).toBeGreaterThanOrEqual(PREFERENCES_CORE_MAX_TOKENS);
+  });
+
+  it("validateBudgetConsistency does not throw under the aligned values", () => {
+    expect(() => validateBudgetConsistency()).not.toThrow();
+  });
+
+  it("a ~250-token core is not clipped to the prefCore slot", () => {
+    fs.mkdirSync(path.join(TMP, "meta"), { recursive: true });
+    const lines: string[] = [];
+    for (let i = 0; i < 30; i++) {
+      lines.push(`- always use pattern number ${i} when building widgets for the system`);
+    }
+    const body = lines.join("\n") + "\n";
+    emitPreferencesCore(body);
+    const written = fs.readFileSync(path.join(TMP, "meta/preferences-core.md"), "utf8");
+    expect(estimateTokens(written)).toBeGreaterThanOrEqual(200);
+  });
 });
