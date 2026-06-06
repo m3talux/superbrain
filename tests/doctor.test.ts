@@ -28,7 +28,7 @@ describe("sb-doctor", () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sbd-"));
     const r = spawnSync("node", [path.resolve("dist/bin/sb-doctor.js"), "inject"], {
       encoding: "utf8",
-      env: { ...process.env, SUPERBRAIN_HOME: tmpDir },
+      env: { ...process.env, SUPERBRAIN_DATA_DIR: tmpDir },
     });
     expect(r.status).toBe(0);
     expect(r.stdout).toMatch(/Inject telemetry/);
@@ -41,7 +41,7 @@ describe("sb-doctor", () => {
     fs.writeFileSync(path.join(tmpDir, "inject.log"), record + "\n");
     const r = spawnSync("node", [path.resolve("dist/bin/sb-doctor.js"), "inject"], {
       encoding: "utf8",
-      env: { ...process.env, SUPERBRAIN_HOME: tmpDir },
+      env: { ...process.env, SUPERBRAIN_DATA_DIR: tmpDir },
     });
     expect(r.status).toBe(0);
     expect(r.stdout).toMatch(/SessionStart/);

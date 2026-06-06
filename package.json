@@ -12,7 +12,8 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "release:check": "npm run build && git diff --exit-code dist"
+    "release:check": "npm run build && git diff --exit-code dist",
+    "version": "bash scripts/bump-version.sh"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

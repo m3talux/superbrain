@@ -1,11 +1,15 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs"; import os from "node:os"; import path from "node:path";
 import { logInject, readInjectLog, summarize } from "../src/injectTelemetry.js";
 
 describe("injectTelemetry", () => {
   beforeEach(() => {
-    // Override the log path via env var. The implementation should respect this.
-    process.env.SUPERBRAIN_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "sit-"));
+    delete process.env.SUPERBRAIN_DATA_DIR;
+    process.env.SUPERBRAIN_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "sit-"));
+  });
+
+  afterEach(() => {
+    delete process.env.SUPERBRAIN_DATA_DIR;
   });
 
   it("appends a record with computed ts and total", () => {
@@ -24,15 +28,29 @@ describe("injectTelemetry", () => {
   });
 
   it("returns [] when file missing", () => {
-    process.env.SUPERBRAIN_HOME = "/tmp/sb-nope-" + Math.random();
+    process.env.SUPERBRAIN_DATA_DIR = "/tmp/sb-nope-" + Math.random();
     expect(readInjectLog()).toEqual([]);
   });
 
   it("skips malformed lines", () => {
-    const dir = process.env.SUPERBRAIN_HOME!;
+    const dir = process.env.SUPERBRAIN_DATA_DIR!;
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, "inject.log"), `not-json\n{"ts":"2026-01-01","hook":"SessionStart","sid":"a","tokens":{"recall":1,"preferences":2,"openThreads":3,"notices":4},"total":10}\n`);
     expect(readInjectLog().length).toBe(1);
+  });
+
+  it("inject.log lands in SUPERBRAIN_DATA_DIR when env var is set", () => {
+    const tmpDir = process.env.SUPERBRAIN_DATA_DIR!;
+    const uniqueSid = "s-g21-" + Date.now();
+    logInject({ hook: "SessionStart", sid: uniqueSid, tokens: { recall: 10, preferences: 0, openThreads: 0, notices: 0 } });
+    const expectedLog = path.join(tmpDir, "inject.log");
+    expect(fs.existsSync(expectedLog), "inject.log must exist in SUPERBRAIN_DATA_DIR").toBe(true);
+    const logContent = fs.readFileSync(expectedLog, "utf8");
+    expect(logContent.includes(uniqueSid), "inject.log in SUPERBRAIN_DATA_DIR must contain the written record").toBe(true);
+    const homeLog = path.join(os.homedir(), ".superbrain", "inject.log");
+    const contaminatedHome = fs.existsSync(homeLog) &&
+      fs.readFileSync(homeLog, "utf8").includes(uniqueSid);
+    expect(contaminatedHome, "inject.log must not write to ~/.superbrain when SUPERBRAIN_DATA_DIR is set").toBe(false);
   });
 
   it("summarize groups by hook and averages", () => {
