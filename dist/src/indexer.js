@@ -9,6 +9,7 @@ import { parseNote } from "./frontmatter.js";
 import { deriveEdges, deleteEdgesFrom, upsertEdges } from "./edges.js";
 import { slug as routerSlug } from "./router.js";
 const EXCLUDED = new Set([".trash", ".obsidian", ".git", "node_modules"]);
+const CROSS_CUTTING_FOLDERS = new Set(["daily", "decisions", "lessons", "knowledge", "meta"]);
 function walk(dir, root, acc) {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
         if (e.isDirectory()) {
@@ -40,7 +41,15 @@ async function indexInto(ix, relPath) {
     const created = typeof fm.created === "string" ? fm.created
         : fm.created instanceof Date ? fm.created.toISOString()
             : undefined;
-    ix.upsertNote(relPath, Math.floor(fs.statSync(abs).mtimeMs), sha(raw), chunks, embs, fm.project, created);
+    // G10: default cross-cutting folders to project='global' when frontmatter lacks project,
+    // so the G10 global filter does not require path heuristics.
+    let noteProject = fm.project;
+    if (!noteProject || (typeof noteProject === "string" && !noteProject.trim())) {
+        const topFolder = relPath.split("/")[0];
+        if (CROSS_CUTTING_FOLDERS.has(topFolder))
+            noteProject = "global";
+    }
+    ix.upsertNote(relPath, Math.floor(fs.statSync(abs).mtimeMs), sha(raw), chunks, embs, noteProject, created);
     upsertEdges(ix.db, deriveEdges(relPath, fm));
 }
 export async function indexNote(relPath) {

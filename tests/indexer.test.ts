@@ -132,6 +132,38 @@ describe("indexer", () => {
     expect(rows.every((r) => r.to_path !== "projects/alpha.md")).toBe(true);
   });
 
+  it("indexNote stamps project='global' for cross-cutting folders when frontmatter lacks project", async () => {
+    const crossCutting = ["daily", "decisions", "lessons", "knowledge", "meta"];
+    for (const folder of crossCutting) {
+      fs.mkdirSync(path.join(TMP_VAULT, folder), { recursive: true });
+      fs.writeFileSync(
+        path.join(TMP_VAULT, `${folder}/test-note.md`),
+        `---\ntype: note\n---\n## Section\ncontent for ${folder}`
+      );
+      await indexNote(`${folder}/test-note.md`);
+    }
+    const ix = openIndex();
+    for (const folder of crossCutting) {
+      const meta = ix.db.prepare("SELECT project FROM notes WHERE rel_path=?")
+        .get(`${folder}/test-note.md`) as { project: string | null } | undefined;
+      expect(meta?.project).toBe("global");
+    }
+    ix.close();
+  });
+
+  it("indexNote preserves explicit project from frontmatter (no override)", async () => {
+    fs.writeFileSync(
+      path.join(TMP_VAULT, "decisions/explicit.md"),
+      "---\ntype: decision\nproject: alpha-proj\n---\n## D\nsome content"
+    );
+    await indexNote("decisions/explicit.md");
+    const ix = openIndex();
+    const meta = ix.db.prepare("SELECT project FROM notes WHERE rel_path=?")
+      .get("decisions/explicit.md") as { project: string | null } | undefined;
+    expect(meta?.project).toBe("alpha-proj");
+    ix.close();
+  });
+
   it("forcedReindexIfNeeded runs once for a version then is a no-op on second call", async () => {
     const f = path.join(TMP_VAULT, "decisions/f.md");
     fs.writeFileSync(f, "---\ntype: decision\nproject: bar\n---\n## F\ncontent for sentinel test");

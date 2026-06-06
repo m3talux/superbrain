@@ -11,7 +11,7 @@ export function quantizeToInt8(v) {
     return out;
 }
 export function serializeInt8ForSql(q) {
-    return "[" + Array.from(q).join(",") + "]";
+    return Buffer.from(q.buffer, q.byteOffset, q.byteLength);
 }
 export function int8ArrayFromBuffer(buf) {
     return new Int8Array(buf.buffer, buf.byteOffset, buf.byteLength);
