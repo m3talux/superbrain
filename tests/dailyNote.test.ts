@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { upsertDay } from "../src/dailyState";
 import { buildDailyNote } from "../src/dailyNote";
+import { validateNote } from "../src/templates";
 
 let TMP: string;
 
@@ -45,4 +46,24 @@ it("empty day yields a minimal valid note", () => {
   const r = buildDailyNote("2026-05-19");
   expect(r.body).toContain("# 2026-05-19");
   expect(r.frontmatter.type).toBe("daily");
+});
+
+it("round-trip: buildDailyNote body passes validateNote('daily')", () => {
+  upsertDay("2026-05-20", "S1", {
+    digestLine: "Implemented search index",
+    routedRelPaths: ["decisions/2026-05-20-use-sqlite.md"],
+    alsoDid: ["reviewed code"],
+    openThreads: ["plan next sprint"],
+  });
+  const r = buildDailyNote("2026-05-20");
+  const vr = validateNote("daily", r.body);
+  expect(vr.valid).toBe(true);
+  expect(vr.errors).toHaveLength(0);
+});
+
+it("round-trip: empty day body also passes validateNote('daily')", () => {
+  const r = buildDailyNote("2026-05-21");
+  const vr = validateNote("daily", r.body);
+  expect(vr.valid).toBe(true);
+  expect(vr.errors).toHaveLength(0);
 });

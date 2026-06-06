@@ -1,7 +1,8 @@
 // Templates module — canonical note templates, render, and validate per type.
 // Pure string concatenation only; no YAML library required.
 
-export type NoteType = "decision" | "lesson" | "capture" | "project" | "daily" | "person";
+import type { NoteType } from "./types.js";
+export type { NoteType } from "./types.js";
 
 export interface ValidationResult {
   valid: boolean;
@@ -27,12 +28,12 @@ const WORD_CEILINGS: Record<NoteType, number> = {
   person: 300,
 };
 
-const REQUIRED_SECTIONS: Record<NoteType, string[]> = {
+export const REQUIRED_SECTIONS: Record<NoteType, string[]> = {
   decision: ["## Decision", "## Why", "## Alternatives considered", "## Consequences"],
   lesson: ["## Rule", "## Why", "## When this applies"],
   capture: ["## What", "## Why it matters"],
   project: ["## What it is", "## Status", "## Architecture", "## Recent activity", "## Gotchas"],
-  daily: ["## Worked on", "## Decisions", "## Lessons", "## Captures", "## Open threads"],
+  daily: ["## Summary", "## Also did"],
   person: ["## Role", "## Context", "## Interactions"],
 };
 
@@ -151,20 +152,17 @@ function renderDaily(fields: RenderFields): string {
   return [
     `# ${title}`,
     "",
-    "## Worked on",
-    "- [[projects/{slug}]] — {one-line context}",
+    "## Summary",
+    "- {one-line digest per session}",
     "",
-    "## Decisions",
+    "## Decisions & gotchas",
     "- [[decisions/{slug}]] — {title}",
     "",
-    "## Lessons",
-    "- [[lessons/{slug}]] — {rule}",
+    "## Also did",
+    "- {free-text items not tied to a specific note}",
     "",
-    "## Captures",
-    "- [[capture/{slug}]]",
-    "",
-    "## Open threads",
-    "- {free-text bullet — the only section without wikilinks}",
+    "## Threads open",
+    "- {open thread or question}",
     "",
   ].join("\n");
 }
@@ -246,13 +244,11 @@ export function validateNote(type: NoteType, body: string): ValidationResult {
   }
 
   if (type === "daily") {
-    for (const sec of ["Worked on", "Decisions", "Lessons", "Captures"] as const) {
-      const content = extractSection(body, sec);
-      const bulletLines = content.split("\n").filter((l) => l.trimStart().startsWith("- "));
-      const bad = bulletLines.filter((l) => !l.trimStart().startsWith("- [["));
-      if (bad.length > 0) {
-        errors.push(`daily: '${sec}' contains non-wikilink bullets`);
-      }
+    const linksSec = extractSection(body, "Decisions & gotchas");
+    const bulletLines = linksSec.split("\n").filter((l) => l.trimStart().startsWith("- "));
+    const bad = bulletLines.filter((l) => !l.trimStart().startsWith("- [[") && l.trim() !== "- _none_");
+    if (bad.length > 0) {
+      errors.push("daily: 'Decisions & gotchas' contains non-wikilink bullets");
     }
   }
 
