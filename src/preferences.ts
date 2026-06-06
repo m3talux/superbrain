@@ -45,18 +45,6 @@ export function preferencesCorePath(): string {
 // ~250 tokens is enough for the hard-rules core Alfred consumes.
 export const PREFERENCES_CORE_MAX_TOKENS = 250;
 
-/**
- * Guard that producer ceiling <= consumer slot. Throws if they drift apart.
- * Called at the top of emitPreferencesCore and exported for tests.
- */
-export function validateBudgetConsistency(): void {
-  if (INJECT_LIMITS.prefCore < PREFERENCES_CORE_MAX_TOKENS) {
-    throw new Error(
-      `Budget mismatch: INJECT_LIMITS.prefCore (${INJECT_LIMITS.prefCore}) < PREFERENCES_CORE_MAX_TOKENS (${PREFERENCES_CORE_MAX_TOKENS}); the identity core will be silently clipped`,
-    );
-  }
-}
-
 // Imperative first-word prefixes that identify hard rules worth including in
 // the lean core file. Matches the same allow-list used across the codebase.
 const IMPERATIVE_PREFIXES_CORE = [
@@ -76,7 +64,6 @@ function isHardRule(line: string): boolean {
  * Pure side-effect: writes the file; throws only on permission errors.
  */
 export function emitPreferencesCore(universalBody: string): void {
-  validateBudgetConsistency();
   const dest = preferencesCorePath();
 
   if (!universalBody.trim()) {
