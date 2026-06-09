@@ -79,7 +79,7 @@ describe("indexer", () => {
       "---\ntype: decision\nproject: alpha\ncreated: 2024-01-15\n---\n## D\nsome decision"
     );
     await indexNote("decisions/c.md");
-    const db = new Database(path.join(TMP_DATA, "index.db"));
+    const db = new Database(path.join(TMP_DATA, "index-v2.db"));
     const rows = db.prepare("SELECT from_path, to_path, kind FROM vault_edges ORDER BY kind").all() as {
       from_path: string; to_path: string; kind: string;
     }[];
@@ -97,7 +97,7 @@ describe("indexer", () => {
     await reconcile();
     // Directly overwrite the project column to NULL to simulate a stale index row
     // (as would exist for users who indexed before cwd attribution was added).
-    const db = new Database(path.join(TMP_DATA, "index.db"));
+    const db = new Database(path.join(TMP_DATA, "index-v2.db"));
     db.prepare("UPDATE notes SET project=NULL WHERE rel_path=?").run("decisions/e.md");
     db.close();
     // Normal reconcile leaves it alone because the hash hasn't changed.
@@ -123,7 +123,7 @@ describe("indexer", () => {
     fs.writeFileSync(f, "---\ntype: decision\nproject: beta\ncreated: 2024-01-15\n---\n## D\nupdated");
     await indexNote("decisions/d.md");
 
-    const db = new Database(path.join(TMP_DATA, "index.db"));
+    const db = new Database(path.join(TMP_DATA, "index-v2.db"));
     const rows = db.prepare("SELECT to_path, kind FROM vault_edges WHERE from_path = ?").all("decisions/d.md") as {
       to_path: string; kind: string;
     }[];
@@ -137,7 +137,7 @@ describe("indexer", () => {
     fs.writeFileSync(f, "---\ntype: decision\nproject: bar\n---\n## F\ncontent for sentinel test");
     await reconcile();
     // Corrupt the project column to simulate a stale index.
-    const db1 = new Database(path.join(TMP_DATA, "index.db"));
+    const db1 = new Database(path.join(TMP_DATA, "index-v2.db"));
     db1.prepare("UPDATE notes SET project=NULL WHERE rel_path=?").run("decisions/f.md");
     db1.close();
     // First call for version "0.0.1-test" triggers forced reindex and writes sentinel.
@@ -152,7 +152,7 @@ describe("indexer", () => {
     expect(projects.get("decisions/f.md")).toBe("bar");
     // Second call for the same version is a no-op (sentinel present).
     // Corrupt again to confirm reindex does NOT run.
-    const db2 = new Database(path.join(TMP_DATA, "index.db"));
+    const db2 = new Database(path.join(TMP_DATA, "index-v2.db"));
     db2.prepare("UPDATE notes SET project=NULL WHERE rel_path=?").run("decisions/f.md");
     db2.close();
     const sentinel2 = await forcedReindexIfNeeded("0.0.1-test", TMP_DATA);

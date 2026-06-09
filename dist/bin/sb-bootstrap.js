@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 import { execFileSync, spawn } from "node:child_process";
-import path from "node:path";
 import { acquireLock, releaseLock } from "../src/lockfile.js";
 import { bootstrapDone, markBootstrapDone, depsPresent } from "../src/bootstrap.js";
 import { writeFailure } from "../src/sentinel.js";
-import { dataDir, vaultPath } from "../src/paths.js";
+import { indexDbPath, vaultPath } from "../src/paths.js";
 const PLATFORM_HINTS = {
     win32: "On Windows, better-sqlite3 may need Visual Studio Build Tools + Python 3. Install via https://github.com/nodejs/node-gyp#on-windows, or downgrade to Node 20 LTS which has broader prebuilt coverage.",
     linux: "On Linux, install build-essential and python3 (e.g. apt: sudo apt install build-essential python3), then retry.",
@@ -78,7 +77,7 @@ async function main() {
         try {
             const { detectLegacyState } = await import("../src/migrationDetect.js");
             const vault = vaultPath();
-            const db = path.join(dataDir(), "index.db");
+            const db = indexDbPath();
             const state = await detectLegacyState(vault, db);
             if (state.frontmatterMissing > 0) {
                 console.log(`SuperBrain: backfilling frontmatter on ${state.frontmatterMissing} legacy notes (detached, ~30s)`);

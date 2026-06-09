@@ -46,7 +46,7 @@ describe("inject E2E", () => {
     expect(fs.existsSync(dailyPath)).toBe(true);
     expect(fs.readFileSync(dailyPath, "utf8")).toContain(captureFiles[0].replace(/\.md$/, ""));
 
-    expect(fs.existsSync(path.join(dataDir, "index.db"))).toBe(true);
+    expect(fs.existsSync(path.join(dataDir, "index-v2.db"))).toBe(true);
   });
 
   it("scenario 2 — long multi-topic input + stubbed multi-item envelope → all routed", () => {

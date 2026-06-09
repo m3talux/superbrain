@@ -38,6 +38,15 @@ export function pluginRoot() {
     }
     return path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 }
+// The live search index is a VERSIONED file (index-v2.db, 0.8.2+). Pre-0.8
+// plugin caches contain hook code that opens ~/.superbrain/index.db directly
+// and writes v0.7-format float[384] JSON vectors — and stale notes/chunks
+// rows whose content-hashes can silently suppress re-embedding — into
+// whatever tables it finds there. Those caches are immutable, so the old
+// writers cannot be patched; the fence is to move the live store out of
+// their reach. The legacy index.db is deliberately left on disk untouched
+// (old sessions keep writing into it harmlessly; never delete user data).
+export function indexDbPath() { return path.join(dataDir(), "index-v2.db"); }
 export function sessionsDir() { return path.join(dataDir(), "sessions"); }
 export function sessionNdjsonPath(id) { return path.join(sessionsDir(), `${id}.ndjson`); }
 export function cursorPath(id) { return path.join(sessionsDir(), `${id}.cursor`); }

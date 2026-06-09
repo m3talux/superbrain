@@ -51,9 +51,13 @@ function disk() {
     const vaultTotal = dirSize(vault);
     const vaultNotes = vaultTotal - vaultGit - vaultTrash;
     stats.push({ name: "vault", bytes: vaultTotal, extra: `.git: ${humanize(vaultGit)}, notes: ${humanize(vaultNotes)}, .trash: ${humanize(vaultTrash)}` });
-    // index.db
-    const idx = path.join(sb, "index.db");
-    stats.push({ name: "index.db", bytes: fs.existsSync(idx) ? fs.statSync(idx).size : 0 });
+    // index-v2.db (live store; index.db is the pre-0.8.2 legacy store, reported only if present)
+    const idx = path.join(sb, "index-v2.db");
+    stats.push({ name: "index-v2.db", bytes: fs.existsSync(idx) ? fs.statSync(idx).size : 0 });
+    const legacyIdx = path.join(sb, "index.db");
+    if (fs.existsSync(legacyIdx)) {
+        stats.push({ name: "index.db", bytes: fs.statSync(legacyIdx).size, extra: "legacy (pre-0.8.2), safe to delete" });
+    }
     // transcripts
     const transcripts = path.join(sb, "transcripts");
     const txCount = fileCount(transcripts, /\.jsonl$/);
