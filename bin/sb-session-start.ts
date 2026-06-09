@@ -18,7 +18,14 @@ async function main() {
     let h: any = {}; try { h = JSON.parse(readStdin()) || {}; } catch { h = {}; }
     const fail = readAndClearFailure();
     const parts: string[] = [];
-    if (fail) parts.push(`⚠️ SuperBrain: last capture failed — ${fail.trim()} (fixed automatically next checkpoint; set ANTHROPIC_API_KEY if it persists).`);
+    if (fail) {
+      // The ANTHROPIC_API_KEY escape hatch only helps when the distiller's
+      // claude -p spawn failed (auth/quota). Appending it to every failure —
+      // index errors included — misled the 2026-06 incident diagnosis toward
+      // auth/quota, so scope it to distill failures.
+      const apiKeyHint = /distill/i.test(fail) ? "; set ANTHROPIC_API_KEY if it persists" : "";
+      parts.push(`⚠️ SuperBrain: last capture failed — ${fail.trim()} (fixed automatically next checkpoint${apiKeyHint}).`);
+    }
 
     const root = pluginRoot();
     if (!depsPresent(root)) {
