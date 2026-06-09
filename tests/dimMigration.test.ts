@@ -40,7 +40,7 @@ afterEach(() => {
 
 describe("dim/model migration self-heal", () => {
   it("vectorKNN returns pre-existing notes after a dim/model migration (not left empty)", async () => {
-    const dbPath = path.join(TMP_DATA, "index.db");
+    const dbPath = path.join(TMP_DATA, "index-v2.db");
     fs.mkdirSync(TMP_DATA, { recursive: true });
 
     // --- Phase 1: seed a DB as if it were indexed under an OLD dim/model ---

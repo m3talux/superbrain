@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
 import * as sqliteVec from "sqlite-vec";
-import { dataDir } from "./paths.js";
+import { dataDir, indexDbPath } from "./paths.js";
 import { EMBED_DIM, MODEL_ID } from "./embed.js";
 import { ensureEdgesTable } from "./edges.js";
 import { quantizeToInt8, serializeInt8ForSql } from "./staticEmbed/int8Quant.js";
@@ -67,7 +67,11 @@ function ensureVecTable(db) {
     }
 }
 export function openIndex() {
-    const dbPath = path.join(dataDir(), "index.db");
+    // Versioned store file — see indexDbPath() for the cross-version fence
+    // rationale. If it doesn't exist yet (fresh install or first run after the
+    // 0.8.2 upgrade) it is created empty here and reconcile() rebuilds it from
+    // the vault on the next session-start reconcile pass.
+    const dbPath = indexDbPath();
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     const db = new Database(dbPath);
     sqliteVec.load(db);

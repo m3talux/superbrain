@@ -9,7 +9,7 @@ import { resolveProjectSlug } from "./sessionProject.js";
 import { appendInjectedSlugs, getInjectedSlugs } from "./sessionInjected.js";
 import { resetTurnCount } from "./turnCounter.js";
 import { logInject } from "./injectTelemetry.js";
-import { dataDir, vaultPath } from "./paths.js";
+import { indexDbPath, vaultPath } from "./paths.js";
 import { readPreferencesCore } from "./injectWindow.js";
 
 export async function appendDigest(parts: string[], h: any): Promise<void> {
@@ -130,7 +130,7 @@ export async function appendDigest(parts: string[], h: any): Promise<void> {
     if (!fs.existsSync(sentinelFile)) {
       const { detectLegacyState } = await import("./migrationDetect.js");
       const vault = vaultPath();
-      const db = path.join(dataDir(), "index.db");
+      const db = indexDbPath();
       const state = await detectLegacyState(vault, db);
       if (state.edgesEmpty || state.preferencesOverCap) {
         const notice =

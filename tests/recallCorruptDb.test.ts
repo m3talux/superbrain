@@ -11,7 +11,7 @@ let prevStub: string | undefined;
 beforeEach(() => {
   TMP = fs.mkdtempSync(path.join(os.tmpdir(), "sb-corrupt-"));
   // A non-sqlite file at the index path => openIndex()'s WAL pragma throws.
-  fs.writeFileSync(path.join(TMP, "index.db"), "this is definitely not a sqlite database");
+  fs.writeFileSync(path.join(TMP, "index-v2.db"), "this is definitely not a sqlite database");
   prevData = process.env.SUPERBRAIN_DATA_DIR;
   prevStub = process.env.SUPERBRAIN_EMBED_STUB;
   process.env.SUPERBRAIN_DATA_DIR = TMP;
@@ -24,6 +24,6 @@ afterEach(() => {
   fs.rmSync(TMP, { recursive: true, force: true });
 });
 
-it("hybridRecall returns [] on a corrupt index.db (spec §7), does not throw", async () => {
+it("hybridRecall returns [] on a corrupt index-v2.db (spec §7), does not throw", async () => {
   await expect(hybridRecall("anything", 5)).resolves.toEqual([]);
 });
