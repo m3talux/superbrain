@@ -5,9 +5,16 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import http from "node:http";
 import https from "node:https";
 import { acquireLock, releaseLock } from "../lockfile.js";
 const HF_BASE = "https://huggingface.co/minishlab/potion-base-8M/resolve/main";
+// Test seam: lets the download tests point at a local http.Server.
+// Production never sets it.
+function assetBaseUrl() {
+    return process.env.SUPERBRAIN_MODEL_BASE_URL || HF_BASE;
+}
+export const DOWNLOAD_IDLE_TIMEOUT_MS = 60_000;
 const ASSETS = ["model.safetensors", "tokenizer.json"];
 const MIN_BYTES = { "model.safetensors": 20_000_000, "tokenizer.json": 100_000 };
 export function modelDir() {
@@ -18,7 +25,7 @@ export function modelDir() {
 export function modelAssetPath(asset) {
     return path.join(modelDir(), asset);
 }
-function downloadFile(url, dest, minSize) {
+export function downloadFile(url, dest, minSize, idleTimeoutMs = DOWNLOAD_IDLE_TIMEOUT_MS) {
     return new Promise((resolve, reject) => {
         const tmp = dest + ".part";
         const cleanup = () => { try {
@@ -33,7 +40,10 @@ function downloadFile(url, dest, minSize) {
             }
             let req;
             try {
-                req = https.get(u, { headers: { "User-Agent": "superbrain/1 (node)" } }, (res) => {
+                // Follow the URL's own protocol: redirects may hop between schemes,
+                // and the test seam serves over plain http.
+                const lib = u.startsWith("http:") ? http : https;
+                req = lib.get(u, { headers: { "User-Agent": "superbrain/1 (node)" } }, (res) => {
                     const code = res.statusCode ?? 0;
                     if (code === 301 || code === 302 || code === 307 || code === 308) {
                         res.resume();
@@ -90,7 +100,7 @@ function downloadFile(url, dest, minSize) {
                 fail(e);
                 return;
             }
-            req.setTimeout(60000, () => { req.destroy(new Error(`timeout fetching ${u}`)); });
+            req.setTimeout(idleTimeoutMs, () => { req.destroy(new Error(`timeout fetching ${u}`)); });
             req.on("error", (e) => fail(e));
         };
         follow(url, 0);
@@ -116,7 +126,7 @@ export async function ensureModelAssets() {
             }
             catch { /* ignore stale part */ }
             process.stderr.write(`[superbrain] downloading ${asset} from HuggingFace...\n`);
-            await downloadFile(`${HF_BASE}/${asset}`, dest, MIN_BYTES[asset] ?? 0);
+            await downloadFile(`${assetBaseUrl()}/${asset}`, dest, MIN_BYTES[asset] ?? 0);
             process.stderr.write(`[superbrain] cached ${asset}\n`);
         }
     }

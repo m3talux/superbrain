@@ -5,10 +5,17 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import http from "node:http";
 import https from "node:https";
 import { acquireLock, releaseLock } from "../lockfile.js";
 
 const HF_BASE = "https://huggingface.co/minishlab/potion-base-8M/resolve/main";
+// Test seam: lets the download tests point at a local http.Server.
+// Production never sets it.
+function assetBaseUrl(): string {
+  return process.env.SUPERBRAIN_MODEL_BASE_URL || HF_BASE;
+}
+export const DOWNLOAD_IDLE_TIMEOUT_MS = 60_000;
 const ASSETS = ["model.safetensors", "tokenizer.json"] as const;
 const MIN_BYTES: Record<string, number> = { "model.safetensors": 20_000_000, "tokenizer.json": 100_000 };
 
@@ -21,7 +28,8 @@ export function modelAssetPath(asset: (typeof ASSETS)[number]): string {
   return path.join(modelDir(), asset);
 }
 
-function downloadFile(url: string, dest: string, minSize: number): Promise<void> {
+export function downloadFile(url: string, dest: string, minSize: number,
+                             idleTimeoutMs: number = DOWNLOAD_IDLE_TIMEOUT_MS): Promise<void> {
   return new Promise((resolve, reject) => {
     const tmp = dest + ".part";
     const cleanup = () => { try { fs.rmSync(tmp, { force: true }); } catch { /* ignore */ } };
@@ -30,7 +38,10 @@ function downloadFile(url: string, dest: string, minSize: number): Promise<void>
       if (depth > 5) { fail(new Error(`too many redirects fetching ${url}`)); return; }
       let req;
       try {
-        req = https.get(u, { headers: { "User-Agent": "superbrain/1 (node)" } }, (res) => {
+        // Follow the URL's own protocol: redirects may hop between schemes,
+        // and the test seam serves over plain http.
+        const lib = u.startsWith("http:") ? http : https;
+        req = lib.get(u, { headers: { "User-Agent": "superbrain/1 (node)" } }, (res) => {
           const code = res.statusCode ?? 0;
           if (code === 301 || code === 302 || code === 307 || code === 308) {
             res.resume();
@@ -61,7 +72,7 @@ function downloadFile(url: string, dest: string, minSize: number): Promise<void>
           res.pipe(out);
         });
       } catch (e) { fail(e); return; }
-      req.setTimeout(60000, () => { req.destroy(new Error(`timeout fetching ${u}`)); });
+      req.setTimeout(idleTimeoutMs, () => { req.destroy(new Error(`timeout fetching ${u}`)); });
       req.on("error", (e) => fail(e));
     };
     follow(url, 0);
@@ -83,7 +94,7 @@ export async function ensureModelAssets(): Promise<void> {
       if (fs.existsSync(dest)) continue;
       try { fs.rmSync(dest + ".part", { force: true }); } catch { /* ignore stale part */ }
       process.stderr.write(`[superbrain] downloading ${asset} from HuggingFace...\n`);
-      await downloadFile(`${HF_BASE}/${asset}`, dest, MIN_BYTES[asset] ?? 0);
+      await downloadFile(`${assetBaseUrl()}/${asset}`, dest, MIN_BYTES[asset] ?? 0);
       process.stderr.write(`[superbrain] cached ${asset}\n`);
     }
   } finally {

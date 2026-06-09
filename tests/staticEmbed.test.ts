@@ -2,9 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
-import Database from "better-sqlite3";
-import * as sqliteVec from "sqlite-vec";
-import { loadModelSync, embedWithModel, STATIC_EMBED_DIM } from "../src/staticEmbed/staticEmbed.js";
+import { loadModelSync, embedWithModel } from "../src/staticEmbed/staticEmbed.js";
 import { quantizeToInt8, serializeInt8ForSql, int8ArrayFromBuffer } from "../src/staticEmbed/int8Quant.js";
 
 const FIXTURE_DIR = path.join(path.dirname(new URL(import.meta.url).pathname), "fixtures");
@@ -86,9 +84,6 @@ describe("staticEmbed: tokenizer + inference", () => {
     }
   });
 
-  it("STATIC_EMBED_DIM constant is 256", () => {
-    expect(STATIC_EMBED_DIM).toBe(256);
-  });
 });
 
 describe("int8 quantization", () => {
@@ -164,21 +159,9 @@ describe("searchIndex: int8 migration sentinel", () => {
     expect(hits[0].relPath).toBe("test/a.md");
     ix.close();
   });
-
-  it("migration fires when EMBED_DIM changes (drops + rebuilds vec_chunks)", async () => {
-    const { openIndex } = await import("../src/searchIndex.js");
-    const ix1 = openIndex();
-    // Corrupt the meta to simulate a dim change
-    ix1.db.prepare("UPDATE embed_meta SET value=? WHERE key='dim'").run("999");
-    ix1.close();
-
-    // Reopen - should detect mismatch and recreate vec_chunks
-    const ix2 = openIndex();
-    const dim = ix2.db.prepare("SELECT value FROM embed_meta WHERE key='dim'").get() as { value: string };
-    expect(dim.value).toBe("256");
-    ix2.close();
-  });
 });
+// NOTE: the "migration fires when EMBED_DIM changes" test lives in
+// dimMigration.test.ts alongside the rest of the dim/model migration coverage.
 
 describe("embed.ts stub path", () => {
   it("SUPERBRAIN_EMBED_STUB=1 returns 256-dim L2-normalized vectors", async () => {

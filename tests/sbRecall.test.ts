@@ -57,8 +57,8 @@ describe("sb-recall", () => {
 
 describe("sb-recall B4 — per-note cap, pref-core pin, mini-brief, dedup", () => {
   it("4.2.a: hybridRecall is called without bm25Only option", () => {
-    // The output should exist (recall hit found) — verifying bm25Only not in source
-    // is tested in recallHook.test.ts; here we verify no regression on output.
+    // Verified behaviorally: if bm25Only were set, vector recall would not
+    // fire and the output would be empty/degraded.
     const out = run({ session_id: "S4a", hook_event_name: "UserPromptSubmit", cwd: "/p",
                        prompt: "hybrid fusion recall" });
     // If bm25Only was set, vector recall would not fire; we'd get empty/degraded results.
@@ -111,20 +111,22 @@ describe("sb-recall B4 — per-note cap, pref-core pin, mini-brief, dedup", () =
 
     const out = run({ session_id: "S4d", hook_event_name: "UserPromptSubmit", cwd: "/p",
                        prompt: "important context information" });
-    if (out.trim()) {
-      const parsed = JSON.parse(out);
-      const ctx: string = parsed.hookSpecificOutput.additionalContext;
-      // Each recall line excerpt should be capped; the total should be reasonable
-      // PER_NOTE_TOKEN_CAP = 120 tokens * 4 chars = 480 chars per excerpt max
-      const lines = ctx.split("\n").filter((l: string) => l.startsWith("- [[verbose-note"));
-      for (const line of lines) {
-        const excerptMatch = line.match(/— (.+)$/);
-        if (excerptMatch) {
-          const excerpt = excerptMatch[1];
-          // 120 tokens * 4 chars/token = 480 chars max
-          expect(excerpt.length).toBeLessThanOrEqual(480 + 5);
-        }
-      }
+    // Mandatory output: the verbose note matches the prompt, so recall MUST
+    // fire — a silent no-op here previously made every assertion below
+    // unreachable (vacuous test).
+    expect(out.trim()).not.toBe("");
+    const parsed = JSON.parse(out);
+    const ctx: string = parsed.hookSpecificOutput.additionalContext;
+    // Each recall line excerpt should be capped; the total should be reasonable
+    // PER_NOTE_TOKEN_CAP = 120 tokens * 4 chars = 480 chars per excerpt max
+    const lines = ctx.split("\n").filter((l: string) => l.includes("verbose-note"));
+    expect(lines.length).toBeGreaterThan(0);
+    for (const line of lines) {
+      const excerptMatch = line.match(/— (.+)$/);
+      expect(excerptMatch).toBeTruthy();
+      const excerpt = excerptMatch![1];
+      // 120 tokens * 4 chars/token = 480 chars max
+      expect(excerpt.length).toBeLessThanOrEqual(480 + 5);
     }
   });
 
@@ -156,10 +158,13 @@ describe("sb-recall B4 — per-note cap, pref-core pin, mini-brief, dedup", () =
     // After increment in sb-recall.ts => count = 1 (no boundary)
     const out = run({ session_id: "S4f", hook_event_name: "UserPromptSubmit", cwd: "/p",
                        prompt: "hybrid fusion recall" });
-    if (out.trim()) {
-      const parsed = JSON.parse(out);
-      const ctx: string = parsed.hookSpecificOutput.additionalContext;
-      expect(ctx).not.toContain("mini-brief");
-    }
+    // Mandatory output: the same prompt produces recall output in 4.2.a, so
+    // an empty result here would mean recall is broken, not "no mini-brief" —
+    // the old conditional made this test pass vacuously either way.
+    expect(out.trim()).not.toBe("");
+    const parsed = JSON.parse(out);
+    const ctx: string = parsed.hookSpecificOutput.additionalContext;
+    expect(ctx.length).toBeGreaterThan(0);
+    expect(ctx).not.toContain("mini-brief");
   });
 });
