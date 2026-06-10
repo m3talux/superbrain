@@ -30,7 +30,13 @@ function main() {
       }
     } catch { /* transcript copy best-effort */ }
 
-    if (!acquireLock("distill")) process.exit(0); // another distill in flight; cursor covers us next time
+    if (!acquireLock("distill")) {
+      try {
+        fs.mkdirSync(path.join(dataDir(), "sessions"), { recursive: true });
+        fs.writeFileSync(path.join(dataDir(), "sessions", `${sid}.needs-distill`), "1");
+      } catch { /* best-effort: flag write must never crash the hook */ }
+      process.exit(0);
+    }
 
     try {
       if (process.env.SUPERBRAIN_FAKE_DISTILLER === "1") {
