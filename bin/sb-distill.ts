@@ -9,7 +9,7 @@ import { pluginRoot } from "../src/paths.js";
 async function main() {
   if (!depsPresent(pluginRoot())) {
     try { writeFailure("distill skipped: dependencies not yet installed (bootstrap pending)"); } catch { /* noop */ }
-    try { releaseLock("distill"); } catch { /* noop */ }
+    try { releaseLock("distill", process.env.SUPERBRAIN_LOCK_TOKEN); } catch { /* noop */ }
     process.exit(0);
   }
   try {
@@ -17,7 +17,7 @@ async function main() {
     await run.runDistill();
   } catch (e: any) {
     try { writeFailure(`distill failed: ${e?.message || e}`); } catch { /* noop */ }
-    try { releaseLock("distill"); } catch { /* noop */ }
+    try { releaseLock("distill", process.env.SUPERBRAIN_LOCK_TOKEN); } catch { /* noop */ }
   }
   process.exit(0);
 }

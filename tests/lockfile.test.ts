@@ -26,4 +26,15 @@ describe("lockfile", () => {
     expect(acquireLock("distill")).toBe(true);
     expect(acquireLock("distill", { maxAgeMs: -1 })).toBe(true); // any age is stale
   });
+  it("releaseLock refuses a foreign holder", () => {
+    expect(acquireLock("distill")).toBe(true);
+    releaseLock("distill", "wrong-token");
+    expect(acquireLock("distill")).toBe(false);
+  });
+  it("a release bearing the matching token frees the lock", () => {
+    expect(acquireLock("distill")).toBe(true);
+    const token = fs.readFileSync(path.join(TMP, "locks", "distill.lock", "token"), "utf8");
+    releaseLock("distill", token);
+    expect(acquireLock("distill")).toBe(true);
+  });
 });

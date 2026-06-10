@@ -433,7 +433,7 @@ export async function runDistill(): Promise<void> {
   try {
     const from = readCursor(sid);
     const { events, newOffset } = readDelta(sid, from);
-    if (events.length === 0) { releaseLock("distill"); process.exit(0); }
+    if (events.length === 0) { releaseLock("distill", process.env.SUPERBRAIN_LOCK_TOKEN); process.exit(0); }
     // Pre-LLM skip check. Test stubs (SUPERBRAIN_DISTILL_STUB) bypass this so
     // fixtures that supply a small canned envelope still go through the full
     // routing path.
@@ -442,7 +442,7 @@ export async function runDistill(): Promise<void> {
       if (sk.skip) {
         logDistillSkip(sid, sk.reason);
         writeCursor(sid, newOffset);
-        releaseLock("distill");
+        releaseLock("distill", process.env.SUPERBRAIN_LOCK_TOKEN);
         return;
       }
     }
@@ -457,6 +457,6 @@ export async function runDistill(): Promise<void> {
   } catch (e: any) {
     writeFailure(`distill failed: ${e?.message || e}`);
   } finally {
-    releaseLock("distill");
+    releaseLock("distill", process.env.SUPERBRAIN_LOCK_TOKEN);
   }
 }
