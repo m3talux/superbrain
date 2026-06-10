@@ -4,6 +4,18 @@ import { embed } from "./embed.js";
 export interface Pointer { relPath: string; headingPath: string; anchor: string; excerpt: string; }
 
 const VECTOR_DISTANCE_CUTOFF = 1.0;
+const ARCHIVE_PENALTY_DEFAULT = 0.1;
+
+export function isArchivePath(relPath: string): boolean {
+  const norm = relPath.replace(/\\/g, "/");
+  return norm === "_archive" || norm.startsWith("_archive/") || norm.includes("/_archive/");
+}
+
+function archivePenalty(relPath: string): number {
+  if (!isArchivePath(relPath)) return 1;
+  const v = Number(process.env.SUPERBRAIN_ARCHIVE_PENALTY);
+  return Number.isFinite(v) && v > 0 ? v : ARCHIVE_PENALTY_DEFAULT;
+}
 
 function toPointers(hits: Hit[]): Pointer[] {
   return hits.map((h) => ({
