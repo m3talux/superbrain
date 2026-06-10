@@ -1,6 +1,17 @@
 import { openIndex, rrfWithScores } from "./searchIndex.js";
 import { embed } from "./embed.js";
 const VECTOR_DISTANCE_CUTOFF = 1.0;
+const ARCHIVE_PENALTY_DEFAULT = 0.1;
+export function isArchivePath(relPath) {
+    const norm = relPath.replace(/\\/g, "/");
+    return norm === "_archive" || norm.startsWith("_archive/") || norm.includes("/_archive/");
+}
+function archivePenalty(relPath) {
+    if (!isArchivePath(relPath))
+        return 1;
+    const v = Number(process.env.SUPERBRAIN_ARCHIVE_PENALTY);
+    return Number.isFinite(v) && v > 0 ? v : ARCHIVE_PENALTY_DEFAULT;
+}
 function toPointers(hits) {
     return hits.map((h) => ({
         relPath: h.relPath, headingPath: h.headingPath, anchor: h.anchor,
@@ -156,6 +167,7 @@ function applyFusionAndFilter(ix, bm, vec, k, excludeSlugs, projectSlug, filters
             const created = meta.get(h.relPath)?.created ?? undefined;
             let score = boostScore(1, projects.get(h.relPath), projectSlug);
             score *= decayFactor(created, now);
+            score *= archivePenalty(h.relPath);
             return { h, score };
         })
             .sort((a, b) => b.score - a.score)
@@ -179,6 +191,7 @@ function applyFusionAndFilter(ix, bm, vec, k, excludeSlugs, projectSlug, filters
             const created = meta.get(h.relPath)?.created ?? undefined;
             let score = boostScore(1, projects.get(h.relPath), projectSlug);
             score *= decayFactor(created, now);
+            score *= archivePenalty(h.relPath);
             return { h, score };
         })
             .sort((a, b) => b.score - a.score)
@@ -211,6 +224,7 @@ function applyFusionAndFilter(ix, bm, vec, k, excludeSlugs, projectSlug, filters
         const created = meta.get(hit.relPath)?.created ?? undefined;
         let score = boostScore(e.score, projects.get(hit.relPath), projectSlug);
         score *= decayFactor(created, now);
+        score *= archivePenalty(hit.relPath);
         return { id: e.id, score };
     })
         .filter((e) => e !== null)
