@@ -8,6 +8,7 @@ import { openIndex } from "./searchIndex.js";
 import { parseNote } from "./frontmatter.js";
 import { deriveEdges, deleteEdgesFrom, upsertEdges } from "./edges.js";
 import { slug as routerSlug } from "./router.js";
+import { buildProjectIndex, enumerateProjectSlugs, projectIndexRelPath } from "./projectIndex.js";
 
 const EXCLUDED = new Set([".trash", ".obsidian", ".git", "node_modules"]);
 
@@ -171,6 +172,17 @@ export async function reconcile(): Promise<{ added: number; updated: number; del
     }
     for (const rel of ix.allIndexedPaths())
       if (!presentSet.has(rel)) { ix.deleteNote(rel); res.deleted++; }
+    const slugs = enumerateProjectSlugs(root);
+    for (const projSlug of slugs) {
+      try {
+        const { relPath: idxRel, changed } = buildProjectIndex(projSlug);
+        if (changed) {
+          const wasPresent = presentSet.has(idxRel);
+          await indexInto(ix, idxRel);
+          if (wasPresent) res.updated++; else res.added++;
+        }
+      } catch { /* swallow per-project errors */ }
+    }
     return res;
   } finally { ix.close(); }
 }
