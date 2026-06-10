@@ -35,6 +35,7 @@ import { openIndex } from "./searchIndex.js";
 import { embed } from "./embed.js";
 import { classifyPath, basenameSlug } from "./projectDetect.js";
 import { slug, asText } from "./router.js";
+import { buildProjectIndex, projectIndexRelPath } from "./projectIndex.js";
 
 export interface SessionProjectResult {
   dominant: string | undefined;
@@ -273,6 +274,7 @@ export async function distillFromEvents(sid: string, events: any[]): Promise<Dis
   const items = env.items;
   const routedByDate: Record<string, string[]> = {};
   let notesWritten = 0;
+  const touchedProjects = new Set<string>();
   for (const it of items) {
     try {
       if (!it.project && PROJECT_SCOPED_KINDS.has(it.kind) && sessionProj.all.length === 1 && sessionProj.dominant) {
@@ -310,6 +312,9 @@ export async function distillFromEvents(sid: string, events: any[]): Promise<Dis
           try { await indexNote(r.relPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
           (routedByDate[it.date] ||= []).push(r.relPath);
           notesWritten++;
+          if (it.project) touchedProjects.add(it.project);
+          const projMatch = r.relPath.match(/^projects\/([^/_][^/]*)\.md$/);
+          if (projMatch) touchedProjects.add(projMatch[1]);
           if (it.kind === "preference") {
             try { emitPreferencesCore(it.body ?? ""); } catch { /* best-effort */ }
           }
@@ -400,6 +405,9 @@ export async function distillFromEvents(sid: string, events: any[]): Promise<Dis
         try { await indexNote(writeRelPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
         (routedByDate[it.date] ||= []).push(writeRelPath);
         notesWritten++;
+        if (it.project) touchedProjects.add(it.project);
+        const projMatch2 = writeRelPath.match(/^projects\/([^/_][^/]*)\.md$/);
+        if (projMatch2) touchedProjects.add(projMatch2[1]);
       }
     } catch (e: any) {
       recordRejection(vaultPath(), {
@@ -411,6 +419,14 @@ export async function distillFromEvents(sid: string, events: any[]): Promise<Dis
       });
       writeFailure(`item dropped: ${e?.message || e}`);
     }
+  }
+  for (const projSlug of touchedProjects) {
+    try {
+      const { relPath: idxRelPath, changed } = buildProjectIndex(projSlug);
+      if (changed) {
+        try { await indexNote(idxRelPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
+      }
+    } catch (e: any) { writeFailure(`project index build failed for '${projSlug}': ${e?.message || e}`); }
   }
   try {
     const dates = Object.keys(routedByDate);
