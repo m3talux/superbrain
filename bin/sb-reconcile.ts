@@ -30,6 +30,12 @@ async function main() {
     (e: any) => writeFailure(`auto-upgrade failed: ${e?.message || e}`)
   );
   await reconcile().catch((e: any) => writeFailure(`reconcile failed: ${e?.message || e}`));
+  try {
+    const { runSessionGcOncePerDay } = await import("../src/sessionGcRun.js");
+    runSessionGcOncePerDay(dataDir());
+  } catch (e: any) {
+    writeFailure(`session gc failed: ${e?.message || e}`);
+  }
   process.exit(0);
 }
 

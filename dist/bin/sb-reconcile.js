@@ -25,6 +25,13 @@ async function main() {
     const { dataDir } = await import("../src/paths.js");
     await runCheapUpgradeSteps(dataDir(), version).catch((e) => writeFailure(`auto-upgrade failed: ${e?.message || e}`));
     await reconcile().catch((e) => writeFailure(`reconcile failed: ${e?.message || e}`));
+    try {
+        const { runSessionGcOncePerDay } = await import("../src/sessionGcRun.js");
+        runSessionGcOncePerDay(dataDir());
+    }
+    catch (e) {
+        writeFailure(`session gc failed: ${e?.message || e}`);
+    }
     process.exit(0);
 }
 main();
