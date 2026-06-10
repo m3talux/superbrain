@@ -45,17 +45,26 @@ describe("projectIndexReconcile", () => {
       "---\ntype: map\nproject: alpha\nsuperbrain: true\ngenerated: true\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n# alpha — index\n\n## Decisions\n\n- [[decisions/ghost]] — Ghost (stale)\n\n",
     );
 
+    const expectedBody = buildProjectIndex("alpha");
+    const expectedContent = parseNote(
+      fs.readFileSync(path.join(TMP_VAULT, "maps/alpha-index.md"), "utf8"),
+    ).content;
+
+    fs.writeFileSync(
+      path.join(TMP_VAULT, "maps/alpha-index.md"),
+      "---\ntype: map\nproject: alpha\nsuperbrain: true\ngenerated: true\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n# alpha — index\n\n## Decisions\n\n- [[decisions/ghost]] — Ghost (stale)\n\n",
+    );
+
     await reconcile();
 
-    const freshRaw = fs.readFileSync(path.join(TMP_VAULT, "maps/alpha-index.md"), "utf8");
-    const { content: freshContent } = parseNote(freshRaw);
-
-    const { content: expectedContent } = parseNote(
+    const { content: freshContent } = parseNote(
       fs.readFileSync(path.join(TMP_VAULT, "maps/alpha-index.md"), "utf8"),
     );
 
+    expect(freshContent).toBe(expectedContent);
     expect(freshContent).toContain("[[decisions/2026-01-01-pick-raft]]");
     expect(freshContent).not.toContain("[[decisions/ghost]]");
+    void expectedBody;
 
     fs.rmSync(path.join(TMP_VAULT, "maps/alpha-index.md"));
     await reconcile();

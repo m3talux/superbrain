@@ -66,6 +66,18 @@ describe("projectIndex", () => {
     expect(content).toContain("- [[lessons/2026-01-02-verify-first]] — Verify first");
   });
 
+  it("excludes archived decision (indexed type) at every depth", () => {
+    fs.mkdirSync(path.join(TMP, "projects/_archive"), { recursive: true });
+    fs.writeFileSync(
+      path.join(TMP, "projects/_archive/pick-raft-archived.md"),
+      "---\ntype: decision\nstatus: active\nproject: alpha\n---\n# Archived decision\n\nshould not appear",
+    );
+    buildProjectIndex("alpha");
+    const raw = fs.readFileSync(path.join(TMP, "maps/alpha-index.md"), "utf8");
+    const { content } = parseNote(raw);
+    expect(content).not.toContain("pick-raft-archived");
+  });
+
   it("excludes archive, self, and other projects", () => {
     fs.mkdirSync(path.join(TMP, "projects/_archive"), { recursive: true });
     fs.writeFileSync(

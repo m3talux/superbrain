@@ -85,7 +85,7 @@ describe("searchIndex", () => {
     ], [vec(0.3)], "global", "2026-01-01", "decision", "planner");
     const meta = ix.getFilterMeta(["decisions/d.md"]);
     expect(meta.get("decisions/d.md")).toEqual({
-      project: "global", created: "2026-01-01", type: "decision", agentRole: "planner",
+      project: "global", created: "2026-01-01", type: "decision", agentRole: "planner", generated: false,
     });
     ix.close();
   });

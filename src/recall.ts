@@ -169,13 +169,14 @@ async function hybridRecallWithProject(
   return combined;
 }
 
-type FilterMeta = { project: string | null; created: string | null; type: string | null; agentRole: string | null } | undefined;
+type FilterMeta = { project: string | null; created: string | null; type: string | null; agentRole: string | null; generated: boolean } | undefined;
 
 function passesMeta(
   m: FilterMeta,
   filters: { type?: string; since?: string; role?: string },
   roleActive: boolean,
 ): boolean {
+  if (m?.generated) return false;
   if (filters.type && m?.type !== filters.type) return false;
   if (filters.since) {
     const c = m?.created ? Date.parse(m.created) : NaN;

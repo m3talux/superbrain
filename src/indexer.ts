@@ -8,7 +8,7 @@ import { openIndex } from "./searchIndex.js";
 import { parseNote } from "./frontmatter.js";
 import { deriveEdges, deleteEdgesFrom, upsertEdges } from "./edges.js";
 import { slug as routerSlug } from "./router.js";
-import { buildProjectIndex, enumerateProjectSlugs, projectIndexRelPath } from "./projectIndex.js";
+import { buildProjectIndex, enumerateProjectSlugs } from "./projectIndex.js";
 
 const EXCLUDED = new Set([".trash", ".obsidian", ".git", "node_modules"]);
 
@@ -44,6 +44,7 @@ async function indexInto(ix: ReturnType<typeof openIndex>, relPath: string) {
     fm.project as string | undefined, created,
     typeof fm.type === "string" ? fm.type : undefined,
     typeof fm.agent_role === "string" ? fm.agent_role : undefined,
+    fm.generated === true,
   );
   upsertEdges(ix.db, deriveEdges(relPath, fm));
 }

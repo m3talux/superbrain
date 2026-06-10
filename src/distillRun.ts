@@ -35,7 +35,7 @@ import { openIndex } from "./searchIndex.js";
 import { embed } from "./embed.js";
 import { classifyPath, basenameSlug } from "./projectDetect.js";
 import { slug, asText } from "./router.js";
-import { buildProjectIndex, projectIndexRelPath } from "./projectIndex.js";
+import { buildProjectIndex } from "./projectIndex.js";
 
 export interface SessionProjectResult {
   dominant: string | undefined;
@@ -314,7 +314,7 @@ export async function distillFromEvents(sid: string, events: any[]): Promise<Dis
           notesWritten++;
           if (it.project) touchedProjects.add(it.project);
           const projMatch = r.relPath.match(/^projects\/([^/_][^/]*)\.md$/);
-          if (projMatch) touchedProjects.add(projMatch[1]);
+          if (projMatch) touchedProjects.add(slug(projMatch[1]));
           if (it.kind === "preference") {
             try { emitPreferencesCore(it.body ?? ""); } catch { /* best-effort */ }
           }
@@ -407,7 +407,7 @@ export async function distillFromEvents(sid: string, events: any[]): Promise<Dis
         notesWritten++;
         if (it.project) touchedProjects.add(it.project);
         const projMatch2 = writeRelPath.match(/^projects\/([^/_][^/]*)\.md$/);
-        if (projMatch2) touchedProjects.add(projMatch2[1]);
+        if (projMatch2) touchedProjects.add(slug(projMatch2[1]));
       }
     } catch (e: any) {
       recordRejection(vaultPath(), {

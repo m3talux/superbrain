@@ -41,7 +41,7 @@ export function rrfWithScores(lists, k, c = 60) {
 function ensureVecTable(db) {
     db.exec(`
     CREATE TABLE IF NOT EXISTS embed_meta (key TEXT PRIMARY KEY, value TEXT);
-    CREATE TABLE IF NOT EXISTS notes (rel_path TEXT PRIMARY KEY, mtime INTEGER, hash TEXT, project TEXT, created TEXT, note_type TEXT, agent_role TEXT);
+    CREATE TABLE IF NOT EXISTS notes (rel_path TEXT PRIMARY KEY, mtime INTEGER, hash TEXT, project TEXT, created TEXT, note_type TEXT, agent_role TEXT, generated INTEGER);
     CREATE TABLE IF NOT EXISTS chunks (
       id INTEGER PRIMARY KEY, rel_path TEXT, heading_path TEXT, anchor TEXT, text TEXT);
     CREATE INDEX IF NOT EXISTS chunks_rel ON chunks(rel_path);
@@ -83,6 +83,8 @@ export function openIndex() {
         db.exec("ALTER TABLE notes ADD COLUMN note_type TEXT");
     if (!cols.includes("agent_role"))
         db.exec("ALTER TABLE notes ADD COLUMN agent_role TEXT");
+    if (!cols.includes("generated"))
+        db.exec("ALTER TABLE notes ADD COLUMN generated INTEGER");
     ensureEdgesTable(db);
     const delByPath = db.transaction((relPath) => {
         const rows = db.prepare("SELECT id, heading_path, text FROM chunks WHERE rel_path=?").all(relPath);
@@ -96,8 +98,8 @@ export function openIndex() {
     const insChunk = db.prepare("INSERT INTO chunks(rel_path,heading_path,anchor,text) VALUES (?,?,?,?)");
     const insFts = db.prepare("INSERT INTO chunks_fts(rowid,text) VALUES (?,?)");
     const insVec = db.prepare("INSERT INTO vec_chunks(chunk_id,embedding) VALUES (?,vec_int8(?))");
-    const insNote = db.prepare("INSERT OR REPLACE INTO notes(rel_path,mtime,hash,project,created,note_type,agent_role) VALUES (?,?,?,?,?,?,?)");
-    const upsert = db.transaction((relPath, mtime, hash, chunks, embs, project, created, noteType, agentRole) => {
+    const insNote = db.prepare("INSERT OR REPLACE INTO notes(rel_path,mtime,hash,project,created,note_type,agent_role,generated) VALUES (?,?,?,?,?,?,?,?)");
+    const upsert = db.transaction((relPath, mtime, hash, chunks, embs, project, created, noteType, agentRole, generated) => {
         delByPath(relPath);
         const capped = chunks.slice(0, CHUNK_CAP);
         capped.forEach((c, i) => {
@@ -105,7 +107,7 @@ export function openIndex() {
             insFts.run(id, (c.headingPath ? c.headingPath + " " : "") + c.text);
             insVec.run(BigInt(id), serializeInt8ForSql(quantizeToInt8(embs[i])));
         });
-        insNote.run(relPath, mtime, hash, toScalarString(project ?? null), toScalarString(created ?? null), toScalarString(noteType ?? null), toScalarString(agentRole ?? null));
+        insNote.run(relPath, mtime, hash, toScalarString(project ?? null), toScalarString(created ?? null), toScalarString(noteType ?? null), toScalarString(agentRole ?? null), generated ? 1 : 0);
     });
     const hydrate = (ids) => ids.map((id) => {
         const r = db.prepare("SELECT rel_path,heading_path,anchor,text FROM chunks WHERE id=?").get(id);
@@ -113,7 +115,7 @@ export function openIndex() {
     }).filter(Boolean);
     return {
         db,
-        upsertNote: (rp, mt, h, c, e, project, created, noteType, agentRole) => upsert(rp, mt, h, c, e, project, created, noteType, agentRole),
+        upsertNote: (rp, mt, h, c, e, project, created, noteType, agentRole, generated) => upsert(rp, mt, h, c, e, project, created, noteType, agentRole, generated),
         deleteNote: (rp) => delByPath(rp),
         bm25: (q, k) => {
             const terms = q.replace(/[^\w\s]/g, " ").trim().split(/\s+/).filter(Boolean);
@@ -207,9 +209,9 @@ export function openIndex() {
             if (relPaths.length === 0)
                 return new Map();
             const placeholders = relPaths.map(() => "?").join(",");
-            const rows = db.prepare(`SELECT rel_path, project, created, note_type, agent_role FROM notes WHERE rel_path IN (${placeholders})`).all(...relPaths);
+            const rows = db.prepare(`SELECT rel_path, project, created, note_type, agent_role, generated FROM notes WHERE rel_path IN (${placeholders})`).all(...relPaths);
             return new Map(rows.map((r) => [r.rel_path, {
-                    project: r.project, created: r.created, type: r.note_type, agentRole: r.agent_role,
+                    project: r.project, created: r.created, type: r.note_type, agentRole: r.agent_role, generated: r.generated === 1,
                 }]));
         },
         getNoteMeta: (rp) => {

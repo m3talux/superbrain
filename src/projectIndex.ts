@@ -5,7 +5,6 @@ import { parseNote, serializeNote } from "./frontmatter.js";
 import { atomicWrite } from "./atomicWrite.js";
 
 const WALK_EXCLUDE = new Set([".trash", ".obsidian", ".git", "node_modules"]);
-const ENUMERATE_EXCLUDE = new Set(["maps", "daily"]);
 const TYPE_ORDER = ["project", "decision", "lesson", "gotcha", "person", "capture"];
 const TYPE_PLURAL: Record<string, string> = {
   project: "Projects",
@@ -21,19 +20,8 @@ function walkVault(dir: string, root: string, acc: string[]) {
     if (e.isDirectory()) {
       if (WALK_EXCLUDE.has(e.name)) continue;
       const rel = path.relative(root, path.join(dir, e.name)).replace(/\\/g, "/");
-      if (rel === "maps" || rel === "daily" || rel.startsWith("projects/_archive")) continue;
-      walk(path.join(dir, e.name), root, acc);
-    } else if (e.name.endsWith(".md")) {
-      acc.push(path.relative(root, path.join(dir, e.name)).replace(/\\/g, "/"));
-    }
-  }
-}
-
-function walk(dir: string, root: string, acc: string[]) {
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (e.isDirectory()) {
-      if (WALK_EXCLUDE.has(e.name)) continue;
-      walk(path.join(dir, e.name), root, acc);
+      if (rel === "maps" || rel === "daily" || rel === "projects/_archive" || rel.startsWith("projects/_archive/")) continue;
+      walkVault(path.join(dir, e.name), root, acc);
     } else if (e.name.endsWith(".md")) {
       acc.push(path.relative(root, path.join(dir, e.name)).replace(/\\/g, "/"));
     }

@@ -299,7 +299,7 @@ export async function distillFromEvents(sid, events) {
                         touchedProjects.add(it.project);
                     const projMatch = r.relPath.match(/^projects\/([^/_][^/]*)\.md$/);
                     if (projMatch)
-                        touchedProjects.add(projMatch[1]);
+                        touchedProjects.add(slug(projMatch[1]));
                     if (it.kind === "preference") {
                         try {
                             emitPreferencesCore(it.body ?? "");
@@ -410,7 +410,7 @@ export async function distillFromEvents(sid, events) {
                     touchedProjects.add(it.project);
                 const projMatch2 = writeRelPath.match(/^projects\/([^/_][^/]*)\.md$/);
                 if (projMatch2)
-                    touchedProjects.add(projMatch2[1]);
+                    touchedProjects.add(slug(projMatch2[1]));
             }
         }
         catch (e) {

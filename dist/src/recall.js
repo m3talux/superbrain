@@ -136,6 +136,8 @@ async function hybridRecallWithProject(ix, query, k, projectSlug, excludeSlugs, 
     return combined;
 }
 function passesMeta(m, filters, roleActive) {
+    if (m?.generated)
+        return false;
     if (filters.type && m?.type !== filters.type)
         return false;
     if (filters.since) {
