@@ -14,3 +14,8 @@ docs/superpowers/
 docs/assessments/
 docs/plans/
 docs/specs/
+
+# Alfred overseer board â private working machinery, never shipped
+/board/
+/bin/task
+/.claude/agents/
