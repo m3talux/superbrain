@@ -9,6 +9,7 @@ export interface DaySessionEntry {
   openThreads: string[];
   project?: string;
   projects?: string[];
+  parentSessionId?: string;
 }
 export type DayState = Record<string, DaySessionEntry>;
 
@@ -27,4 +28,15 @@ export function upsertDay(date: string, sessionId: string, entry: DaySessionEntr
   const cur = readDay(date);
   cur[sessionId] = entry;
   fs.writeFileSync(f, JSON.stringify(cur));
+}
+
+export interface ChildEntry { sessionId: string; entry: DaySessionEntry; }
+
+export function childrenOf(date: string, parentId: string): ChildEntry[] {
+  if (!parentId) return [];
+  const day = readDay(date);
+  return Object.keys(day)
+    .filter((sid) => day[sid].parentSessionId === parentId)
+    .sort()
+    .map((sid) => ({ sessionId: sid, entry: day[sid] }));
 }
