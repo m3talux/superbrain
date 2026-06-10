@@ -28,6 +28,7 @@ import { classify } from "./classification.js";
 import { recordRejection } from "./rejectQueue.js";
 import { type NoteType } from "./templates.js";
 import { serializeNote } from "./frontmatter.js";
+import { attributionFromEnv } from "./attribution.js";
 import { dedupAgainstVault } from "./distillDedup.js";
 import { openIndex } from "./searchIndex.js";
 import { embed } from "./embed.js";
@@ -263,6 +264,7 @@ export function readKnownProjectSlugs(vault: string): Set<string> {
 }
 
 export async function distillFromEvents(sid: string, events: any[]): Promise<DistillEventsResult> {
+  const attribution = attributionFromEnv();
   const env = getEnvelope(JSON.stringify(events));
   const sessionProj = resolveSessionProject(events);
   const PROJECT_SCOPED_KINDS = new Set<string>(["project_fact", "gotcha", "decision", "capture"]);
@@ -301,7 +303,7 @@ export async function distillFromEvents(sid: string, events: any[]): Promise<Dis
       }
       const r = route(it);
       if (r.mode !== "create") {
-        const res0 = writeNote(r.relPath, { frontmatter: r.frontmatter, body: r.body, mode: r.mode });
+        const res0 = writeNote(r.relPath, { frontmatter: { ...r.frontmatter, ...attribution }, body: r.body, mode: r.mode });
         if (res0.ok && res0.reason !== "duplicate-skipped") {
           try { await indexNote(r.relPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
           (routedByDate[it.date] ||= []).push(r.relPath);
@@ -391,7 +393,7 @@ export async function distillFromEvents(sid: string, events: any[]): Promise<Dis
           writeFailure(`classify failed for '${it.title}': ${e?.message || e}`);
         }
       }
-      const res = writeNote(writeRelPath, { frontmatter: writeFrontmatter, body: writeBody, mode: r.mode });
+      const res = writeNote(writeRelPath, { frontmatter: { ...writeFrontmatter, ...attribution }, body: writeBody, mode: r.mode });
       if (res.ok && res.reason !== "duplicate-skipped") {
         try { await indexNote(writeRelPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
         (routedByDate[it.date] ||= []).push(writeRelPath);

@@ -58,4 +58,29 @@ describe("frontmatter", () => {
     expect(data.created).toBe("2026-05-22");
     expect(typeof data.created).toBe("string");
   });
+
+  it("accepts session_id and agent_role on every note type", () => {
+    expect(validateFrontmatter({ type: "lesson", status: "active", created: "2026-05-19", session_id: "S1", agent_role: "engineer" })).toEqual([]);
+    expect(validateFrontmatter({ type: "decision", status: "active", created: "2026-05-19", session_id: "S1", agent_role: "engineer" })).toEqual([]);
+    expect(validateFrontmatter({ type: "capture", status: "active", created: "2026-05-19", session_id: "S1", agent_role: "engineer" })).toEqual([]);
+    expect(validateFrontmatter({ type: "preference", created: "2026-05-19", session_id: "S1" })).toEqual([]);
+  });
+
+  it("still rejects a non-serializable attribution value", () => {
+    const errs = validateFrontmatter({ type: "lesson", status: "active", created: "2026-05-19", session_id: (() => 1) as any });
+    expect(errs.join(" ")).toMatch(/session_id/);
+  });
+
+  it("existing notes without attribution remain valid", () => {
+    expect(validateFrontmatter({ type: "decision", status: "active", created: "2026-05-19" })).toEqual([]);
+  });
+
+  it("serializes and round-trips session_id and agent_role unquoted", () => {
+    const out = serializeNote({ type: "lesson", status: "active", created: "2026-05-19", session_id: "S1", agent_role: "engineer" }, "body");
+    expect(out).toMatch(/^session_id: S1$/m);
+    expect(out).toMatch(/^agent_role: engineer$/m);
+    const { data } = parseNote(out);
+    expect(data.session_id).toBe("S1");
+    expect(data.agent_role).toBe("engineer");
+  });
 });
