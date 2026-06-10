@@ -211,6 +211,7 @@ function applyFusionAndFilter(
         const created = meta.get(h.relPath)?.created ?? undefined;
         let score = boostScore(1, projects.get(h.relPath), projectSlug);
         score *= decayFactor(created, now);
+        score *= archivePenalty(h.relPath);
         return { h, score };
       })
       .sort((a, b) => b.score - a.score)
@@ -235,6 +236,7 @@ function applyFusionAndFilter(
         const created = meta.get(h.relPath)?.created ?? undefined;
         let score = boostScore(1, projects.get(h.relPath), projectSlug);
         score *= decayFactor(created, now);
+        score *= archivePenalty(h.relPath);
         return { h, score };
       })
       .sort((a, b) => b.score - a.score)
@@ -267,6 +269,7 @@ function applyFusionAndFilter(
       const created = meta.get(hit.relPath)?.created ?? undefined;
       let score = boostScore(e.score, projects.get(hit.relPath), projectSlug);
       score *= decayFactor(created, now);
+      score *= archivePenalty(hit.relPath);
       return { id: e.id, score };
     })
     .filter((e): e is { id: string; score: number } => e !== null)
