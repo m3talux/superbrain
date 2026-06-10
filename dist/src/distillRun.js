@@ -32,6 +32,7 @@ import { openIndex } from "./searchIndex.js";
 import { embed } from "./embed.js";
 import { classifyPath, basenameSlug } from "./projectDetect.js";
 import { slug, asText } from "./router.js";
+import { buildProjectIndex } from "./projectIndex.js";
 export function resolveSessionProject(events) {
     const countBySlug = new Map();
     for (const e of events) {
@@ -248,6 +249,7 @@ export async function distillFromEvents(sid, events) {
     const items = env.items;
     const routedByDate = {};
     let notesWritten = 0;
+    const touchedProjects = new Set();
     for (const it of items) {
         try {
             if (!it.project && PROJECT_SCOPED_KINDS.has(it.kind) && sessionProj.all.length === 1 && sessionProj.dominant) {
@@ -293,6 +295,11 @@ export async function distillFromEvents(sid, events) {
                     }
                     (routedByDate[it.date] ||= []).push(r.relPath);
                     notesWritten++;
+                    if (it.project)
+                        touchedProjects.add(it.project);
+                    const projMatch = r.relPath.match(/^projects\/([^/_][^/]*)\.md$/);
+                    if (projMatch)
+                        touchedProjects.add(projMatch[1]);
                     if (it.kind === "preference") {
                         try {
                             emitPreferencesCore(it.body ?? "");
@@ -399,6 +406,11 @@ export async function distillFromEvents(sid, events) {
                 }
                 (routedByDate[it.date] ||= []).push(writeRelPath);
                 notesWritten++;
+                if (it.project)
+                    touchedProjects.add(it.project);
+                const projMatch2 = writeRelPath.match(/^projects\/([^/_][^/]*)\.md$/);
+                if (projMatch2)
+                    touchedProjects.add(projMatch2[1]);
             }
         }
         catch (e) {
@@ -410,6 +422,22 @@ export async function distillFromEvents(sid, events) {
                 excerpt: asText(it?.body).slice(0, 500),
             });
             writeFailure(`item dropped: ${e?.message || e}`);
+        }
+    }
+    for (const projSlug of touchedProjects) {
+        try {
+            const { relPath: idxRelPath, changed } = buildProjectIndex(projSlug);
+            if (changed) {
+                try {
+                    await indexNote(idxRelPath);
+                }
+                catch (e) {
+                    writeFailure(`index failed: ${e?.message || e}`);
+                }
+            }
+        }
+        catch (e) {
+            writeFailure(`project index build failed for '${projSlug}': ${e?.message || e}`);
         }
     }
     try {
