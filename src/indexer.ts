@@ -38,7 +38,12 @@ async function indexInto(ix: ReturnType<typeof openIndex>, relPath: string) {
   const created = typeof fm.created === "string" ? fm.created
     : fm.created instanceof Date ? (fm.created as Date).toISOString()
     : undefined;
-  ix.upsertNote(relPath, Math.floor(fs.statSync(abs).mtimeMs), sha(raw), chunks, embs, fm.project as string | undefined, created);
+  ix.upsertNote(
+    relPath, Math.floor(fs.statSync(abs).mtimeMs), sha(raw), chunks, embs,
+    fm.project as string | undefined, created,
+    typeof fm.type === "string" ? fm.type : undefined,
+    typeof fm.agent_role === "string" ? fm.agent_role : undefined,
+  );
   upsertEdges(ix.db, deriveEdges(relPath, fm));
 }
 
