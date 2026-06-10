@@ -39,7 +39,8 @@ function runDistill(env: Record<string, string>, data: string, vault: string, st
 
 const STUB_ITEM = {
   items: [{ kind: "decision", title: "Pick X", project: "test",
-    body: "## Decision\nPick X.\n## Why\n- Best fit.", date: "2026-05-19", links: [] }],
+    body: "## Decision\nPick X.\n## Why\n- Best fit.\n## Alternatives considered\n- **Alt A** — rejected because cost.\n## Consequences\n- Trade-offs apply.",
+    date: "2026-05-19", links: [] }],
   digest: "Chose X", openThreads: ["wire Y"], alsoDid: [],
 };
 
