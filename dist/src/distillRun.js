@@ -21,9 +21,11 @@ import { filterToUniversal } from "./preferenceClassify.js";
 import { resolveLinks } from "./wikilink.js";
 import { gcTranscript } from "./transcriptStore.js";
 import { pruneSessionFiles } from "./sessionGc.js";
+import { sweepPendingDistills, clearFlag } from "./distillSweep.js";
 import { classify } from "./classification.js";
 import { recordRejection } from "./rejectQueue.js";
 import { serializeNote } from "./frontmatter.js";
+import { attributionFromEnv } from "./attribution.js";
 import { dedupAgainstVault } from "./distillDedup.js";
 import { openIndex } from "./searchIndex.js";
 import { embed } from "./embed.js";
@@ -237,6 +239,7 @@ export function readKnownProjectSlugs(vault) {
     return slugs;
 }
 export async function distillFromEvents(sid, events) {
+    const attribution = attributionFromEnv();
     const env = getEnvelope(JSON.stringify(events));
     const sessionProj = resolveSessionProject(events);
     const PROJECT_SCOPED_KINDS = new Set(["project_fact", "gotcha", "decision", "capture"]);
@@ -278,7 +281,7 @@ export async function distillFromEvents(sid, events) {
             }
             const r = route(it);
             if (r.mode !== "create") {
-                const res0 = writeNote(r.relPath, { frontmatter: r.frontmatter, body: r.body, mode: r.mode });
+                const res0 = writeNote(r.relPath, { frontmatter: { ...r.frontmatter, ...attribution }, body: r.body, mode: r.mode });
                 if (res0.ok && res0.reason !== "duplicate-skipped") {
                     try {
                         await indexNote(r.relPath);
@@ -384,7 +387,7 @@ export async function distillFromEvents(sid, events) {
                     writeFailure(`classify failed for '${it.title}': ${e?.message || e}`);
                 }
             }
-            const res = writeNote(writeRelPath, { frontmatter: writeFrontmatter, body: writeBody, mode: r.mode });
+            const res = writeNote(writeRelPath, { frontmatter: { ...writeFrontmatter, ...attribution }, body: writeBody, mode: r.mode });
             if (res.ok && res.reason !== "duplicate-skipped") {
                 try {
                     await indexNote(writeRelPath);
@@ -434,6 +437,24 @@ export async function distillFromEvents(sid, events) {
     }
     return { notesWritten };
 }
+async function distillSession(sid) {
+    const from = readCursor(sid);
+    const { events, newOffset } = readDelta(sid, from);
+    if (events.length === 0) {
+        writeCursor(sid, newOffset);
+        return;
+    }
+    if (!process.env.SUPERBRAIN_DISTILL_STUB) {
+        const sk = shouldSkipDistill(events);
+        if (sk.skip) {
+            logDistillSkip(sid, sk.reason);
+            writeCursor(sid, newOffset);
+            return;
+        }
+    }
+    await distillFromEvents(sid, events);
+    writeCursor(sid, newOffset);
+}
 export async function runDistill() {
     const sid = process.env.SUPERBRAIN_SESSION_ID
         || (() => { try {
@@ -443,34 +464,18 @@ export async function runDistill() {
             return "unknown";
         } })();
     try {
-        const from = readCursor(sid);
-        const { events, newOffset } = readDelta(sid, from);
-        if (events.length === 0) {
-            releaseLock("distill");
-            process.exit(0);
-        }
-        // Pre-LLM skip check. Test stubs (SUPERBRAIN_DISTILL_STUB) bypass this so
-        // fixtures that supply a small canned envelope still go through the full
-        // routing path.
-        if (!process.env.SUPERBRAIN_DISTILL_STUB) {
-            const sk = shouldSkipDistill(events);
-            if (sk.skip) {
-                logDistillSkip(sid, sk.reason);
-                writeCursor(sid, newOffset);
-                releaseLock("distill");
-                return;
-            }
-        }
-        await distillFromEvents(sid, events);
-        writeCursor(sid, newOffset);
-        // GC the transcript snapshot now that distillation succeeded. Best-effort:
-        // a missing snapshot is fine (checkpoint may not have run), and a deletion
-        // failure must never abort an otherwise-successful distill.
+        await distillSession(sid);
+        clearFlag(sid);
         try {
             gcTranscript(path.join(dataDir(), "transcripts"), sid);
         }
         catch { /* best-effort */ }
-        // GC old session files. Best-effort: never abort an otherwise-successful distill.
+        try {
+            await sweepPendingDistills(sid, distillSession);
+        }
+        catch (e) {
+            writeFailure(`sweep failed: ${e?.message || e}`);
+        }
         try {
             pruneSessionFiles(dataDir());
         }
@@ -480,6 +485,6 @@ export async function runDistill() {
         writeFailure(`distill failed: ${e?.message || e}`);
     }
     finally {
-        releaseLock("distill");
+        releaseLock("distill", process.env.SUPERBRAIN_LOCK_TOKEN);
     }
 }

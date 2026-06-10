@@ -27,3 +27,20 @@ export function readWithChecksum(file) {
         return null;
     }
 }
+export function casWrite(file, produce, opts = {}) {
+    const maxAttempts = opts.maxAttempts ?? 5;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const before = readWithChecksum(file);
+        const next = produce(before ? before.content : null);
+        const after = readWithChecksum(file);
+        const beforeSum = before ? before.checksum : null;
+        const afterSum = after ? after.checksum : null;
+        if (beforeSum === afterSum) {
+            atomicWrite(file, next);
+            return { ok: true, attempts: attempt };
+        }
+    }
+    const last = readWithChecksum(file);
+    atomicWrite(file, produce(last ? last.content : null));
+    return { ok: true, attempts: maxAttempts };
+}

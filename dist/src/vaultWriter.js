@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { vaultPath } from "./paths.js";
 import { serializeNote, parseNote, validateFrontmatter } from "./frontmatter.js";
-import { atomicWrite, readWithChecksum } from "./atomicWrite.js";
+import { atomicWrite, readWithChecksum, casWrite } from "./atomicWrite.js";
 import { appendDatedSectionWithArchive, initializeProjectNote } from "./projectWriter.js";
 const ALLOWED_EXT = new Set([".md"]);
 const EXCLUDED = ["/.obsidian/", "/.git/", "/node_modules/", "/.trash/"];
@@ -41,44 +41,47 @@ export function writeNote(rel, args) {
         return { ok: true, path: abs };
     }
     const existing = readWithChecksum(abs);
-    // Project notes (projects/<slug>.md) get structured dated subsections under
-    // "## Recent activity" with auto-archiving when the file exceeds 20 KB.
     const relNorm = rel.replace(/\\/g, "/");
     if (relNorm.startsWith("projects/") && !relNorm.startsWith("projects/_archive/")) {
         const stamp = new Date().toISOString().slice(0, 10);
         const date = args.frontmatter.created || stamp;
         try {
-            // Determine current body (content portion only, no frontmatter)
-            let currentBody;
-            let baseFm;
-            if (existing) {
-                const parsed = parseNote(existing.content);
-                // Dedup: skip if the normalized new body already appears in the file.
-                const newNorm = normBody(args.body);
-                if (newNorm.length >= 40 && normBody(parsed.content).includes(newNorm)) {
-                    return { ok: true, path: abs, reason: "duplicate-skipped" };
+            let archived = [];
+            let dedupHit = false;
+            casWrite(abs, (currentRaw) => {
+                let currentBody;
+                let baseFm;
+                if (currentRaw) {
+                    const parsed = parseNote(currentRaw);
+                    const newNorm = normBody(args.body);
+                    if (newNorm.length >= 40 && normBody(parsed.content).includes(newNorm)) {
+                        dedupHit = true;
+                        return currentRaw;
+                    }
+                    currentBody = parsed.content;
+                    baseFm = parsed.data;
                 }
-                currentBody = parsed.content;
-                baseFm = parsed.data;
-            }
-            else {
-                const slug = path.basename(abs, ".md");
-                currentBody = initializeProjectNote(slug, args.frontmatter);
-                baseFm = {};
-            }
-            // Backfill ## Recent activity if the note pre-dates this feature
-            if (!currentBody.includes("\n## Recent activity\n") &&
-                !currentBody.endsWith("## Recent activity") &&
-                !currentBody.startsWith("## Recent activity\n")) {
-                currentBody = currentBody.replace(/\s+$/, "") + "\n\n## Recent activity\n";
-            }
-            const mergedFm = { ...baseFm, ...args.frontmatter, updated: stamp };
-            const fmOverhead = Buffer.byteLength(serializeNote(mergedFm, ""), "utf8");
-            const r = appendDatedSectionWithArchive(currentBody, date, args.body, {
-                sizeCap: Math.max(8192, (Number(process.env.SUPERBRAIN_PROJECT_NOTE_CAP_BYTES) || 32 * 1024) - fmOverhead),
+                else {
+                    const slug = path.basename(abs, ".md");
+                    currentBody = initializeProjectNote(slug, args.frontmatter);
+                    baseFm = {};
+                }
+                if (!currentBody.includes("\n## Recent activity\n") &&
+                    !currentBody.endsWith("## Recent activity") &&
+                    !currentBody.startsWith("## Recent activity\n")) {
+                    currentBody = currentBody.replace(/\s+$/, "") + "\n\n## Recent activity\n";
+                }
+                const mergedFm = { ...baseFm, ...args.frontmatter, updated: stamp };
+                const fmOverhead = Buffer.byteLength(serializeNote(mergedFm, ""), "utf8");
+                const r = appendDatedSectionWithArchive(currentBody, date, args.body, {
+                    sizeCap: Math.max(8192, (Number(process.env.SUPERBRAIN_PROJECT_NOTE_CAP_BYTES) || 32 * 1024) - fmOverhead),
+                });
+                archived = r.archived;
+                return serializeNote(mergedFm, r.body);
             });
-            atomicWrite(abs, serializeNote(mergedFm, r.body));
-            for (const a of r.archived) {
+            if (dedupHit)
+                return { ok: true, path: abs, reason: "duplicate-skipped" };
+            for (const a of archived) {
                 const year = a.date === "0000-00-00"
                     ? new Date().toISOString().slice(0, 4)
                     : a.date.slice(0, 4);
@@ -99,16 +102,16 @@ export function writeNote(rel, args) {
             return { ok: true, path: abs };
         }
         catch (_e) {
-            // Fail open: fall back to legacy plain append so the distiller never crashes
             if (!existing) {
                 atomicWrite(abs, serializeNote(args.frontmatter, args.body));
                 return { ok: true, path: abs };
             }
-            const stamp2 = new Date().toISOString().slice(0, 16).replace("T", " ");
-            const parsed = parseNote(existing.content);
-            const mergedFm = { ...parsed.data, ...args.frontmatter, updated: stamp2.slice(0, 10) };
-            const appended = `${parsed.content.replace(/\s+$/, "")}\n\n## ${stamp2}\n\n${args.body}\n`;
-            atomicWrite(abs, serializeNote(mergedFm, appended));
+            casWrite(abs, (currentRaw) => {
+                const stamp2 = new Date().toISOString().slice(0, 16).replace("T", " ");
+                const parsed = parseNote(currentRaw ?? "");
+                const mergedFm = { ...parsed.data, ...args.frontmatter, updated: stamp2.slice(0, 10) };
+                return serializeNote(mergedFm, `${parsed.content.replace(/\s+$/, "")}\n\n## ${stamp2}\n\n${args.body}\n`);
+            });
             return { ok: true, path: abs };
         }
     }
@@ -116,20 +119,20 @@ export function writeNote(rel, args) {
         atomicWrite(abs, serializeNote(args.frontmatter, args.body));
         return { ok: true, path: abs };
     }
-    // Existing file: never blind-overwrite. Append distilled body under a dated section.
-    const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
-    const parsed = parseNote(existing.content);
-    // Dedup: the distiller can re-emit the same project_fact / gotcha across
-    // adjacent runs (the model has no memory of prior emissions). Skip the
-    // append if the normalized new body already appears in the file. The 40-
-    // char floor avoids false positives on generic phrasing.
-    const newNorm = normBody(args.body);
-    if (newNorm.length >= 40 && normBody(parsed.content).includes(newNorm)) {
+    let dedupHit = false;
+    casWrite(abs, (currentRaw) => {
+        const parsed = parseNote(currentRaw ?? "");
+        const newNorm = normBody(args.body);
+        if (newNorm.length >= 40 && normBody(parsed.content).includes(newNorm)) {
+            dedupHit = true;
+            return currentRaw ?? "";
+        }
+        const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+        const mergedFm = { ...parsed.data, ...args.frontmatter, updated: stamp.slice(0, 10) };
+        return serializeNote(mergedFm, `${parsed.content.replace(/\s+$/, "")}\n\n## ${stamp}\n\n${args.body}\n`);
+    });
+    if (dedupHit)
         return { ok: true, path: abs, reason: "duplicate-skipped" };
-    }
-    const mergedFm = { ...parsed.data, ...args.frontmatter, updated: stamp.slice(0, 10) };
-    const appended = `${parsed.content.replace(/\s+$/, "")}\n\n## ${stamp}\n\n${args.body}\n`;
-    atomicWrite(abs, serializeNote(mergedFm, appended));
     return { ok: true, path: abs };
 }
 export function softDelete(rel) {

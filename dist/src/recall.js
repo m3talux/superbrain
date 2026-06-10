@@ -22,16 +22,16 @@ export async function hybridRecall(query, k, opts) {
     let ix;
     try {
         ix = openIndex();
-        // --- Embed the query (always; bm25Only is removed) ---
         let qv;
         try {
             [qv] = await embed([query]);
         }
         catch { /* degrade to bm25-only if embedding fails */ }
+        const filters = { type: opts?.type, since: opts?.since, role: opts?.role };
         if (opts?.projectSlug) {
-            return await hybridRecallWithProject(ix, query, k, opts.projectSlug, opts.excludeSlugs ?? [], qv);
+            return await hybridRecallWithProject(ix, query, k, opts.projectSlug, opts.excludeSlugs ?? [], qv, filters);
         }
-        return hybridRecallUnscoped(ix, query, k, opts?.excludeSlugs ?? [], qv);
+        return hybridRecallUnscoped(ix, query, k, opts?.excludeSlugs ?? [], qv, filters);
     }
     catch {
         return [];
@@ -44,7 +44,7 @@ export async function hybridRecall(query, k, opts) {
  * Unscoped recall: no project filter, all k slots go to the best-matching notes.
  * No background reservation when projectSlug is absent.
  */
-function hybridRecallUnscoped(ix, query, k, excludeSlugs, qv) {
+function hybridRecallUnscoped(ix, query, k, excludeSlugs, qv, filters) {
     const bm = ix.bm25(query, k * 2);
     let vec = [];
     if (qv) {
@@ -59,14 +59,14 @@ function hybridRecallUnscoped(ix, query, k, excludeSlugs, qv) {
     // Gate fix: return empty only when BOTH arms return nothing.
     if (bm.length === 0 && vec.length === 0)
         return [];
-    return applyFusionAndFilter(ix, bm, vec, k, excludeSlugs, undefined);
+    return applyFusionAndFilter(ix, bm, vec, k, excludeSlugs, undefined, filters);
 }
 /**
  * Project-scoped recall: foreground (75%) from project notes + background (25%)
  * from a separate global-restricted query. The background is RESERVED — it is
  * filled even when project notes dominate and would otherwise fill all k slots.
  */
-async function hybridRecallWithProject(ix, query, k, projectSlug, excludeSlugs, qv) {
+async function hybridRecallWithProject(ix, query, k, projectSlug, excludeSlugs, qv, filters) {
     const fgSlots = Math.round(k * 0.75);
     const bgSlots = k - fgSlots;
     // Foreground: project-scoped query
@@ -79,7 +79,7 @@ async function hybridRecallWithProject(ix, query, k, projectSlug, excludeSlugs, 
     // Gate fix: if BM25 empty and vec empty, fall through to background only
     let foreground = [];
     if (bm.length > 0 || vec.length > 0) {
-        foreground = applyFusionAndFilter(ix, bm, vec, fgSlots, excludeSlugs, projectSlug);
+        foreground = applyFusionAndFilter(ix, bm, vec, fgSlots, excludeSlugs, projectSlug, filters);
     }
     // Background: separate global-restricted query (always runs, never starved).
     // When the hybrid query yields fewer than bgSlots results, fill remaining
@@ -93,7 +93,7 @@ async function hybridRecallWithProject(ix, query, k, projectSlug, excludeSlugs, 
             bgVec = ix.vectorKNNGlobal(qv, bgSlots * 3);
         }
         if (bgBm.length > 0 || bgVec.length > 0) {
-            background = applyFusionAndFilter(ix, bgBm, bgVec, bgSlots, excludeSlugs, undefined);
+            background = applyFusionAndFilter(ix, bgBm, bgVec, bgSlots, excludeSlugs, undefined, filters);
         }
         // Fill remaining background slots from any available global notes.
         if (background.length < bgSlots) {
@@ -103,8 +103,12 @@ async function hybridRecallWithProject(ix, query, k, projectSlug, excludeSlugs, 
             ]);
             const need = bgSlots - background.length;
             const fallbackHits = ix.globalFallbackNotes(need + fgAndBgKeys.size);
+            const fallbackRelPaths = fallbackHits.map((h) => h.relPath);
+            const fallbackMeta = ix.getFilterMeta(fallbackRelPaths);
+            const fallbackRoleActive = !!filters.role && fallbackRelPaths.some((p) => fallbackMeta.get(p)?.agentRole != null);
             const extra = toPointers(fallbackHits.filter((h) => !fgAndBgKeys.has(`${h.relPath}#${h.anchor}`) &&
-                !excludeSlugs.includes(h.relPath))).slice(0, need);
+                !excludeSlugs.includes(h.relPath) &&
+                passesMeta(fallbackMeta.get(h.relPath), filters, fallbackRoleActive))).slice(0, need);
             background = [...background, ...extra];
         }
     }
@@ -117,11 +121,23 @@ async function hybridRecallWithProject(ix, query, k, projectSlug, excludeSlugs, 
     const combined = [...foreground, ...finalBg].slice(0, k);
     return combined;
 }
+function passesMeta(m, filters, roleActive) {
+    if (filters.type && m?.type !== filters.type)
+        return false;
+    if (filters.since) {
+        const c = m?.created ? Date.parse(m.created) : NaN;
+        if (isNaN(c) || c < Date.parse(filters.since))
+            return false;
+    }
+    if (roleActive && m?.agentRole !== filters.role)
+        return false;
+    return true;
+}
 /**
  * Apply RRF fusion of bm25 and vector arms, then filter, score, and slice to k.
  * When projectSlug is set, the isCrossProject filter is applied (fail-closed).
  */
-function applyFusionAndFilter(ix, bm, vec, k, excludeSlugs, projectSlug) {
+function applyFusionAndFilter(ix, bm, vec, k, excludeSlugs, projectSlug, filters = {}) {
     if (bm.length === 0 && vec.length === 0)
         return [];
     if (vec.length === 0) {
@@ -129,14 +145,17 @@ function applyFusionAndFilter(ix, bm, vec, k, excludeSlugs, projectSlug) {
         const exclude = new Set(excludeSlugs);
         const relPaths = [...new Set(bm.map((h) => h.relPath))];
         const projects = projectSlug ? ix.getProjectsForPaths(relPaths) : new Map();
-        const created = ix.getCreatedForPaths(relPaths);
+        const meta = ix.getFilterMeta(relPaths);
+        const roleActive = !!filters.role && relPaths.some((p) => meta.get(p)?.agentRole != null);
         const now = Date.now();
         const scored = bm
             .filter((h) => !exclude.has(h.relPath))
             .filter((h) => !projectSlug || !isCrossProject(projects.get(h.relPath), projectSlug))
+            .filter((h) => passesMeta(meta.get(h.relPath), filters, roleActive))
             .map((h) => {
+            const created = meta.get(h.relPath)?.created ?? undefined;
             let score = boostScore(1, projects.get(h.relPath), projectSlug);
-            score *= decayFactor(created.get(h.relPath), now);
+            score *= decayFactor(created, now);
             return { h, score };
         })
             .sort((a, b) => b.score - a.score)
@@ -148,15 +167,18 @@ function applyFusionAndFilter(ix, bm, vec, k, excludeSlugs, projectSlug) {
         const exclude = new Set(excludeSlugs);
         const relPaths = [...new Set(vec.map((h) => h.relPath))];
         const projects = projectSlug ? ix.getProjectsForPaths(relPaths) : new Map();
-        const created = ix.getCreatedForPaths(relPaths);
+        const meta = ix.getFilterMeta(relPaths);
+        const roleActive = !!filters.role && relPaths.some((p) => meta.get(p)?.agentRole != null);
         const now = Date.now();
         const scored = vec
             .filter((h) => h.distance == null || h.distance <= VECTOR_DISTANCE_CUTOFF)
             .filter((h) => !exclude.has(h.relPath))
             .filter((h) => !projectSlug || !isCrossProject(projects.get(h.relPath), projectSlug))
+            .filter((h) => passesMeta(meta.get(h.relPath), filters, roleActive))
             .map((h) => {
+            const created = meta.get(h.relPath)?.created ?? undefined;
             let score = boostScore(1, projects.get(h.relPath), projectSlug);
-            score *= decayFactor(created.get(h.relPath), now);
+            score *= decayFactor(created, now);
             return { h, score };
         })
             .sort((a, b) => b.score - a.score)
@@ -171,7 +193,8 @@ function applyFusionAndFilter(ix, bm, vec, k, excludeSlugs, projectSlug) {
     const projects = projectSlug
         ? ix.getProjectsForPaths(candidateRelPaths)
         : new Map();
-    const created = ix.getCreatedForPaths(candidateRelPaths);
+    const meta = ix.getFilterMeta(candidateRelPaths);
+    const roleActive = !!filters.role && candidateRelPaths.some((p) => meta.get(p)?.agentRole != null);
     const now = Date.now();
     const exclude = new Set(excludeSlugs);
     const decayed = fused
@@ -183,8 +206,11 @@ function applyFusionAndFilter(ix, bm, vec, k, excludeSlugs, projectSlug) {
             return null;
         if (projectSlug && isCrossProject(projects.get(hit.relPath), projectSlug))
             return null;
+        if (!passesMeta(meta.get(hit.relPath), filters, roleActive))
+            return null;
+        const created = meta.get(hit.relPath)?.created ?? undefined;
         let score = boostScore(e.score, projects.get(hit.relPath), projectSlug);
-        score *= decayFactor(created.get(hit.relPath), now);
+        score *= decayFactor(created, now);
         return { id: e.id, score };
     })
         .filter((e) => e !== null)

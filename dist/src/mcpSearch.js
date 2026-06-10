@@ -4,9 +4,15 @@ export async function handleSearch(args) {
     const k = Math.min(Math.max(args?.k ?? 8, 1), 20);
     if (!q)
         return { content: [{ type: "text", text: "No query provided." }] };
+    const opts = {
+        projectSlug: args.project?.trim() || undefined,
+        type: args.type?.trim() || undefined,
+        since: args.since?.trim() || undefined,
+        role: args.role?.trim() || undefined,
+    };
     let hits;
     try {
-        hits = await hybridRecall(q, k);
+        hits = await hybridRecall(q, k, opts);
     }
     catch {
         hits = [];
