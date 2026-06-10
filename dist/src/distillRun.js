@@ -26,6 +26,7 @@ import { classify } from "./classification.js";
 import { recordRejection } from "./rejectQueue.js";
 import { serializeNote } from "./frontmatter.js";
 import { attributionFromEnv } from "./attribution.js";
+import { parentSessionId, attributionFields } from "./sessionAttribution.js";
 import { dedupAgainstVault } from "./distillDedup.js";
 import { openIndex } from "./searchIndex.js";
 import { embed } from "./embed.js";
@@ -242,6 +243,7 @@ export async function distillFromEvents(sid, events) {
     const attribution = attributionFromEnv();
     const env = getEnvelope(JSON.stringify(events));
     const sessionProj = resolveSessionProject(events);
+    const parent = parentSessionId();
     const PROJECT_SCOPED_KINDS = new Set(["project_fact", "gotcha", "decision", "capture"]);
     const items = env.items;
     const routedByDate = {};
@@ -281,7 +283,7 @@ export async function distillFromEvents(sid, events) {
             }
             const r = route(it);
             if (r.mode !== "create") {
-                const res0 = writeNote(r.relPath, { frontmatter: { ...r.frontmatter, ...attribution }, body: r.body, mode: r.mode });
+                const res0 = writeNote(r.relPath, { frontmatter: { ...r.frontmatter, ...attribution, ...attributionFields() }, body: r.body, mode: r.mode });
                 if (res0.ok && res0.reason !== "duplicate-skipped") {
                     try {
                         await indexNote(r.relPath);
@@ -387,7 +389,7 @@ export async function distillFromEvents(sid, events) {
                     writeFailure(`classify failed for '${it.title}': ${e?.message || e}`);
                 }
             }
-            const res = writeNote(writeRelPath, { frontmatter: { ...writeFrontmatter, ...attribution }, body: writeBody, mode: r.mode });
+            const res = writeNote(writeRelPath, { frontmatter: { ...writeFrontmatter, ...attribution, ...attributionFields() }, body: writeBody, mode: r.mode });
             if (res.ok && res.reason !== "duplicate-skipped") {
                 try {
                     await indexNote(writeRelPath);
@@ -421,6 +423,7 @@ export async function distillFromEvents(sid, events) {
                 openThreads: env.openThreads,
                 ...(sessionProj.dominant !== undefined ? { project: sessionProj.dominant } : {}),
                 ...(sessionProj.all.length > 1 ? { projects: sessionProj.all } : {}),
+                ...(parent !== undefined ? { parentSessionId: parent } : {}),
             });
             const dn = buildDailyNote(d);
             writeNote(dn.relPath, { frontmatter: dn.frontmatter, body: dn.body, mode: dn.mode });
