@@ -113,13 +113,16 @@ async function hybridRecallWithProject(ix, query, k, projectSlug, excludeSlugs, 
                 ...background.map((p) => `${p.relPath}#${p.anchor}`),
             ]);
             const need = bgSlots - background.length;
-            const fallbackHits = ix.globalFallbackNotes(need + fgAndBgKeys.size);
+            const fallbackHits = ix.globalFallbackNotes((need + fgAndBgKeys.size) * 3);
             const fallbackRelPaths = fallbackHits.map((h) => h.relPath);
             const fallbackMeta = ix.getFilterMeta(fallbackRelPaths);
             const fallbackRoleActive = !!filters.role && fallbackRelPaths.some((p) => fallbackMeta.get(p)?.agentRole != null);
-            const extra = toPointers(fallbackHits.filter((h) => !fgAndBgKeys.has(`${h.relPath}#${h.anchor}`) &&
+            const extra = toPointers(fallbackHits
+                .filter((h) => !fgAndBgKeys.has(`${h.relPath}#${h.anchor}`) &&
                 !excludeSlugs.includes(h.relPath) &&
-                passesMeta(fallbackMeta.get(h.relPath), filters, fallbackRoleActive))).slice(0, need);
+                passesMeta(fallbackMeta.get(h.relPath), filters, fallbackRoleActive))
+                .sort((a, b) => archivePenalty(b.relPath) - archivePenalty(a.relPath))
+                .slice(0, need));
             background = [...background, ...extra];
         }
     }

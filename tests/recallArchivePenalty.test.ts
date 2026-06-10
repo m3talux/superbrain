@@ -108,6 +108,58 @@ describe("archive penalty — MCP search", () => {
   });
 });
 
+describe("archive penalty — project-scoped path (hybridRecallWithProject)", () => {
+  it("live note outranks archive on project-scoped injection path", async () => {
+    const text = "project scoped recall fallback archive ordering test";
+    const [vec] = await embed([text]);
+    const older = new Date(Date.now() - 30 * 86_400_000).toISOString();
+    const newer = new Date().toISOString();
+    const ix = openIndex();
+    ix.upsertNote(
+      "projects/alfred.md", 1, "h-live",
+      [{ headingPath: "", anchor: "root", text }], [vec], "alfred", older,
+    );
+    ix.upsertNote(
+      "projects/_archive/alfred-2026-Q2.md", 1, "h-arch",
+      [{ headingPath: "", anchor: "root", text }], [vec], "global", newer,
+    );
+    ix.close();
+    const results = await hybridRecall(text, 5, { projectSlug: "alfred" });
+    const liveIdx = results.findIndex((r) => r.relPath === "projects/alfred.md");
+    const archIdx = results.findIndex((r) => r.relPath === "projects/_archive/alfred-2026-Q2.md");
+    expect(liveIdx).toBeGreaterThanOrEqual(0);
+    expect(archIdx).toBeGreaterThanOrEqual(0);
+    expect(liveIdx).toBeLessThan(archIdx);
+  });
+
+  it("fallback fill respects archive penalty", async () => {
+    const liveText = "alpha bravo charlie delta global live note";
+    const archText = "alpha bravo charlie delta global archive note";
+    const [liveVec] = await embed([liveText]);
+    const [archVec] = await embed([archText]);
+    const older = new Date(Date.now() - 30 * 86_400_000).toISOString();
+    const newer = new Date().toISOString();
+    const ix = openIndex();
+    ix.upsertNote(
+      "projects/global-live.md", 1, "h-live",
+      [{ headingPath: "", anchor: "root", text: liveText }], [liveVec], "global", older,
+    );
+    ix.upsertNote(
+      "projects/_archive/global-arch-q1.md", 1, "h-arch",
+      [{ headingPath: "", anchor: "root", text: archText }], [archVec], "global", newer,
+    );
+    ix.close();
+    process.env.SUPERBRAIN_EMBED_FORCE_FAIL = "1";
+    const results = await hybridRecall("xyz nomatch query zyxwv", 8, { projectSlug: "alfred" });
+    delete process.env.SUPERBRAIN_EMBED_FORCE_FAIL;
+    const liveIdx = results.findIndex((r) => r.relPath === "projects/global-live.md");
+    const archIdx = results.findIndex((r) => r.relPath === "projects/_archive/global-arch-q1.md");
+    expect(liveIdx).toBeGreaterThanOrEqual(0);
+    expect(archIdx).toBeGreaterThanOrEqual(0);
+    expect(liveIdx).toBeLessThan(archIdx);
+  });
+});
+
 describe("archive penalty — configuration", () => {
   async function seedLiveAndArchive() {
     const text = "config test identical archive content ranking";
