@@ -14,7 +14,7 @@ import { route, type DistilledItem } from "./router.js";
 import { writeNote } from "./vaultWriter.js";
 import { acquireLock, releaseLock } from "./lockfile.js";
 import { writeFailure } from "./sentinel.js";
-import { vaultPath, dataDir } from "./paths.js";
+import { vaultPath, dataDir, sessionsDir } from "./paths.js";
 import { indexNote } from "./indexer.js";
 import { upsertDay } from "./dailyState.js";
 import { buildDailyNote } from "./dailyNote.js";
@@ -24,7 +24,7 @@ import { resolveLinks } from "./wikilink.js";
 import { gcTranscript } from "./transcriptStore.js";
 import { pruneSessionFiles } from "./sessionGc.js";
 import { updateSessionNoteDigest } from "./sessionNote.js";
-import { sweepPendingDistills, clearFlag, listOrphanedSessions } from "./distillSweep.js";
+import { sweepPendingDistills, clearFlag, listOrphanedSessions, bumpAttempts, clearAttempts, MAX_DISTILL_ATTEMPTS } from "./distillSweep.js";
 import { classify } from "./classification.js";
 import { recordRejection } from "./rejectQueue.js";
 import { type NoteType } from "./templates.js";
@@ -481,7 +481,10 @@ export async function runDistill(): Promise<void> {
   }
 }
 
-export async function sweepOrphanedSessions(excludeSid: string): Promise<number> {
+export async function sweepOrphanedSessions(
+  excludeSid: string,
+  distillOne: (sid: string) => Promise<void> = distillSession,
+): Promise<number> {
   const orphans = listOrphanedSessions(excludeSid);
   if (!orphans.length) return 0;
   if (!acquireLock("distill")) return 0;
@@ -491,11 +494,21 @@ export async function sweepOrphanedSessions(excludeSid: string): Promise<number>
   try {
     for (const sid of orphans) {
       try {
-        await distillSession(sid);
+        await distillOne(sid);
         clearFlag(sid);
+        clearAttempts(sid);
         swept++;
       } catch (e: any) {
-        writeFailure(`orphan distill failed for ${sid}: ${e?.message || e}`);
+        const n = bumpAttempts(sid);
+        if (n >= MAX_DISTILL_ATTEMPTS) {
+          try {
+            writeCursor(sid, fs.statSync(path.join(sessionsDir(), `${sid}.ndjson`)).size);
+          } catch { /* best-effort */ }
+          clearFlag(sid);
+          writeFailure(`orphan distill failed for ${sid} (attempt ${n}/${MAX_DISTILL_ATTEMPTS}) — giving up, session marked processed: ${e?.message || e}`);
+        } else {
+          writeFailure(`orphan distill failed for ${sid} (attempt ${n}/${MAX_DISTILL_ATTEMPTS}): ${e?.message || e}`);
+        }
       }
     }
   } finally {

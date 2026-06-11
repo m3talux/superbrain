@@ -23,6 +23,32 @@ export function clearFlag(sid: string): void {
 }
 
 const NDJSON_EXT = ".ndjson";
+const ATTEMPTS_EXT = ".distill-attempts";
+
+// A distill that fails MAX_DISTILL_ATTEMPTS times will fail the next 100 too;
+// unbounded retries across reconcile sweeps were the 2026-06-11 runaway burn.
+export const MAX_DISTILL_ATTEMPTS = 3;
+
+function attemptsPath(sid: string): string {
+  return path.join(sessionsDir(), `${sid}${ATTEMPTS_EXT}`);
+}
+
+export function readAttempts(sid: string): number {
+  try {
+    const n = parseInt(fs.readFileSync(attemptsPath(sid), "utf8").trim(), 10);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  } catch { return 0; }
+}
+
+export function bumpAttempts(sid: string): number {
+  const n = readAttempts(sid) + 1;
+  try { fs.writeFileSync(attemptsPath(sid), String(n)); } catch { /* best-effort */ }
+  return n;
+}
+
+export function clearAttempts(sid: string): void {
+  try { fs.rmSync(attemptsPath(sid), { force: true }); } catch { /* best-effort */ }
+}
 
 export interface OrphanScanOptions { maxIdleMs?: number; now?: number }
 
@@ -42,6 +68,7 @@ export function listOrphanedSessions(excludeSid: string, opts?: OrphanScanOption
     try {
       const st = fs.statSync(path.join(sessionsDir(), f));
       if (now - st.mtimeMs < maxIdleMs) continue;
+      if (readAttempts(sid) >= MAX_DISTILL_ATTEMPTS) continue;
       if (st.size > readCursor(sid)) out.push(sid);
     } catch { /* unreadable entry — skip */ }
   }
