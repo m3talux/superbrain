@@ -13,7 +13,7 @@ async function main() {
     const { z } = await import("zod");
     const { handleSearch } = await import("../src/mcpSearch.js");
     const { handleChildren } = await import("../src/mcpChildren.js");
-    const server = new McpServer({ name: "superbrain", version: "0.10.0" });
+    const server = new McpServer({ name: "superbrain", version: "0.10.1" });
     server.tool("superbrain_search", "Search the user's SuperBrain Obsidian vault (past decisions, projects, people, gotchas). Optional scope: project (slug), type (note type e.g. decision/capture/lesson), since (ISO date, only newer notes), role (agent_role).", {
         query: z.string(),
         k: z.number().optional(),
