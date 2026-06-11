@@ -26,6 +26,13 @@ async function main() {
     await runCheapUpgradeSteps(dataDir(), version).catch((e) => writeFailure(`auto-upgrade failed: ${e?.message || e}`));
     await reconcile().catch((e) => writeFailure(`reconcile failed: ${e?.message || e}`));
     try {
+        const { sweepOrphanedSessions } = await import("../src/distillRun.js");
+        await sweepOrphanedSessions(process.env.SUPERBRAIN_SESSION_ID || "");
+    }
+    catch (e) {
+        writeFailure(`orphan sweep failed: ${e?.message || e}`);
+    }
+    try {
         const { runSessionGcOncePerDay } = await import("../src/sessionGcRun.js");
         runSessionGcOncePerDay(dataDir());
     }

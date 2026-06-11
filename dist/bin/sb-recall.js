@@ -3,6 +3,7 @@ import fs from "node:fs";
 import { isChild } from "../src/distillerEngine.js";
 import { depsPresent } from "../src/bootstrap.js";
 import { pluginRoot } from "../src/paths.js";
+import { appendPromptLine } from "../src/sessionNote.js";
 function readStdin() { try {
     return fs.readFileSync(0, "utf8");
 }
@@ -13,8 +14,6 @@ async function main() {
     if (isChild())
         process.exit(0);
     try {
-        if (!depsPresent(pluginRoot()))
-            process.exit(0);
         let h;
         try {
             h = JSON.parse(readStdin());
@@ -23,6 +22,13 @@ async function main() {
             process.exit(0);
         }
         const prompt = (h?.prompt || "").trim();
+        try {
+            if (h?.session_id && prompt)
+                appendPromptLine(h.session_id, h?.cwd || process.cwd(), prompt);
+        }
+        catch { /* turn log is best-effort */ }
+        if (!depsPresent(pluginRoot()))
+            process.exit(0);
         if (!prompt)
             process.exit(0);
         const { getInjectedSlugs, appendInjectedSlugs } = await import("../src/sessionInjected.js");

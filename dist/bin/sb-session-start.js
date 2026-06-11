@@ -65,7 +65,7 @@ async function main() {
                 const reconciler = fileURLToPath(new URL("./sb-reconcile.js", import.meta.url));
                 spawn(process.execPath, [reconciler], {
                     detached: true, stdio: "ignore",
-                    env: { ...process.env, SUPERBRAIN_CHILD: "1" }, cwd: vaultPath(),
+                    env: { ...process.env, SUPERBRAIN_CHILD: "1", SUPERBRAIN_SESSION_ID: String(h.session_id || "") }, cwd: vaultPath(),
                 }).unref();
             }
             catch { /* non-fatal */ }
