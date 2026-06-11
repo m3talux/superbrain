@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { softDelete } from "./vaultWriter.js";
 
 export interface SessionGcOptions {
   maxAgeDays?: number;
@@ -17,6 +18,7 @@ const KNOWN_EXTENSIONS = new Set([
   ".cursor",
   ".pending",
   ".needs-distill",
+  ".note",
   ".salience.json",
   ".injected.json",
   ".turns.json",
@@ -99,5 +101,34 @@ export function pruneSessionFiles(
     }
   }
 
+  return result;
+}
+
+export function pruneSessionNotes(
+  vault: string,
+  opts?: SessionGcOptions,
+): SessionGcResult {
+  const maxAgeDays = opts?.maxAgeDays ?? 30;
+  const dryRun = opts?.dryRun ?? false;
+  const result: SessionGcResult = { deleted: [], skipped: 0, errors: [] };
+  const dir = path.join(vault, "sessions");
+  let entries: string[];
+  try { entries = fs.readdirSync(dir); } catch { return result; }
+  const nowMs = Date.now();
+  const thresholdMs = maxAgeDays * 24 * 60 * 60 * 1000;
+  for (const f of entries) {
+    if (!f.endsWith(".md")) continue;
+    const fp = path.join(dir, f);
+    try {
+      const stat = fs.statSync(fp);
+      if (nowMs - stat.mtimeMs < thresholdMs) { result.skipped++; continue; }
+      if (dryRun) { result.deleted.push(fp); continue; }
+      const res = softDelete(path.join("sessions", f));
+      if (res.ok) result.deleted.push(fp);
+      else result.errors.push(`${fp}: ${res.reason}`);
+    } catch (e: any) {
+      result.errors.push(`${fp}: ${e?.message ?? String(e)}`);
+    }
+  }
   return result;
 }

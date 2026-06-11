@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { pruneSessionFiles } from "../src/sessionGc.js";
+import { pruneSessionFiles, pruneSessionNotes } from "../src/sessionGc.js";
 
 let TMP: string;
 
@@ -142,4 +142,39 @@ describe("pruneSessionFiles", () => {
       expect(fs.existsSync(path.join(sd, `${sid}${ext}`))).toBe(false);
     }
   });
+
+  it("a .note pointer is pruned with its session group", () => {
+    const sd = path.join(TMP, "sessions");
+    const old = (Date.now() - 40 * 24 * 3_600_000) / 1000;
+    for (const f of ["N.ndjson", "N.cursor", "N.note"]) {
+      const p = path.join(sd, f);
+      fs.writeFileSync(p, "x");
+      fs.utimesSync(p, old, old);
+    }
+    const res = pruneSessionFiles(TMP);
+    expect(res.deleted.some((d) => d.endsWith("N.note"))).toBe(true);
+  });
+});
+
+it("old session notes are soft-deleted to .trash; fresh ones kept", () => {
+  const vault = fs.mkdtempSync(path.join(os.tmpdir(), "sb-gc-vault-"));
+  process.env.SUPERBRAIN_VAULT_DIR = vault;
+  try {
+    const dir = path.join(vault, "sessions");
+    fs.mkdirSync(dir, { recursive: true });
+    const oldNote = path.join(dir, "proj-1700000000.md");
+    const freshNote = path.join(dir, "proj-1800000000.md");
+    fs.writeFileSync(oldNote, "old");
+    fs.writeFileSync(freshNote, "fresh");
+    const old = (Date.now() - 40 * 24 * 3_600_000) / 1000;
+    fs.utimesSync(oldNote, old, old);
+    const res = pruneSessionNotes(vault);
+    expect(res.deleted.length).toBe(1);
+    expect(fs.existsSync(oldNote)).toBe(false);
+    expect(fs.existsSync(freshNote)).toBe(true);
+    expect(fs.readdirSync(path.join(vault, ".trash")).some((f) => f.includes("proj-1700000000"))).toBe(true);
+  } finally {
+    delete process.env.SUPERBRAIN_VAULT_DIR;
+    fs.rmSync(vault, { recursive: true, force: true });
+  }
 });
