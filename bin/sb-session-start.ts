@@ -47,13 +47,19 @@ async function main() {
 
     // Detached, recursion-guarded index reconcile so Obsidian/git drift self-heals
     // without blocking startup. Uses the same node-spawn pattern as the distiller.
+    // Debounced: SessionStart also fires for every claude -p one-shot, and a
+    // burst of those must not stack daemons (sb-reconcile itself also holds a
+    // singleton lock as the second line of defence).
     if (process.env.SUPERBRAIN_FAKE_DISTILLER !== "1" && depsPresent(root)) {
       try {
-        const reconciler = fileURLToPath(new URL("./sb-reconcile.js", import.meta.url));
-        spawn(process.execPath, [reconciler], {
-          detached: true, stdio: "ignore",
-          env: { ...process.env, SUPERBRAIN_CHILD: "1", SUPERBRAIN_SESSION_ID: String(h.session_id || "") }, cwd: vaultPath(),
-        }).unref();
+        const { shouldSpawnReconcile } = await import("../src/reconcileGate.js");
+        if (shouldSpawnReconcile(dataDir())) {
+          const reconciler = fileURLToPath(new URL("./sb-reconcile.js", import.meta.url));
+          spawn(process.execPath, [reconciler], {
+            detached: true, stdio: "ignore",
+            env: { ...process.env, SUPERBRAIN_CHILD: "1", SUPERBRAIN_SESSION_ID: String(h.session_id || "") }, cwd: vaultPath(),
+          }).unref();
+        }
       } catch { /* non-fatal */ }
     }
 
