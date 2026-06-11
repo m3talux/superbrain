@@ -27,7 +27,8 @@ const NDJSON_EXT = ".ndjson";
 export interface OrphanScanOptions { maxIdleMs?: number; now?: number }
 
 export function listOrphanedSessions(excludeSid: string, opts?: OrphanScanOptions): string[] {
-  const envHours = Number(process.env.SUPERBRAIN_ORPHAN_IDLE_HOURS);
+  const rawEnv = process.env.SUPERBRAIN_ORPHAN_IDLE_HOURS;
+  const envHours = rawEnv && rawEnv.trim() ? Number(rawEnv) : NaN;
   const maxIdleMs = opts?.maxIdleMs
     ?? (Number.isFinite(envHours) && envHours >= 0 ? envHours : 3) * 3_600_000;
   const now = opts?.now ?? Date.now();

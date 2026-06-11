@@ -9,7 +9,7 @@ import { parseNote } from "./frontmatter.js";
 import { deriveEdges, deleteEdgesFrom, upsertEdges } from "./edges.js";
 import { slug as routerSlug } from "./router.js";
 import { buildProjectIndex, enumerateProjectSlugs } from "./projectIndex.js";
-const EXCLUDED = new Set([".trash", ".obsidian", ".git", "node_modules"]);
+const EXCLUDED = new Set([".trash", ".obsidian", ".git", "node_modules", "sessions"]);
 function walk(dir, root, acc) {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
         if (e.isDirectory()) {

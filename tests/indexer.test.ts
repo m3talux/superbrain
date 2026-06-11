@@ -132,6 +132,24 @@ describe("indexer", () => {
     expect(rows.every((r) => r.to_path !== "projects/alpha.md")).toBe(true);
   });
 
+  it("reconcile does not index notes inside the sessions/ folder", async () => {
+    fs.mkdirSync(path.join(TMP_VAULT, "sessions"), { recursive: true });
+    fs.writeFileSync(
+      path.join(TMP_VAULT, "sessions/unscoped-1700000000.md"),
+      "---\ntype: session\n---\n## Session\nraw turn log data"
+    );
+    fs.writeFileSync(
+      path.join(TMP_VAULT, "decisions/normal.md"),
+      "---\ntype: decision\nstatus: active\n---\n## Normal\nindexable content"
+    );
+    await reconcile();
+    const ix = openIndex();
+    const allPaths = ix.allIndexedPaths();
+    expect(allPaths).not.toContain("sessions/unscoped-1700000000.md");
+    expect(allPaths).toContain("decisions/normal.md");
+    ix.close();
+  });
+
   it("forcedReindexIfNeeded runs once for a version then is a no-op on second call", async () => {
     const f = path.join(TMP_VAULT, "decisions/f.md");
     fs.writeFileSync(f, "---\ntype: decision\nproject: bar\n---\n## F\ncontent for sentinel test");
