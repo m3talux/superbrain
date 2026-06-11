@@ -23,6 +23,7 @@ import { filterToUniversal } from "./preferenceClassify.js";
 import { resolveLinks } from "./wikilink.js";
 import { gcTranscript } from "./transcriptStore.js";
 import { pruneSessionFiles } from "./sessionGc.js";
+import { updateSessionNoteDigest } from "./sessionNote.js";
 import { sweepPendingDistills, clearFlag } from "./distillSweep.js";
 import { classify } from "./classification.js";
 import { recordRejection } from "./rejectQueue.js";
@@ -446,6 +447,9 @@ export async function distillFromEvents(sid: string, events: any[]): Promise<Dis
       try { await indexNote(dn.relPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
     }
   } catch (e: any) { writeFailure(`daily note failed: ${e?.message || e}`); }
+  try {
+    updateSessionNoteDigest(sid, env.digest || "", Object.values(routedByDate).flat());
+  } catch (e: any) { writeFailure(`session note digest failed: ${e?.message || e}`); }
   return { notesWritten };
 }
 
