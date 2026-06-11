@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/m3talux-superbrain-badge.png)](https://mseep.ai/app/m3talux-superbrain)
+
 <div align="center">
 
 # 🧠 SuperBrain
