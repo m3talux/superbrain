@@ -12,7 +12,7 @@ import { readDelta } from "./ndjson.js";
 import { readCursor, writeCursor } from "./cursor.js";
 import { route, type DistilledItem } from "./router.js";
 import { writeNote } from "./vaultWriter.js";
-import { releaseLock } from "./lockfile.js";
+import { acquireLock, releaseLock } from "./lockfile.js";
 import { writeFailure } from "./sentinel.js";
 import { vaultPath, dataDir } from "./paths.js";
 import { indexNote } from "./indexer.js";
@@ -23,7 +23,8 @@ import { filterToUniversal } from "./preferenceClassify.js";
 import { resolveLinks } from "./wikilink.js";
 import { gcTranscript } from "./transcriptStore.js";
 import { pruneSessionFiles } from "./sessionGc.js";
-import { sweepPendingDistills, clearFlag } from "./distillSweep.js";
+import { updateSessionNoteDigest } from "./sessionNote.js";
+import { sweepPendingDistills, clearFlag, listOrphanedSessions } from "./distillSweep.js";
 import { classify } from "./classification.js";
 import { recordRejection } from "./rejectQueue.js";
 import { type NoteType } from "./templates.js";
@@ -446,6 +447,9 @@ export async function distillFromEvents(sid: string, events: any[]): Promise<Dis
       try { await indexNote(dn.relPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
     }
   } catch (e: any) { writeFailure(`daily note failed: ${e?.message || e}`); }
+  try {
+    updateSessionNoteDigest(sid, env.digest || "", Object.values(routedByDate).flat());
+  } catch (e: any) { writeFailure(`session note digest failed: ${e?.message || e}`); }
   return { notesWritten };
 }
 
@@ -475,4 +479,27 @@ export async function runDistill(): Promise<void> {
   } finally {
     releaseLock("distill", process.env.SUPERBRAIN_LOCK_TOKEN);
   }
+}
+
+export async function sweepOrphanedSessions(excludeSid: string): Promise<number> {
+  const orphans = listOrphanedSessions(excludeSid);
+  if (!orphans.length) return 0;
+  if (!acquireLock("distill")) return 0;
+  let token: string | undefined;
+  try { token = fs.readFileSync(path.join(dataDir(), "locks", "distill.lock", "token"), "utf8"); } catch { /* best-effort */ }
+  let swept = 0;
+  try {
+    for (const sid of orphans) {
+      try {
+        await distillSession(sid);
+        clearFlag(sid);
+        swept++;
+      } catch (e: any) {
+        writeFailure(`orphan distill failed for ${sid}: ${e?.message || e}`);
+      }
+    }
+  } finally {
+    releaseLock("distill", token);
+  }
+  return swept;
 }

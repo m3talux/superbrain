@@ -7,6 +7,8 @@ import { acquireLock, releaseLock } from "../src/lockfile.js";
 import { writeFailure } from "../src/sentinel.js";
 import { isChild, buildDistillCommand } from "../src/distillerEngine.js";
 import { snapshotTranscript } from "../src/transcriptStore.js";
+import { appendAssistantTail } from "../src/sessionNote.js";
+import { readLastAssistantText } from "../src/transcriptTail.js";
 function readStdin() { try {
     return fs.readFileSync(0, "utf8");
 }
@@ -27,6 +29,12 @@ function main() {
         const sid = h.session_id || "unknown";
         const event = h.hook_event_name;
         const pendingFile = path.join(dataDir(), "sessions", `${sid}.pending`);
+        try {
+            const tail = readLastAssistantText(h.transcript_path);
+            if (tail)
+                appendAssistantTail(sid, h.cwd || process.cwd(), tail);
+        }
+        catch { /* turn log is best-effort */ }
         // Stop only acts when a salience marker is pending. PreCompact/SessionEnd always act.
         if (event === "Stop" && !fs.existsSync(pendingFile))
             process.exit(0);

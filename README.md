@@ -144,6 +144,7 @@ Safety rails: inject never creates new project notes (use `/superbrain:discover`
 ├── daily/         auto-written daily activity
 ├── lessons/       durable, generalizable rules learned from your pushback
 ├── capture/       raw inbound; triage tag for `/superbrain:inject` items
+├── sessions/      per-session flight recorder — raw turn log + checkpoint digest (pruned after 30 days)
 ├── meta/          preferences.md — deduplicated profile auto-injected at SessionStart
 ├── maps/          auto-generated Maps-of-Content   (planned)
 └── index.md       catalog — the primary navigation surface

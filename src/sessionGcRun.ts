@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { pruneSessionFiles, type SessionGcResult } from "./sessionGc.js";
+import { pruneSessionFiles, pruneSessionNotes, type SessionGcResult } from "./sessionGc.js";
 
 const STAMP_FILE = "session-gc.stamp";
 const DEFAULT_MIN_INTERVAL_HOURS = 24;
@@ -46,6 +46,7 @@ export function runSessionGcOncePerDay(
   const dryRun = process.env.SUPERBRAIN_GC_DRY_RUN === "1";
 
   const result = pruneSessionFiles(dataDirPath, { maxAgeDays, dryRun });
+  try { pruneSessionNotes({ maxAgeDays, dryRun }); } catch { /* best-effort */ }
 
   try {
     fs.mkdirSync(dataDirPath, { recursive: true });
