@@ -40,24 +40,21 @@ function skeleton(sid: string, slug: string | undefined): string {
   return `${fm}\n\n${head}\n\n## Digest\n\n(no checkpoint yet)\n\n## Notes routed\n\n${TURN_LOG_MARKER}`;
 }
 
-function noteAbsPath(sid: string, cwd: string): string {
-  const ptr = notePointerPath(sid);
-  try {
-    const rel = fs.readFileSync(ptr, "utf8").trim();
-    if (rel) return path.join(vaultPath(), rel);
-  } catch { /* no pointer yet */ }
-  const slug = safeSlug(cwd);
-  const rel = path.join("sessions", `${slug || "unscoped"}-${Math.floor(Date.now() / 1000)}.md`);
-  fs.mkdirSync(path.dirname(ptr), { recursive: true });
-  fs.writeFileSync(ptr, rel);
-  return path.join(vaultPath(), rel);
-}
-
 function ensureNote(sid: string, cwd: string): string {
-  const abs = noteAbsPath(sid, cwd);
+  const ptr = notePointerPath(sid);
+  let rel = "";
+  try { rel = fs.readFileSync(ptr, "utf8").trim(); } catch { /* no pointer yet */ }
+  let slug: string | undefined;
+  if (!rel) {
+    slug = safeSlug(cwd);
+    rel = path.join("sessions", `${slug || "unscoped"}-${Math.floor(Date.now() / 1000)}.md`);
+    fs.mkdirSync(path.dirname(ptr), { recursive: true });
+    fs.writeFileSync(ptr, rel);
+  }
+  const abs = path.join(vaultPath(), rel);
   if (!fs.existsSync(abs)) {
     fs.mkdirSync(path.dirname(abs), { recursive: true });
-    fs.writeFileSync(abs, skeleton(sid, safeSlug(cwd)));
+    fs.writeFileSync(abs, skeleton(sid, slug ?? safeSlug(cwd)));
   }
   return abs;
 }
@@ -98,7 +95,14 @@ export function updateSessionNoteDigest(sid: string, digest: string, routedRelPa
   let raw: string;
   try { raw = fs.readFileSync(abs, "utf8"); } catch { return; }
   if (digest.trim()) {
-    raw = raw.replace(/## Digest\n\n[^\n]*\n/, `## Digest\n\n${oneLine(digest, 400)}\n`);
+    const dMarker = "## Digest\n";
+    const di = raw.indexOf(dMarker);
+    if (di >= 0) {
+      const start = di + dMarker.length;
+      const end = raw.indexOf("\n## ", start);
+      const tail = end < 0 ? "" : raw.slice(end);
+      raw = raw.slice(0, start) + `\n${oneLine(digest, 400)}\n` + tail;
+    }
   }
   const marker = "## Notes routed\n";
   const i = raw.indexOf(marker);
