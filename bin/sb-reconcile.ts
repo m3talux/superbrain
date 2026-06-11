@@ -31,6 +31,12 @@ async function main() {
   );
   await reconcile().catch((e: any) => writeFailure(`reconcile failed: ${e?.message || e}`));
   try {
+    const { sweepOrphanedSessions } = await import("../src/distillRun.js");
+    await sweepOrphanedSessions(process.env.SUPERBRAIN_SESSION_ID || "");
+  } catch (e: any) {
+    writeFailure(`orphan sweep failed: ${e?.message || e}`);
+  }
+  try {
     const { runSessionGcOncePerDay } = await import("../src/sessionGcRun.js");
     runSessionGcOncePerDay(dataDir());
   } catch (e: any) {
