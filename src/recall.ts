@@ -4,6 +4,18 @@ import { embed } from "./embed.js";
 export interface Pointer { relPath: string; headingPath: string; anchor: string; excerpt: string; }
 
 const VECTOR_DISTANCE_CUTOFF = 1.0;
+const ARCHIVE_PENALTY_DEFAULT = 0.1;
+
+export function isArchivePath(relPath: string): boolean {
+  const norm = relPath.replace(/\\/g, "/");
+  return norm === "_archive" || norm.startsWith("_archive/") || norm.includes("/_archive/");
+}
+
+function archivePenalty(relPath: string): number {
+  if (!isArchivePath(relPath)) return 1;
+  const v = Number(process.env.SUPERBRAIN_ARCHIVE_PENALTY);
+  return Number.isFinite(v) && v > 0 ? v : ARCHIVE_PENALTY_DEFAULT;
+}
 
 function toPointers(hits: Hit[]): Pointer[] {
   return hits.map((h) => ({
@@ -26,22 +38,23 @@ function isCrossProject(noteProject: string | undefined, projectSlug: string): b
 export async function hybridRecall(
   query: string,
   k: number,
-  opts?: { projectSlug?: string; excludeSlugs?: string[] },
+  opts?: { projectSlug?: string; excludeSlugs?: string[]; type?: string; since?: string; role?: string },
 ): Promise<Pointer[]> {
   let ix: Index | undefined;
   try {
     ix = openIndex();
 
-    // --- Embed the query (always; bm25Only is removed) ---
     let qv: Float32Array | undefined;
     try {
       [qv] = await embed([query]);
     } catch { /* degrade to bm25-only if embedding fails */ }
 
+    const filters = { type: opts?.type, since: opts?.since, role: opts?.role };
+
     if (opts?.projectSlug) {
-      return await hybridRecallWithProject(ix, query, k, opts.projectSlug, opts.excludeSlugs ?? [], qv);
+      return await hybridRecallWithProject(ix, query, k, opts.projectSlug, opts.excludeSlugs ?? [], qv, filters);
     }
-    return hybridRecallUnscoped(ix, query, k, opts?.excludeSlugs ?? [], qv);
+    return hybridRecallUnscoped(ix, query, k, opts?.excludeSlugs ?? [], qv, filters);
   } catch { return []; }
   finally { ix?.close(); }
 }
@@ -56,6 +69,7 @@ function hybridRecallUnscoped(
   k: number,
   excludeSlugs: string[],
   qv: Float32Array | undefined,
+  filters: { type?: string; since?: string; role?: string },
 ): Pointer[] {
   const bm = ix.bm25(query, k * 2);
   let vec: Hit[] = [];
@@ -72,7 +86,7 @@ function hybridRecallUnscoped(
   // Gate fix: return empty only when BOTH arms return nothing.
   if (bm.length === 0 && vec.length === 0) return [];
 
-  return applyFusionAndFilter(ix, bm, vec, k, excludeSlugs, undefined);
+  return applyFusionAndFilter(ix, bm, vec, k, excludeSlugs, undefined, filters);
 }
 
 /**
@@ -87,6 +101,7 @@ async function hybridRecallWithProject(
   projectSlug: string,
   excludeSlugs: string[],
   qv: Float32Array | undefined,
+  filters: { type?: string; since?: string; role?: string },
 ): Promise<Pointer[]> {
   const fgSlots = Math.round(k * 0.75);
   const bgSlots = k - fgSlots;
@@ -102,7 +117,7 @@ async function hybridRecallWithProject(
   // Gate fix: if BM25 empty and vec empty, fall through to background only
   let foreground: Pointer[] = [];
   if (bm.length > 0 || vec.length > 0) {
-    foreground = applyFusionAndFilter(ix, bm, vec, fgSlots, excludeSlugs, projectSlug);
+    foreground = applyFusionAndFilter(ix, bm, vec, fgSlots, excludeSlugs, projectSlug, filters);
   }
 
   // Background: separate global-restricted query (always runs, never starved).
@@ -117,7 +132,7 @@ async function hybridRecallWithProject(
       bgVec = ix.vectorKNNGlobal(qv, bgSlots * 3);
     }
     if (bgBm.length > 0 || bgVec.length > 0) {
-      background = applyFusionAndFilter(ix, bgBm, bgVec, bgSlots, excludeSlugs, undefined);
+      background = applyFusionAndFilter(ix, bgBm, bgVec, bgSlots, excludeSlugs, undefined, filters);
     }
     // Fill remaining background slots from any available global notes.
     if (background.length < bgSlots) {
@@ -126,11 +141,20 @@ async function hybridRecallWithProject(
         ...background.map((p) => `${p.relPath}#${p.anchor}`),
       ]);
       const need = bgSlots - background.length;
-      const fallbackHits = ix.globalFallbackNotes(need + fgAndBgKeys.size);
-      const extra = toPointers(fallbackHits.filter(
-        (h) => !fgAndBgKeys.has(`${h.relPath}#${h.anchor}`) &&
-          !excludeSlugs.includes(h.relPath),
-      )).slice(0, need);
+      const fallbackHits = ix.globalFallbackNotes((need + fgAndBgKeys.size) * 3);
+      const fallbackRelPaths = fallbackHits.map((h) => h.relPath);
+      const fallbackMeta = ix.getFilterMeta(fallbackRelPaths);
+      const fallbackRoleActive = !!filters.role && fallbackRelPaths.some((p) => fallbackMeta.get(p)?.agentRole != null);
+      const extra = toPointers(
+        fallbackHits
+          .filter(
+            (h) => !fgAndBgKeys.has(`${h.relPath}#${h.anchor}`) &&
+              !excludeSlugs.includes(h.relPath) &&
+              passesMeta(fallbackMeta.get(h.relPath), filters, fallbackRoleActive),
+          )
+          .sort((a, b) => archivePenalty(b.relPath) - archivePenalty(a.relPath))
+          .slice(0, need),
+      );
       background = [...background, ...extra];
     }
   } catch { /* background is best-effort */ }
@@ -145,6 +169,23 @@ async function hybridRecallWithProject(
   return combined;
 }
 
+type FilterMeta = { project: string | null; created: string | null; type: string | null; agentRole: string | null; generated: boolean } | undefined;
+
+function passesMeta(
+  m: FilterMeta,
+  filters: { type?: string; since?: string; role?: string },
+  roleActive: boolean,
+): boolean {
+  if (m?.generated) return false;
+  if (filters.type && m?.type !== filters.type) return false;
+  if (filters.since) {
+    const c = m?.created ? Date.parse(m.created) : NaN;
+    if (isNaN(c) || c < Date.parse(filters.since)) return false;
+  }
+  if (roleActive && m?.agentRole !== filters.role) return false;
+  return true;
+}
+
 /**
  * Apply RRF fusion of bm25 and vector arms, then filter, score, and slice to k.
  * When projectSlug is set, the isCrossProject filter is applied (fail-closed).
@@ -156,6 +197,7 @@ function applyFusionAndFilter(
   k: number,
   excludeSlugs: string[],
   projectSlug: string | undefined,
+  filters: { type?: string; since?: string; role?: string } = {},
 ): Pointer[] {
   if (bm.length === 0 && vec.length === 0) return [];
 
@@ -164,14 +206,18 @@ function applyFusionAndFilter(
     const exclude = new Set(excludeSlugs);
     const relPaths = [...new Set(bm.map((h) => h.relPath))];
     const projects = projectSlug ? ix.getProjectsForPaths(relPaths) : new Map<string, string>();
-    const created = ix.getCreatedForPaths(relPaths);
+    const meta = ix.getFilterMeta(relPaths);
+    const roleActive = !!filters.role && relPaths.some((p) => meta.get(p)?.agentRole != null);
     const now = Date.now();
     const scored = bm
       .filter((h) => !exclude.has(h.relPath))
       .filter((h) => !projectSlug || !isCrossProject(projects.get(h.relPath), projectSlug))
+      .filter((h) => passesMeta(meta.get(h.relPath), filters, roleActive))
       .map((h) => {
+        const created = meta.get(h.relPath)?.created ?? undefined;
         let score = boostScore(1, projects.get(h.relPath), projectSlug);
-        score *= decayFactor(created.get(h.relPath), now);
+        score *= decayFactor(created, now);
+        score *= archivePenalty(h.relPath);
         return { h, score };
       })
       .sort((a, b) => b.score - a.score)
@@ -184,15 +230,19 @@ function applyFusionAndFilter(
     const exclude = new Set(excludeSlugs);
     const relPaths = [...new Set(vec.map((h) => h.relPath))];
     const projects = projectSlug ? ix.getProjectsForPaths(relPaths) : new Map<string, string>();
-    const created = ix.getCreatedForPaths(relPaths);
+    const meta = ix.getFilterMeta(relPaths);
+    const roleActive = !!filters.role && relPaths.some((p) => meta.get(p)?.agentRole != null);
     const now = Date.now();
     const scored = vec
       .filter((h) => h.distance == null || h.distance <= VECTOR_DISTANCE_CUTOFF)
       .filter((h) => !exclude.has(h.relPath))
       .filter((h) => !projectSlug || !isCrossProject(projects.get(h.relPath), projectSlug))
+      .filter((h) => passesMeta(meta.get(h.relPath), filters, roleActive))
       .map((h) => {
+        const created = meta.get(h.relPath)?.created ?? undefined;
         let score = boostScore(1, projects.get(h.relPath), projectSlug);
-        score *= decayFactor(created.get(h.relPath), now);
+        score *= decayFactor(created, now);
+        score *= archivePenalty(h.relPath);
         return { h, score };
       })
       .sort((a, b) => b.score - a.score)
@@ -211,7 +261,8 @@ function applyFusionAndFilter(
   const projects = projectSlug
     ? ix.getProjectsForPaths(candidateRelPaths)
     : new Map<string, string>();
-  const created = ix.getCreatedForPaths(candidateRelPaths);
+  const meta = ix.getFilterMeta(candidateRelPaths);
+  const roleActive = !!filters.role && candidateRelPaths.some((p) => meta.get(p)?.agentRole != null);
   const now = Date.now();
   const exclude = new Set(excludeSlugs);
   const decayed = fused
@@ -220,8 +271,11 @@ function applyFusionAndFilter(
       if (!hit) return null;
       if (exclude.has(hit.relPath)) return null;
       if (projectSlug && isCrossProject(projects.get(hit.relPath), projectSlug)) return null;
+      if (!passesMeta(meta.get(hit.relPath), filters, roleActive)) return null;
+      const created = meta.get(hit.relPath)?.created ?? undefined;
       let score = boostScore(e.score, projects.get(hit.relPath), projectSlug);
-      score *= decayFactor(created.get(hit.relPath), now);
+      score *= decayFactor(created, now);
+      score *= archivePenalty(hit.relPath);
       return { id: e.id, score };
     })
     .filter((e): e is { id: string; score: number } => e !== null)

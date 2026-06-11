@@ -78,6 +78,18 @@ describe("searchIndex", () => {
     ix.close();
   });
 
+  it("persists note_type and agent_role and exposes them via getFilterMeta", () => {
+    const ix = openIndex();
+    ix.upsertNote("decisions/d.md", 1, "h", [
+      { headingPath: "", anchor: "", text: "alpha" },
+    ], [vec(0.3)], "global", "2026-01-01", "decision", "planner");
+    const meta = ix.getFilterMeta(["decisions/d.md"]);
+    expect(meta.get("decisions/d.md")).toEqual({
+      project: "global", created: "2026-01-01", type: "decision", agentRole: "planner", generated: false,
+    });
+    ix.close();
+  });
+
   it("re-upsert/delete purges FTS heading terms (no stale contentless rows)", () => {
     const ix = openIndex();
     ix.upsertNote("p/h.md", 1, "h1",

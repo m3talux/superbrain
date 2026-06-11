@@ -8,6 +8,7 @@ import { openIndex } from "./searchIndex.js";
 import { parseNote } from "./frontmatter.js";
 import { deriveEdges, deleteEdgesFrom, upsertEdges } from "./edges.js";
 import { slug as routerSlug } from "./router.js";
+import { buildProjectIndex, enumerateProjectSlugs } from "./projectIndex.js";
 
 const EXCLUDED = new Set([".trash", ".obsidian", ".git", "node_modules"]);
 
@@ -38,7 +39,13 @@ async function indexInto(ix: ReturnType<typeof openIndex>, relPath: string) {
   const created = typeof fm.created === "string" ? fm.created
     : fm.created instanceof Date ? (fm.created as Date).toISOString()
     : undefined;
-  ix.upsertNote(relPath, Math.floor(fs.statSync(abs).mtimeMs), sha(raw), chunks, embs, fm.project as string | undefined, created);
+  ix.upsertNote(
+    relPath, Math.floor(fs.statSync(abs).mtimeMs), sha(raw), chunks, embs,
+    fm.project as string | undefined, created,
+    typeof fm.type === "string" ? fm.type : undefined,
+    typeof fm.agent_role === "string" ? fm.agent_role : undefined,
+    fm.generated === true,
+  );
   upsertEdges(ix.db, deriveEdges(relPath, fm));
 }
 
@@ -166,6 +173,17 @@ export async function reconcile(): Promise<{ added: number; updated: number; del
     }
     for (const rel of ix.allIndexedPaths())
       if (!presentSet.has(rel)) { ix.deleteNote(rel); res.deleted++; }
+    const slugs = enumerateProjectSlugs(root);
+    for (const projSlug of slugs) {
+      try {
+        const { relPath: idxRel, changed } = buildProjectIndex(projSlug);
+        if (changed) {
+          const wasPresent = presentSet.has(idxRel);
+          await indexInto(ix, idxRel);
+          if (wasPresent) res.updated++; else res.added++;
+        }
+      } catch { /* swallow per-project errors */ }
+    }
     return res;
   } finally { ix.close(); }
 }

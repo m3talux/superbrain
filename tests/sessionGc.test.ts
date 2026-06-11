@@ -115,6 +115,18 @@ describe("pruneSessionFiles", () => {
     expect(result.errors).toEqual([]);
   });
 
+  it("a fresh needs-distill flag keeps the session group from being pruned", () => {
+    const sd = sessDir(TMP);
+    const old = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
+    fs.writeFileSync(path.join(sd, "B.ndjson"), "x\n");
+    fs.utimesSync(path.join(sd, "B.ndjson"), old, old);
+    fs.writeFileSync(path.join(sd, "B.needs-distill"), "1");
+    const res = pruneSessionFiles(TMP, { maxAgeDays: 30 });
+    expect(res.deleted).toHaveLength(0);
+    expect(fs.existsSync(path.join(sd, "B.ndjson"))).toBe(true);
+    expect(fs.existsSync(path.join(sd, "B.needs-distill"))).toBe(true);
+  });
+
   it("handles all known session extensions: .ndjson .cursor .pending .salience.json .injected.json .turns.json", () => {
     const old = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
     const sid = "session-exts-001";

@@ -4,6 +4,7 @@ const KNOWN_EXTENSIONS = new Set([
     ".ndjson",
     ".cursor",
     ".pending",
+    ".needs-distill",
     ".salience.json",
     ".injected.json",
     ".turns.json",

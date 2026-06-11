@@ -12,7 +12,7 @@ async function main() {
         }
         catch { /* noop */ }
         try {
-            releaseLock("distill");
+            releaseLock("distill", process.env.SUPERBRAIN_LOCK_TOKEN);
         }
         catch { /* noop */ }
         process.exit(0);
@@ -27,7 +27,7 @@ async function main() {
         }
         catch { /* noop */ }
         try {
-            releaseLock("distill");
+            releaseLock("distill", process.env.SUPERBRAIN_LOCK_TOKEN);
         }
         catch { /* noop */ }
     }

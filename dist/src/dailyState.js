@@ -19,3 +19,12 @@ export function upsertDay(date, sessionId, entry) {
     cur[sessionId] = entry;
     fs.writeFileSync(f, JSON.stringify(cur));
 }
+export function childrenOf(date, parentId) {
+    if (!parentId)
+        return [];
+    const day = readDay(date);
+    return Object.keys(day)
+        .filter((sid) => day[sid].parentSessionId === parentId)
+        .sort()
+        .map((sid) => ({ sessionId: sid, entry: day[sid] }));
+}

@@ -12,8 +12,17 @@ async function main() {
     const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
     const { z } = await import("zod");
     const { handleSearch } = await import("../src/mcpSearch.js");
+    const { handleChildren } = await import("../src/mcpChildren.js");
     const server = new McpServer({ name: "superbrain", version: "0.8.1" });
-    server.tool("superbrain_search", "Search the user's SuperBrain Obsidian vault (past decisions, projects, people, gotchas).", { query: z.string(), k: z.number().optional() }, async ({ query, k }) => (await handleSearch({ query, k })));
+    server.tool("superbrain_search", "Search the user's SuperBrain Obsidian vault (past decisions, projects, people, gotchas). Optional scope: project (slug), type (note type e.g. decision/capture/lesson), since (ISO date, only newer notes), role (agent_role).", {
+        query: z.string(),
+        k: z.number().optional(),
+        project: z.string().optional(),
+        type: z.string().optional(),
+        since: z.string().optional(),
+        role: z.string().optional(),
+    }, async ({ query, k, project, type, since, role }) => (await handleSearch({ query, k, project, type, since, role })));
+    server.tool("superbrain_children", "List the daily-state entries (open threads, projects) of the child sessions a given parent session dispatched on a date (defaults to today).", { parentSessionId: z.string(), date: z.string().optional() }, async ({ parentSessionId, date }) => (await handleChildren({ parentSessionId, date })));
     const transport = new StdioServerTransport();
     server.connect(transport).catch(() => process.exit(1));
 }

@@ -23,15 +23,19 @@ import { filterToUniversal } from "./preferenceClassify.js";
 import { resolveLinks } from "./wikilink.js";
 import { gcTranscript } from "./transcriptStore.js";
 import { pruneSessionFiles } from "./sessionGc.js";
+import { sweepPendingDistills, clearFlag } from "./distillSweep.js";
 import { classify } from "./classification.js";
 import { recordRejection } from "./rejectQueue.js";
 import { type NoteType } from "./templates.js";
 import { serializeNote } from "./frontmatter.js";
+import { attributionFromEnv } from "./attribution.js";
+import { parentSessionId, attributionFields } from "./sessionAttribution.js";
 import { dedupAgainstVault } from "./distillDedup.js";
 import { openIndex } from "./searchIndex.js";
 import { embed } from "./embed.js";
 import { classifyPath, basenameSlug } from "./projectDetect.js";
 import { slug, asText } from "./router.js";
+import { buildProjectIndex } from "./projectIndex.js";
 
 export interface SessionProjectResult {
   dominant: string | undefined;
@@ -247,14 +251,14 @@ export interface DistillEventsResult {
 export function readKnownProjectSlugs(vault: string): Set<string> {
   const override = process.env.SUPERBRAIN_KNOWN_SLUGS_OVERRIDE;
   if (override !== undefined) {
-    return new Set(override.split(",").map(s => s.trim().toLowerCase()).filter(Boolean));
+    return new Set(override.split(",").map(s => s.trim()).filter(Boolean).map(s => slug(s)));
   }
   const projectsDir = path.join(vault, "projects");
   const slugs = new Set<string>();
   try {
     for (const entry of fs.readdirSync(projectsDir)) {
       if (entry.endsWith(".md") && !entry.startsWith("_")) {
-        slugs.add(entry.slice(0, -3).toLowerCase());
+        slugs.add(slug(entry.slice(0, -3)));
       }
     }
   } catch { /* projects dir absent */ }
@@ -262,12 +266,15 @@ export function readKnownProjectSlugs(vault: string): Set<string> {
 }
 
 export async function distillFromEvents(sid: string, events: any[]): Promise<DistillEventsResult> {
+  const attribution = attributionFromEnv();
   const env = getEnvelope(JSON.stringify(events));
   const sessionProj = resolveSessionProject(events);
+  const parent = parentSessionId();
   const PROJECT_SCOPED_KINDS = new Set<string>(["project_fact", "gotcha", "decision", "capture"]);
   const items = env.items;
   const routedByDate: Record<string, string[]> = {};
   let notesWritten = 0;
+  const touchedProjects = new Set<string>();
   for (const it of items) {
     try {
       if (!it.project && PROJECT_SCOPED_KINDS.has(it.kind) && sessionProj.all.length === 1 && sessionProj.dominant) {
@@ -300,11 +307,14 @@ export async function distillFromEvents(sid: string, events: any[]): Promise<Dis
       }
       const r = route(it);
       if (r.mode !== "create") {
-        const res0 = writeNote(r.relPath, { frontmatter: r.frontmatter, body: r.body, mode: r.mode });
+        const res0 = writeNote(r.relPath, { frontmatter: { ...r.frontmatter, ...attribution, ...attributionFields() }, body: r.body, mode: r.mode });
         if (res0.ok && res0.reason !== "duplicate-skipped") {
           try { await indexNote(r.relPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
           (routedByDate[it.date] ||= []).push(r.relPath);
           notesWritten++;
+          if (it.project) touchedProjects.add(it.project);
+          const projMatch = r.relPath.match(/^projects\/([^/_][^/]*)\.md$/);
+          if (projMatch) touchedProjects.add(slug(projMatch[1]));
           if (it.kind === "preference") {
             try { emitPreferencesCore(it.body ?? ""); } catch { /* best-effort */ }
           }
@@ -390,11 +400,14 @@ export async function distillFromEvents(sid: string, events: any[]): Promise<Dis
           writeFailure(`classify failed for '${it.title}': ${e?.message || e}`);
         }
       }
-      const res = writeNote(writeRelPath, { frontmatter: writeFrontmatter, body: writeBody, mode: r.mode });
+      const res = writeNote(writeRelPath, { frontmatter: { ...writeFrontmatter, ...attribution, ...attributionFields() }, body: writeBody, mode: r.mode });
       if (res.ok && res.reason !== "duplicate-skipped") {
         try { await indexNote(writeRelPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
         (routedByDate[it.date] ||= []).push(writeRelPath);
         notesWritten++;
+        if (it.project) touchedProjects.add(it.project);
+        const projMatch2 = writeRelPath.match(/^projects\/([^/_][^/]*)\.md$/);
+        if (projMatch2) touchedProjects.add(slug(projMatch2[1]));
       }
     } catch (e: any) {
       recordRejection(vaultPath(), {
@@ -407,6 +420,14 @@ export async function distillFromEvents(sid: string, events: any[]): Promise<Dis
       writeFailure(`item dropped: ${e?.message || e}`);
     }
   }
+  for (const projSlug of touchedProjects) {
+    try {
+      const { relPath: idxRelPath, changed } = buildProjectIndex(projSlug);
+      if (changed) {
+        try { await indexNote(idxRelPath); } catch (e: any) { writeFailure(`index failed: ${e?.message || e}`); }
+      }
+    } catch (e: any) { writeFailure(`project index build failed for '${projSlug}': ${e?.message || e}`); }
+  }
   try {
     const dates = Object.keys(routedByDate);
     const today = new Date().toISOString().slice(0, 10);
@@ -418,6 +439,7 @@ export async function distillFromEvents(sid: string, events: any[]): Promise<Dis
         openThreads: env.openThreads,
         ...(sessionProj.dominant !== undefined ? { project: sessionProj.dominant } : {}),
         ...(sessionProj.all.length > 1 ? { projects: sessionProj.all } : {}),
+        ...(parent !== undefined ? { parentSessionId: parent } : {}),
       });
       const dn = buildDailyNote(d);
       writeNote(dn.relPath, { frontmatter: dn.frontmatter, body: dn.body, mode: dn.mode });
@@ -427,36 +449,30 @@ export async function distillFromEvents(sid: string, events: any[]): Promise<Dis
   return { notesWritten };
 }
 
+async function distillSession(sid: string): Promise<void> {
+  const from = readCursor(sid);
+  const { events, newOffset } = readDelta(sid, from);
+  if (events.length === 0) { writeCursor(sid, newOffset); return; }
+  if (!process.env.SUPERBRAIN_DISTILL_STUB) {
+    const sk = shouldSkipDistill(events);
+    if (sk.skip) { logDistillSkip(sid, sk.reason); writeCursor(sid, newOffset); return; }
+  }
+  await distillFromEvents(sid, events);
+  writeCursor(sid, newOffset);
+}
+
 export async function runDistill(): Promise<void> {
   const sid = process.env.SUPERBRAIN_SESSION_ID
     || (() => { try { return JSON.parse(fs.readFileSync(0, "utf8")).session_id; } catch { return "unknown"; } })();
   try {
-    const from = readCursor(sid);
-    const { events, newOffset } = readDelta(sid, from);
-    if (events.length === 0) { releaseLock("distill"); process.exit(0); }
-    // Pre-LLM skip check. Test stubs (SUPERBRAIN_DISTILL_STUB) bypass this so
-    // fixtures that supply a small canned envelope still go through the full
-    // routing path.
-    if (!process.env.SUPERBRAIN_DISTILL_STUB) {
-      const sk = shouldSkipDistill(events);
-      if (sk.skip) {
-        logDistillSkip(sid, sk.reason);
-        writeCursor(sid, newOffset);
-        releaseLock("distill");
-        return;
-      }
-    }
-    await distillFromEvents(sid, events);
-    writeCursor(sid, newOffset);
-    // GC the transcript snapshot now that distillation succeeded. Best-effort:
-    // a missing snapshot is fine (checkpoint may not have run), and a deletion
-    // failure must never abort an otherwise-successful distill.
+    await distillSession(sid);
+    clearFlag(sid);
     try { gcTranscript(path.join(dataDir(), "transcripts"), sid); } catch { /* best-effort */ }
-    // GC old session files. Best-effort: never abort an otherwise-successful distill.
+    try { await sweepPendingDistills(sid, distillSession); } catch (e: any) { writeFailure(`sweep failed: ${e?.message || e}`); }
     try { pruneSessionFiles(dataDir()); } catch { /* best-effort */ }
   } catch (e: any) {
     writeFailure(`distill failed: ${e?.message || e}`);
   } finally {
-    releaseLock("distill");
+    releaseLock("distill", process.env.SUPERBRAIN_LOCK_TOKEN);
   }
 }

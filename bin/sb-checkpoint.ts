@@ -30,7 +30,13 @@ function main() {
       }
     } catch { /* transcript copy best-effort */ }
 
-    if (!acquireLock("distill")) process.exit(0); // another distill in flight; cursor covers us next time
+    if (!acquireLock("distill")) {
+      try {
+        fs.mkdirSync(path.join(dataDir(), "sessions"), { recursive: true });
+        fs.writeFileSync(path.join(dataDir(), "sessions", `${sid}.needs-distill`), "1");
+      } catch { /* best-effort: flag write must never crash the hook */ }
+      process.exit(0);
+    }
 
     try {
       if (process.env.SUPERBRAIN_FAKE_DISTILLER === "1") {
@@ -41,7 +47,9 @@ function main() {
         // It runs claude -p itself (getItems), routes/writes/logs/advances cursor/releases lock.
         const rawCwd = h.cwd || process.cwd();
         const safeCwd = (rawCwd && fs.existsSync(rawCwd)) ? rawCwd : process.cwd();
-        const spec = buildDistillCommand({ sessionId: sid, cwd: safeCwd });
+        let lockToken: string | undefined;
+        try { lockToken = fs.readFileSync(path.join(dataDir(), "locks", "distill.lock", "token"), "utf8"); } catch { /* best-effort */ }
+        const spec = buildDistillCommand({ sessionId: sid, cwd: safeCwd, lockToken });
         const child = spawn(spec.cmd, spec.args, spec.options);
         child.on("error", (e) => { writeFailure(`distiller spawn failed: ${e.message}`); releaseLock("distill"); });
         child.unref(); // detached; sb-distill releases the lock when done

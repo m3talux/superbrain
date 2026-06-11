@@ -173,4 +173,23 @@ describe("vaultWriter", () => {
 
     delete process.env.SUPERBRAIN_PROJECT_NOTE_CAP_BYTES;
   });
+
+  it("project-note append survives a concurrent peer write (CAS)", () => {
+    const fm = { type: "project", status: "active", project: "demo" };
+    writeNote("projects/demo.md", { frontmatter: fm, body: "# demo\n\n## Recent activity\n", mode: "create" });
+    writeNote("projects/demo.md", { frontmatter: fm, body: "BBBB fact bravo this is distiller B unique content line one two three", mode: "append" });
+    writeNote("projects/demo.md", { frontmatter: fm, body: "AAAA fact alpha this is distiller A unique content line one two three", mode: "append" });
+    const t = fs.readFileSync(path.join(TMP, "projects/demo.md"), "utf8");
+    expect(t).toContain("BBBB fact bravo");
+    expect(t).toContain("AAAA fact alpha");
+  });
+
+  it("general append survives a concurrent peer write (CAS)", () => {
+    writeNote("daily/2026-05-19.md", { frontmatter: { type: "daily" }, body: "first body alpha unique content line one two three four", mode: "create" });
+    writeNote("daily/2026-05-19.md", { frontmatter: { type: "daily" }, body: "BBBB peer body bravo unique content line one two three four", mode: "append" });
+    writeNote("daily/2026-05-19.md", { frontmatter: { type: "daily" }, body: "AAAA later body alpha unique content line one two three four", mode: "append" });
+    const t = fs.readFileSync(path.join(TMP, "daily/2026-05-19.md"), "utf8");
+    expect(t).toContain("BBBB peer body bravo");
+    expect(t).toContain("AAAA later body alpha");
+  });
 });

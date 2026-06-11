@@ -44,6 +44,21 @@ describe("sb-checkpoint", () => {
     expect(fs.existsSync(path.join(TMP, "distill-invoked"))).toBe(false);
   });
 
+  it("contended checkpoint flags the session needs-distill and exits 0", () => {
+    fs.mkdirSync(path.join(TMP, "sessions"), { recursive: true });
+    fs.writeFileSync(path.join(TMP, "sessions/S.pending"), "1");
+    fs.mkdirSync(path.join(TMP, "locks/distill.lock"), { recursive: true });
+    run({ session_id: "S", hook_event_name: "Stop", cwd: "/p", transcript_path: "/dev/null" });
+    expect(fs.existsSync(path.join(TMP, "distill-invoked"))).toBe(false);
+    expect(fs.existsSync(path.join(TMP, "sessions/S.needs-distill"))).toBe(true);
+    expect(fs.existsSync(path.join(TMP, "sessions/S.pending"))).toBe(true);
+  });
+
+  it("uncontended checkpoint writes no needs-distill flag", () => {
+    run({ session_id: "S", hook_event_name: "PreCompact", cwd: "/p", transcript_path: "/dev/null" });
+    expect(fs.existsSync(path.join(TMP, "sessions/S.needs-distill"))).toBe(false);
+  });
+
   it("multiple checkpoints for the same session produce exactly one snapshot file (no timestamped suffix)", () => {
     const sid = "sid-overwrite-test";
     const transcriptsDir = path.join(TMP, "transcripts");
