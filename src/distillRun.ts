@@ -251,14 +251,14 @@ export interface DistillEventsResult {
 export function readKnownProjectSlugs(vault: string): Set<string> {
   const override = process.env.SUPERBRAIN_KNOWN_SLUGS_OVERRIDE;
   if (override !== undefined) {
-    return new Set(override.split(",").map(s => s.trim().toLowerCase()).filter(Boolean));
+    return new Set(override.split(",").map(s => s.trim()).filter(Boolean).map(s => slug(s)));
   }
   const projectsDir = path.join(vault, "projects");
   const slugs = new Set<string>();
   try {
     for (const entry of fs.readdirSync(projectsDir)) {
       if (entry.endsWith(".md") && !entry.startsWith("_")) {
-        slugs.add(entry.slice(0, -3).toLowerCase());
+        slugs.add(slug(entry.slice(0, -3)));
       }
     }
   } catch { /* projects dir absent */ }
