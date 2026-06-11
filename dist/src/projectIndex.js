@@ -3,6 +3,7 @@ import path from "node:path";
 import { vaultPath } from "./paths.js";
 import { parseNote, serializeNote } from "./frontmatter.js";
 import { atomicWrite } from "./atomicWrite.js";
+import { slug } from "./router.js";
 const WALK_EXCLUDE = new Set([".trash", ".obsidian", ".git", "node_modules"]);
 const TYPE_ORDER = ["project", "decision", "lesson", "gotcha", "person", "capture"];
 const TYPE_PLURAL = {
@@ -30,11 +31,11 @@ function walkVault(dir, root, acc) {
 }
 export function projectOfNote(relPath, fm) {
     if (fm.project && typeof fm.project === "string" && fm.project.trim()) {
-        return fm.project.trim().toLowerCase();
+        return slug(fm.project);
     }
     const parts = relPath.split("/");
     if (parts[0] === "projects" && parts.length === 2 && !parts[1].startsWith("_")) {
-        return parts[1].replace(/\.md$/, "").toLowerCase();
+        return slug(parts[1].replace(/\.md$/, ""));
     }
     return null;
 }
@@ -107,7 +108,7 @@ export function enumerateProjectSlugs(vaultRoot) {
     try {
         for (const entry of fs.readdirSync(projectsDir)) {
             if (entry.endsWith(".md") && !entry.startsWith("_")) {
-                slugs.add(entry.slice(0, -3).toLowerCase());
+                slugs.add(slug(entry.slice(0, -3)));
             }
         }
     }
