@@ -168,7 +168,7 @@ it("old session notes are soft-deleted to .trash; fresh ones kept", () => {
     fs.writeFileSync(freshNote, "fresh");
     const old = (Date.now() - 40 * 24 * 3_600_000) / 1000;
     fs.utimesSync(oldNote, old, old);
-    const res = pruneSessionNotes(vault);
+    const res = pruneSessionNotes();
     expect(res.deleted.length).toBe(1);
     expect(fs.existsSync(oldNote)).toBe(false);
     expect(fs.existsSync(freshNote)).toBe(true);

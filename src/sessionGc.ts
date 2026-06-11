@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { softDelete } from "./vaultWriter.js";
+import { vaultPath } from "./paths.js";
 
 export interface SessionGcOptions {
   maxAgeDays?: number;
@@ -104,14 +105,11 @@ export function pruneSessionFiles(
   return result;
 }
 
-export function pruneSessionNotes(
-  vault: string,
-  opts?: SessionGcOptions,
-): SessionGcResult {
+export function pruneSessionNotes(opts?: SessionGcOptions): SessionGcResult {
   const maxAgeDays = opts?.maxAgeDays ?? 30;
   const dryRun = opts?.dryRun ?? false;
   const result: SessionGcResult = { deleted: [], skipped: 0, errors: [] };
-  const dir = path.join(vault, "sessions");
+  const dir = path.join(vaultPath(), "sessions");
   let entries: string[];
   try { entries = fs.readdirSync(dir); } catch { return result; }
   const nowMs = Date.now();
