@@ -57,6 +57,8 @@ export function writeNote(rel: string, args: WriteArgs): WriteResult {
       let archived: ArchivedSection[] = [];
       let dedupHit = false;
       casWrite(abs, (currentRaw) => {
+        dedupHit = false;
+        archived = [];
         let currentBody: string;
         let baseFm: Record<string, any>;
         if (currentRaw) {
@@ -137,6 +139,7 @@ export function writeNote(rel: string, args: WriteArgs): WriteResult {
   }
   let dedupHit = false;
   casWrite(abs, (currentRaw) => {
+    dedupHit = false;
     const parsed = parseNote(currentRaw ?? "");
     const newNorm = normBody(args.body);
     if (newNorm.length >= 40 && normBody(parsed.content).includes(newNorm)) {
