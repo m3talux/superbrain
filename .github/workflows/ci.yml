@@ -42,3 +42,39 @@ jobs:
 
       - name: Verify shipped dist is reproducible
         run: git diff --exit-code dist
+
+  # Broader coverage matrix. Kept as a SEPARATE job so the required status check
+  # named "typecheck • build • test" above is unchanged — turning that job into a
+  # matrix would rename its checks and stall branch protection. macOS is included
+  # because the lock/spawn paths these tests cover are exercised most on darwin.
+  compat:
+    name: compat
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: [20, 22]
+        exclude:
+          - os: ubuntu-latest
+            node: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
