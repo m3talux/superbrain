@@ -18,6 +18,14 @@ afterEach(() => {
 const vec = (n: number) => Float32Array.from(Array(256).fill(n));
 
 describe("searchIndex", () => {
+  it("opens with WAL and a non-zero busy_timeout so cross-process writers wait, not throw", () => {
+    const ix = openIndex();
+    expect(String(ix.db.pragma("journal_mode", { simple: true })).toLowerCase()).toBe("wal");
+    // Pinned explicitly rather than relying on better-sqlite3's 5000ms default,
+    // so a library default change can't silently shorten the cross-writer wait.
+    expect(ix.db.pragma("busy_timeout", { simple: true })).toBeGreaterThanOrEqual(10000);
+    ix.db.close();
+  });
   it("upsert → bm25 + vectorKNN; re-upsert replaces; delete removes", () => {
     const ix = openIndex();
     ix.upsertNote("projects/x.md", 1, "h1", [

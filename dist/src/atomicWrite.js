@@ -40,7 +40,9 @@ export function casWrite(file, produce, opts = {}) {
             return { ok: true, attempts: attempt };
         }
     }
-    const last = readWithChecksum(file);
-    atomicWrite(file, produce(last ? last.content : null));
-    return { ok: true, attempts: maxAttempts };
+    // Contention never settled. The old fallback blindly overwrote here, clobbering
+    // whichever concurrent writer last touched the file (and through a TOCTOU
+    // window at that). Decline instead: leave the peer's data intact and report
+    // failure so the caller can retry rather than silently lose the other write.
+    return { ok: false, attempts: maxAttempts };
 }

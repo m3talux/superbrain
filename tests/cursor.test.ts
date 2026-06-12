@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -25,5 +25,14 @@ describe("cursor", () => {
     writeCursor("s", 10);
     fs.writeFileSync(path.join(TMP, "sessions/s.cursor"), "garbage");
     expect(readCursor("s")).toBe(0);
+  });
+  it("preserves the prior cursor when a write is interrupted mid-flight", () => {
+    writeCursor("s", 4096);
+    // A truncated cursor reads back as 0, which reprocesses the whole session;
+    // an atomic write keeps the old offset intact when the new write fails.
+    const spy = vi.spyOn(fs, "writeSync").mockImplementationOnce(() => { throw new Error("ENOSPC"); });
+    expect(() => writeCursor("s", 8192)).toThrow();
+    spy.mockRestore();
+    expect(readCursor("s")).toBe(4096);
   });
 });

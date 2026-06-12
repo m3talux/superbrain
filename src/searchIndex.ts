@@ -107,6 +107,11 @@ export function openIndex(): Index {
   const db = new Database(dbPath);
   sqliteVec.load(db);
   db.pragma("journal_mode = WAL");
+  // distill and reconcile hold different locks, so both can write index.db at
+  // once. WAL + an explicit busy_timeout makes the second writer wait for the
+  // first instead of throwing SQLITE_BUSY. Pinned rather than relying on
+  // better-sqlite3's 5000ms default.
+  db.pragma("busy_timeout = 10000");
 
   ensureVecTable(db);
 

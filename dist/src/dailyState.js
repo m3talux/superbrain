@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { dataDir } from "./paths.js";
+import { atomicWrite } from "./atomicWrite.js";
 function fileFor(date) {
     return path.join(dataDir(), "daily", `${date}.json`);
 }
@@ -13,11 +14,11 @@ export function readDay(date) {
     }
 }
 export function upsertDay(date, sessionId, entry) {
-    const f = fileFor(date);
-    fs.mkdirSync(path.dirname(f), { recursive: true });
     const cur = readDay(date);
     cur[sessionId] = entry;
-    fs.writeFileSync(f, JSON.stringify(cur));
+    // atomic: a kill mid-write must never leave truncated JSON that readDay
+    // silently swallows as {} (losing the whole day's session entries).
+    atomicWrite(fileFor(date), JSON.stringify(cur));
 }
 export function childrenOf(date, parentId) {
     if (!parentId)

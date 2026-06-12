@@ -36,4 +36,21 @@ describe("casWrite", () => {
     expect(r.ok).toBe(true);
     expect(fs.readFileSync(FILE, "utf8")).toBe("ONLY\n");
   });
+
+  it("refuses to clobber under unrelenting contention; reports ok:false", () => {
+    fs.writeFileSync(FILE, "INIT\n");
+    let n = 0;
+    // Every attempt observes a fresh external write, so the CAS never stabilises.
+    // The old blind fallback overwrote the peer's data after maxAttempts; it must
+    // now decline to write and report failure instead.
+    const r = casWrite(FILE, () => {
+      fs.writeFileSync(FILE, `EXTERNAL-${++n}\n`);
+      return "MINE\n";
+    }, { maxAttempts: 3 });
+    expect(r.ok).toBe(false);
+    expect(r.attempts).toBe(3);
+    const final = fs.readFileSync(FILE, "utf8");
+    expect(final).toMatch(/^EXTERNAL-/);
+    expect(final).not.toContain("MINE");
+  });
 });

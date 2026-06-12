@@ -1,6 +1,6 @@
 import fs from "node:fs";
-import path from "node:path";
 import { cursorPath } from "./paths.js";
+import { atomicWrite } from "./atomicWrite.js";
 export function readCursor(sessionId) {
     try {
         const n = parseInt(fs.readFileSync(cursorPath(sessionId), "utf8").trim(), 10);
@@ -11,7 +11,7 @@ export function readCursor(sessionId) {
     }
 }
 export function writeCursor(sessionId, offset) {
-    const p = cursorPath(sessionId);
-    fs.mkdirSync(path.dirname(p), { recursive: true });
-    fs.writeFileSync(p, String(offset));
+    // atomic: a kill mid-write must never truncate the cursor to a value that
+    // readCursor coerces to 0 (which would reprocess the entire session).
+    atomicWrite(cursorPath(sessionId), String(offset));
 }

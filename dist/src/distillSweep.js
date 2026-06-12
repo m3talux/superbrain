@@ -3,6 +3,7 @@ import path from "node:path";
 import { sessionsDir } from "./paths.js";
 import { writeFailure } from "./sentinel.js";
 import { readCursor } from "./cursor.js";
+import { atomicWrite } from "./atomicWrite.js";
 const FLAG_EXT = ".needs-distill";
 export function flagPath(sid) {
     return path.join(sessionsDir(), `${sid}${FLAG_EXT}`);
@@ -42,8 +43,10 @@ export function readAttempts(sid) {
 }
 export function bumpAttempts(sid) {
     const n = readAttempts(sid) + 1;
+    // atomic so an interrupted bump never truncates the counter to 0, which would
+    // reset the retry budget and re-open the runaway it exists to bound.
     try {
-        fs.writeFileSync(attemptsPath(sid), String(n));
+        atomicWrite(attemptsPath(sid), String(n));
     }
     catch { /* best-effort */ }
     return n;
