@@ -11,6 +11,28 @@ function readToken(dir) {
         return null;
     }
 }
+// A lock whose recorded holder is gone should be reclaimed at once rather than
+// waiting out the mtime TTL — a crashed distill otherwise wedges every acquirer
+// for 15 minutes. Returns true only when the pid is readable AND provably dead;
+// an unreadable pid or a PID-reuse ambiguity falls through to the mtime TTL.
+function holderIsDead(dir) {
+    let pid;
+    try {
+        pid = Number(fs.readFileSync(path.join(dir, "pid"), "utf8").trim());
+    }
+    catch {
+        return false;
+    }
+    if (!Number.isInteger(pid) || pid <= 0)
+        return false;
+    try {
+        process.kill(pid, 0);
+        return false; // signal delivered (or EPERM) -> process exists
+    }
+    catch (e) {
+        return e.code === "ESRCH";
+    }
+}
 export function acquireLock(name, opts = {}) {
     const dir = lockDir(name);
     fs.mkdirSync(path.dirname(dir), { recursive: true });
@@ -26,7 +48,7 @@ export function acquireLock(name, opts = {}) {
         const maxAgeMs = opts.maxAgeMs ?? 15 * 60 * 1000;
         try {
             const age = Date.now() - fs.statSync(dir).mtimeMs;
-            if (age > maxAgeMs) {
+            if (holderIsDead(dir) || age > maxAgeMs) {
                 forceRelease(name);
                 fs.mkdirSync(dir);
                 fs.writeFileSync(path.join(dir, "pid"), String(process.pid));

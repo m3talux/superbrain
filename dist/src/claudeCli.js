@@ -4,8 +4,21 @@ import { distillModel } from "./model.js";
 // Windows installer ships as `claude.cmd`, so a direct execFile returns ENOENT.
 // shell: true routes through cmd.exe which DOES resolve the extension. Non-
 // Windows: shell: false keeps argument escaping simple and safe.
+const DEFAULT_TIMEOUT_MS = 180_000;
+const MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 export function buildClaudeSpawnOptions(platform) {
-    const opts = { encoding: "utf8" };
+    // Without a timeout a wedged `claude -p` blocks execFileSync indefinitely,
+    // stranding the distill (and its lock) until the process is killed by hand.
+    // A bounded timeout makes the hang throw, which the caller's catch routes to
+    // the sentinel + lock release. maxBuffer is raised well above Node's 1MB
+    // default so a large distill payload is not itself mistaken for a failure.
+    const envTimeout = Number(process.env.SUPERBRAIN_DISTILL_TIMEOUT_MS);
+    const timeout = Number.isFinite(envTimeout) && envTimeout > 0 ? envTimeout : DEFAULT_TIMEOUT_MS;
+    const opts = {
+        encoding: "utf8",
+        timeout,
+        maxBuffer: MAX_BUFFER_BYTES,
+    };
     if (platform === "win32")
         opts.shell = true;
     return opts;
