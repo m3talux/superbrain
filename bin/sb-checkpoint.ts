@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
-import { spawn } from "node:child_process";
 import { dataDir } from "../src/paths.js";
 import { acquireLock, releaseLock } from "../src/lockfile.js";
 import { writeFailure } from "../src/sentinel.js";
 import { isChild, buildDistillCommand } from "../src/distillerEngine.js";
+import { spawnDetachedChild } from "../src/spawnChild.js";
 import { snapshotTranscript } from "../src/transcriptStore.js";
 import { appendAssistantTail } from "../src/sessionNote.js";
 import { readLastAssistantText } from "../src/transcriptTail.js";
@@ -57,9 +57,12 @@ function main() {
         let lockToken: string | undefined;
         try { lockToken = fs.readFileSync(path.join(dataDir(), "locks", "distill.lock", "token"), "utf8"); } catch { /* best-effort */ }
         const spec = buildDistillCommand({ sessionId: sid, cwd: safeCwd, lockToken });
-        const child = spawn(spec.cmd, spec.args, spec.options);
-        child.on("error", (e) => { writeFailure(`distiller spawn failed: ${e.message}`); releaseLock("distill"); });
-        child.unref(); // detached; sb-distill releases the lock when done
+        // detached; sb-distill releases the lock when done. On spawn failure the
+        // child never gets there, so release the lock here.
+        spawnDetachedChild("distill", spec.args[0], spec.options.env, {
+          cwd: spec.options.cwd,
+          onError: () => releaseLock("distill"),
+        });
       }
       if (fs.existsSync(pendingFile)) fs.rmSync(pendingFile, { force: true });
     } catch (e: any) {

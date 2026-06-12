@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { pluginRoot as defaultPluginRoot } from "./paths.js";
+import { spawnDetachedChild } from "./spawnChild.js";
 
 // Bounded search for a compiled native addon (*.node) within a directory.
 function hasDotNode(dir: string): boolean {
@@ -55,12 +55,8 @@ export function markBootstrapDone(root: string = defaultPluginRoot()): void {
 // under a lock and writes bootstrap-done / the sentinel itself.
 export function runBootstrap(pluginRoot: string): void {
   if (bootstrapDone(pluginRoot) && depsPresent(pluginRoot)) return;
-  try {
-    const runner = fileURLToPath(new URL("../bin/sb-bootstrap.js", import.meta.url));
-    spawn(process.execPath, [runner], {
-      detached: true, stdio: "ignore",
-      env: { ...process.env, SUPERBRAIN_CHILD: "1", SUPERBRAIN_PLUGIN_ROOT: pluginRoot },
-      cwd: pluginRoot,
-    }).unref();
-  } catch { /* non-fatal; retried next SessionStart */ }
+  const runner = fileURLToPath(new URL("../bin/sb-bootstrap.js", import.meta.url));
+  spawnDetachedChild("bootstrap", runner, {
+    ...process.env, SUPERBRAIN_CHILD: "1", SUPERBRAIN_PLUGIN_ROOT: pluginRoot,
+  }, { cwd: pluginRoot });
 }

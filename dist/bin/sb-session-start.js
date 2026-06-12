@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
-import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { readAndClearFailure } from "../src/sentinel.js";
 import { dataDir, vaultPath, pluginRoot } from "../src/paths.js";
@@ -9,6 +8,7 @@ import { isChild } from "../src/distillerEngine.js";
 import { depsPresent, runBootstrap } from "../src/bootstrap.js";
 import { recordedVaultPath } from "../src/vaultMarker.js";
 import { isUnknownProject, looksLikeCodeProject } from "../src/discoverer.js";
+import { spawnDetachedChild } from "../src/spawnChild.js";
 function readStdin() { try {
     return fs.readFileSync(0, "utf8");
 }
@@ -68,10 +68,9 @@ async function main() {
                 const { shouldSpawnReconcile } = await import("../src/reconcileGate.js");
                 if (shouldSpawnReconcile(dataDir())) {
                     const reconciler = fileURLToPath(new URL("./sb-reconcile.js", import.meta.url));
-                    spawn(process.execPath, [reconciler], {
-                        detached: true, stdio: "ignore",
-                        env: { ...process.env, SUPERBRAIN_CHILD: "1", SUPERBRAIN_SESSION_ID: String(h.session_id || "") }, cwd: vaultPath(),
-                    }).unref();
+                    spawnDetachedChild("reconcile", reconciler, {
+                        ...process.env, SUPERBRAIN_CHILD: "1", SUPERBRAIN_SESSION_ID: String(h.session_id || ""),
+                    }, { cwd: vaultPath() });
                 }
             }
             catch { /* non-fatal */ }
@@ -85,10 +84,9 @@ async function main() {
                 const projectDir = h.cwd || process.env.CLAUDE_PROJECT_DIR;
                 if (projectDir && looksLikeCodeProject(projectDir) && isUnknownProject(projectDir)) {
                     const discoverer = fileURLToPath(new URL("./sb-discover.js", import.meta.url));
-                    spawn(process.execPath, [discoverer], {
-                        detached: true, stdio: "ignore",
-                        env: { ...process.env, SUPERBRAIN_CHILD: "1", SUPERBRAIN_PROJECT_DIR: projectDir },
-                    }).unref();
+                    spawnDetachedChild("discover", discoverer, {
+                        ...process.env, SUPERBRAIN_CHILD: "1", SUPERBRAIN_PROJECT_DIR: projectDir,
+                    });
                     parts.push(`SuperBrain is mapping this project for the first time — a project note will appear in the vault shortly.`);
                 }
             }

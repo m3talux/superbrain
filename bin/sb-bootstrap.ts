@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { acquireLock, releaseLock } from "../src/lockfile.js";
 import { bootstrapDone, markBootstrapDone, depsPresent } from "../src/bootstrap.js";
+import { spawnDetachedCommand } from "../src/spawnChild.js";
 import { writeFailure } from "../src/sentinel.js";
 import { dataDir, vaultPath } from "../src/paths.js";
 
@@ -82,12 +83,13 @@ async function main() {
         console.log(
           `SuperBrain: backfilling frontmatter on ${state.frontmatterMissing} legacy notes (detached, ~30s)`
         );
-        const child = spawn(
+        spawnDetachedCommand(
+          "backfill",
           "npx",
           ["tsx", "scripts/backfill-frontmatter.ts", vault, "--apply"],
-          { cwd: root, detached: true, stdio: "ignore" }
+          process.env,
+          { cwd: root },
         );
-        child.unref();
       }
     } catch (e: any) {
       writeFailure(`bootstrap migration check failed (non-fatal): ${e?.message || e}`);
