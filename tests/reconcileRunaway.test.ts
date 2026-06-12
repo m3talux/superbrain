@@ -104,7 +104,9 @@ it("a second sb-reconcile is a no-op while the first holds the reconcile lock", 
 
   const lockDir = path.join(TMP_DATA, "locks", "reconcile.lock");
   fs.mkdirSync(lockDir, { recursive: true });
-  fs.writeFileSync(path.join(lockDir, "pid"), "99999");
+  // A live holder pid: the lock primitive reclaims locks held by a dead pid,
+  // so simulating "the first still holds it" requires a process that exists.
+  fs.writeFileSync(path.join(lockDir, "pid"), String(process.pid));
   fs.writeFileSync(path.join(lockDir, "token"), "held-elsewhere");
 
   execFileSync("npx", ["tsx", "bin/sb-reconcile.ts"], { env, encoding: "utf8" });

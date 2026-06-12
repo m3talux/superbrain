@@ -288,7 +288,9 @@ describe("inject lock serialization", () => {
     process.env.SUPERBRAIN_EMBED_STUB = "1";
 
     fs.mkdirSync(path.join(dataDir, "locks/distill.lock"), { recursive: true });
-    fs.writeFileSync(path.join(dataDir, "locks/distill.lock/pid"), "99999");
+    // A live holder pid: the lock primitive reclaims locks held by a dead pid,
+    // so a genuine "held by another process" must point at a process that exists.
+    fs.writeFileSync(path.join(dataDir, "locks/distill.lock/pid"), String(process.pid));
 
     process.env.SUPERBRAIN_INJECT_LOCK_WAIT_MS = "300";
 

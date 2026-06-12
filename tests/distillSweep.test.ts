@@ -1,4 +1,4 @@
-import { it, expect, beforeEach, afterEach } from "vitest";
+import { it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -103,7 +103,20 @@ it("sweep clears the flag for an empty-delta flagged session", () => {
   expect(fs.existsSync(path.join(TMP_DATA, "sessions/B.needs-distill"))).toBe(false);
 });
 
-import { sweepPendingDistills, flagPath } from "../src/distillSweep.js";
+import { sweepPendingDistills, flagPath, bumpAttempts, readAttempts } from "../src/distillSweep.js";
+
+it("an interrupted bumpAttempts preserves the prior count, never resetting the retry budget", () => {
+  process.env.SUPERBRAIN_DATA_DIR = TMP_DATA;
+  expect(bumpAttempts("S")).toBe(1);
+  expect(bumpAttempts("S")).toBe(2);
+  // The write is best-effort (swallowed), but atomicWrite must leave the prior
+  // count intact rather than truncate it to a 0 that re-opens the runaway.
+  const spy = vi.spyOn(fs, "writeSync").mockImplementationOnce(() => { throw new Error("ENOSPC"); });
+  bumpAttempts("S");
+  spy.mockRestore();
+  expect(readAttempts("S")).toBe(2);
+  delete process.env.SUPERBRAIN_DATA_DIR;
+});
 
 it("a throwing flagged session is isolated; host distill and siblings unaffected", async () => {
   process.env.SUPERBRAIN_DATA_DIR = TMP_DATA;

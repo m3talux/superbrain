@@ -1,4 +1,4 @@
-import { it, expect, beforeEach, afterEach } from "vitest";
+import { it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -36,4 +36,23 @@ it("re-upserting the same session overwrites (no duplication)", () => {
 
 it("readDay returns {} for an unknown date", () => {
   expect(readDay("2099-01-01")).toEqual({});
+});
+
+it("preserves the prior day file when a write is interrupted mid-flight", () => {
+  upsertDay("2026-05-19", "S1", entry());
+  const f = path.join(TMP, "daily", "2026-05-19.json");
+  const before = fs.readFileSync(f, "utf8");
+
+  // atomicWrite stages content into a temp file (fs.writeSync) then renames; a
+  // crash there must leave the original intact, never a truncated JSON that
+  // readDay would silently swallow as {}. A plain in-place writeFileSync cannot
+  // offer this — the target is truncated before the failing write.
+  const spy = vi.spyOn(fs, "writeSync").mockImplementationOnce(() => { throw new Error("ENOSPC"); });
+  expect(() => upsertDay("2026-05-19", "S2", entry({ digestLine: "s2" }))).toThrow();
+  spy.mockRestore();
+
+  const after = fs.readFileSync(f, "utf8");
+  expect(after).toBe(before);
+  expect(() => JSON.parse(after)).not.toThrow();
+  expect(Object.keys(readDay("2026-05-19"))).toEqual(["S1"]);
 });
