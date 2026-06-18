@@ -39,6 +39,20 @@ afterEach(() => {
 });
 
 describe("dim/model migration self-heal", () => {
+  it("migration fires when EMBED_DIM changes (drops + rebuilds vec_chunks, meta repaired)", async () => {
+    // (moved from staticEmbed.test.ts so all dim/model migration coverage lives here)
+    const ix1 = openIndex();
+    // Corrupt the meta to simulate a dim change
+    ix1.db.prepare("UPDATE embed_meta SET value=? WHERE key='dim'").run("999");
+    ix1.close();
+
+    // Reopen - should detect mismatch and recreate vec_chunks
+    const ix2 = openIndex();
+    const dim = ix2.db.prepare("SELECT value FROM embed_meta WHERE key='dim'").get() as { value: string };
+    expect(dim.value).toBe(String(EMBED_DIM));
+    ix2.close();
+  });
+
   it("vectorKNN returns pre-existing notes after a dim/model migration (not left empty)", async () => {
     const dbPath = path.join(TMP_DATA, "index.db");
     fs.mkdirSync(TMP_DATA, { recursive: true });
