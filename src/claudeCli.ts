@@ -28,13 +28,38 @@ export function buildClaudeSpawnOptions(platform: NodeJS.Platform): ExecFileSync
 // The prompt travels on stdin, never argv: a session delta above ARG_MAX
 // (~1MB on macOS) makes an argv prompt fail with E2BIG before claude even
 // spawns, permanently stranding that session's distill.
+// A plain `claude -p` loads the full interactive harness -- the default system
+// prompt, every installed plugin's skills, MCP servers, CLAUDE.md files and
+// SessionStart hooks -- about 33K input tokens before the distill payload. The
+// distiller needs none of it: its instructions travel in the prompt and it
+// calls no tools. These flags bring that overhead to under 1K tokens per run,
+// and --no-session-persistence stops each run leaving a transcript behind.
+const LEAN_SYSTEM_PROMPT = "You turn session data into notes. Follow the instructions in the user message exactly.";
+
+// cmd.exe (shell: true on win32) drops a bare empty argument and splits on
+// spaces, so values are quoted there; elsewhere execFile passes them verbatim.
+function shellArg(value: string, platform: NodeJS.Platform): string {
+  return platform === "win32" ? `"${value}"` : value;
+}
+
+export function leanClaudeArgs(platform: NodeJS.Platform): string[] {
+  return [
+    "--tools", shellArg("", platform),
+    "--strict-mcp-config",
+    "--disable-slash-commands",
+    "--setting-sources", shellArg("", platform),
+    "--no-session-persistence",
+    "--system-prompt", shellArg(LEAN_SYSTEM_PROMPT, platform),
+  ];
+}
+
 export function buildClaudePInvocation(
   prompt: string,
   platform: NodeJS.Platform = process.platform,
 ): { args: string[]; options: ExecFileSyncOptionsWithStringEncoding } {
   const options = buildClaudeSpawnOptions(platform);
   options.input = prompt;
-  return { args: ["--model", distillModel(), "-p"], options };
+  return { args: ["--model", distillModel(), ...leanClaudeArgs(platform), "-p"], options };
 }
 
 export function claudeP(prompt: string): string {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
-import { buildClaudeSpawnOptions } from "../src/claudeCli.js";
+import { buildClaudeSpawnOptions, buildClaudePInvocation } from "../src/claudeCli.js";
 
 describe("claudeCli buildClaudeSpawnOptions", () => {
   it("returns shell: true on win32 so the .cmd shim resolves", () => {
@@ -58,5 +58,28 @@ describe("execFileSync timeout bounds a hung child", () => {
     }
     expect(threw).toBe(true);
     expect(Date.now() - start).toBeLessThan(5000);
+  });
+});
+
+describe("claudeCli buildClaudePInvocation lean flags", () => {
+  // Each distill used to pay ~33K tokens of harness overhead (plugins, skills,
+  // MCP, CLAUDE.md) on every run; these flags are what keep that out.
+  it("strips tools, MCP, skills, settings and session persistence", () => {
+    const { args } = buildClaudePInvocation("p", "darwin");
+    expect(args).toEqual(expect.arrayContaining([
+      "--strict-mcp-config", "--disable-slash-commands", "--no-session-persistence",
+    ]));
+    expect(args[args.indexOf("--tools") + 1]).toBe("");
+    expect(args[args.indexOf("--setting-sources") + 1]).toBe("");
+    expect(args[args.indexOf("--system-prompt") + 1]).not.toContain('"');
+  });
+  it("quotes empty and spaced values for cmd.exe on win32", () => {
+    const { args } = buildClaudePInvocation("p", "win32");
+    expect(args[args.indexOf("--tools") + 1]).toBe('""');
+    expect(args[args.indexOf("--setting-sources") + 1]).toBe('""');
+    expect(args[args.indexOf("--system-prompt") + 1]).toMatch(/^".+"$/);
+  });
+  it("keeps -p last so the prompt still arrives on stdin", () => {
+    expect(buildClaudePInvocation("p", "darwin").args.at(-1)).toBe("-p");
   });
 });
